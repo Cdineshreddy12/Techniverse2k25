@@ -126,7 +126,7 @@ const AdministrationPage = () => {
       members: [
         { name: "Mrs. R Deepa", role: "Mentor, IT" },
         { name: "Dr. G Eswara rao", role: "Asst. Professor, Yoga" },
-        { name: "Mrs. D Srilakshmi", role: "Instructor, Music" }
+        { name: "Mrs. D Srilakshmi", role: "Instructor, Music" },
       ]
     },
   ];
