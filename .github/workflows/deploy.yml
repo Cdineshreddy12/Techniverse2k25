@@ -14,12 +14,29 @@ jobs:
    steps:
    - uses: actions/checkout@v2
 
+   # Debug AWS credentials
+   - name: Debug AWS Credentials
+     run: |
+       aws configure list
+       aws sts get-caller-identity || echo "Failed to get identity"
+     env:
+       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+       AWS_REGION: us-east-1
+
    - name: Configure AWS credentials
-     uses: aws-actions/configure-aws-credentials@v1
+     uses: aws-actions/configure-aws-credentials@v2
      with:
        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-       aws-region: ${{ env.AWS_REGION }}
+       aws-region: us-east-1
+       role-duration-seconds: 1200
+
+   # Verify AWS Configuration
+   - name: Verify AWS Configuration
+     run: |
+       aws sts get-caller-identity
+       aws ec2 describe-instances --region us-east-1 || echo "Failed to describe instances"
 
    - name: Deploy to EC2
      uses: appleboy/ssh-action@master
@@ -28,50 +45,79 @@ jobs:
        username: ec2-user
        key: ${{ secrets.EC2_SSH_KEY }}
        script: |
-         # Install Docker Compose if not present
+         # Debug connection
+         whoami
+         pwd
+         echo "Current directory contents:"
+         ls -la
+
+         # Install Docker Compose if needed
          if ! command -v docker-compose &> /dev/null; then
+           echo "Installing Docker Compose..."
            sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
            sudo chmod +x /usr/local/bin/docker-compose
          fi
 
-         cd /home/ec2-user/Techniverse2k25
-         git pull origin main
+         echo "Navigating to project directory..."
+         cd /home/ec2-user/Techniverse2k25 || exit 1
          
-         # Create Backend .env
-         echo "PORT=4000" > Backend/.env
-         echo "NODE_ENV=production" >> Backend/.env
-         echo "MONGODB_URI=${{ secrets.MONGODB_URI }}" >> Backend/.env
-         echo "CORS_ORIGIN=http://${{ secrets.EC2_HOST }}" >> Backend/.env
-         echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> Backend/.env
-         echo "JWT_EXPIRE=7d" >> Backend/.env
-         echo "RAZORPAY_KEY_ID=${{ secrets.RAZORPAY_KEY_ID }}" >> Backend/.env
-         echo "RAZORPAY_KEY_SECRET=${{ secrets.RAZORPAY_KEY_SECRET }}" >> Backend/.env
-         echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> Backend/.env
-         echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> Backend/.env
-         echo "AWS_REGION=${{ secrets.AWS_REGION }}" >> Backend/.env
-         echo "CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME }}" >> Backend/.env
-         echo "CLOUDINARY_API_KEY=${{ secrets.CLOUDINARY_API_KEY }}" >> Backend/.env
-         echo "CLOUDINARY_API_SECRET=${{ secrets.CLOUDINARY_API_SECRET }}" >> Backend/.env
-         echo "KINDE_CLIENT_ID=${{ secrets.KINDE_CLIENT_ID }}" >> Backend/.env
-         echo "KINDE_CLIENT_SECRET=${{ secrets.KINDE_CLIENT_SECRET }}" >> Backend/.env
-         echo "KINDE_ISSUER_URL=${{ secrets.KINDE_ISSUER_URL }}" >> Backend/.env
-         echo "KINDE_REDIRECT_URL=http://${{ secrets.EC2_HOST }}:4000/api/auth/kinde_callback" >> Backend/.env
-         echo "KINDE_POST_LOGOUT_URL=http://${{ secrets.EC2_HOST }}:4000" >> Backend/.env
-         echo "PHONEPE_MERCHANT_ID=${{ secrets.PHONEPE_MERCHANT_ID }}" >> Backend/.env
-         echo "PHONEPE_SALT_KEY=${{ secrets.PHONEPE_SALT_KEY }}" >> Backend/.env
-         echo "PHONEPE_SALT_INDEX=${{ secrets.PHONEPE_SALT_INDEX }}" >> Backend/.env
-         echo "FRONTEND_URL=http://${{ secrets.EC2_HOST }}:5173" >> Backend/.env
-         echo "BACKEND_URL=http://${{ secrets.EC2_HOST }}:4000" >> Backend/.env
+         echo "Pulling latest changes..."
+         git pull origin main || exit 1
          
-         # Create Frontend .env
-         echo "VITE_CLERK_PUBLISHABLE_KEY=${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}" > my-react-app/.env
-         echo "VITE_APP_KINDE_CLIENT_ID=${{ secrets.VITE_APP_KINDE_CLIENT_ID }}" >> my-react-app/.env
-         echo "VITE_APP_KINDE_ISSUER_URL=${{ secrets.VITE_APP_KINDE_ISSUER_URL }}" >> my-react-app/.env
-         echo "VITE_APP_KINDE_REDIRECT_URL=http://${{ secrets.EC2_HOST }}/profile" >> my-react-app/.env
-         echo "VITE_APP_KINDE_POST_LOGOUT_URL=http://${{ secrets.EC2_HOST }}" >> my-react-app/.env
-         echo "VITE_APP_BACKEND_URL=http://${{ secrets.EC2_HOST }}:4000" >> my-react-app/.env
+         echo "Creating Backend .env..."
+         cat > Backend/.env << 'EOL'
+PORT=4000
+NODE_ENV=production
+MONGODB_URI=${{ secrets.MONGODB_URI }}
+CORS_ORIGIN=http://${{ secrets.EC2_HOST }}
+JWT_SECRET=${{ secrets.JWT_SECRET }}
+JWT_EXPIRE=7d
+RAZORPAY_KEY_ID=${{ secrets.RAZORPAY_KEY_ID }}
+RAZORPAY_KEY_SECRET=${{ secrets.RAZORPAY_KEY_SECRET }}
+AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+AWS_REGION=${{ secrets.AWS_REGION }}
+CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME }}
+CLOUDINARY_API_KEY=${{ secrets.CLOUDINARY_API_KEY }}
+CLOUDINARY_API_SECRET=${{ secrets.CLOUDINARY_API_SECRET }}
+KINDE_CLIENT_ID=${{ secrets.KINDE_CLIENT_ID }}
+KINDE_CLIENT_SECRET=${{ secrets.KINDE_CLIENT_SECRET }}
+KINDE_ISSUER_URL=${{ secrets.KINDE_ISSUER_URL }}
+KINDE_REDIRECT_URL=http://${{ secrets.EC2_HOST }}:4000/api/auth/kinde_callback
+KINDE_POST_LOGOUT_URL=http://${{ secrets.EC2_HOST }}:4000
+PHONEPE_MERCHANT_ID=${{ secrets.PHONEPE_MERCHANT_ID }}
+PHONEPE_SALT_KEY=${{ secrets.PHONEPE_SALT_KEY }}
+PHONEPE_SALT_INDEX=${{ secrets.PHONEPE_SALT_INDEX }}
+FRONTEND_URL=http://${{ secrets.EC2_HOST }}:5173
+BACKEND_URL=http://${{ secrets.EC2_HOST }}:4000
+EOL
+
+         echo "Creating Frontend .env..."
+         cat > my-react-app/.env << 'EOL'
+VITE_CLERK_PUBLISHABLE_KEY=${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+VITE_APP_KINDE_CLIENT_ID=${{ secrets.VITE_APP_KINDE_CLIENT_ID }}
+VITE_APP_KINDE_ISSUER_URL=${{ secrets.VITE_APP_KINDE_ISSUER_URL }}
+VITE_APP_KINDE_REDIRECT_URL=http://${{ secrets.EC2_HOST }}/profile
+VITE_APP_KINDE_POST_LOGOUT_URL=http://${{ secrets.EC2_HOST }}
+VITE_APP_BACKEND_URL=http://${{ secrets.EC2_HOST }}:4000
+EOL
+
+         echo "Checking Docker status..."
+         docker info || exit 1
          
-         # Build and deploy
-         docker-compose -f docker-compose.prod.yml down
-         docker-compose -f docker-compose.prod.yml build --no-cache
-         docker-compose -f docker-compose.prod.yml up -d
+         echo "Starting deployment..."
+         docker-compose -f docker-compose.prod.yml down || echo "Failed to stop containers"
+         docker-compose -f docker-compose.prod.yml build --no-cache || exit 1
+         docker-compose -f docker-compose.prod.yml up -d || exit 1
+         
+         echo "Checking container status..."
+         docker ps
+         
+         echo "Checking logs..."
+         docker-compose -f docker-compose.prod.yml logs --tail=50
+
+   - name: Deployment Status
+     run: |
+       echo "Deployment completed"
+       curl -I http://${{ secrets.EC2_HOST }}:5173 || echo "Frontend not responding"
+       curl -I http://${{ secrets.EC2_HOST }}:4000 || echo "Backend not responding"
