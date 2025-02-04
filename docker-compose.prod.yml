@@ -16,8 +16,6 @@ services:
     volumes:
       - ./Backend:/app
       - /app/node_modules
-    depends_on:
-      - frontend
     restart: always
     networks:
       - mern-network
@@ -34,8 +32,6 @@ services:
     volumes:
       - ./my-react-app:/app
       - /app/node_modules
-    depends_on:
-      - backend
     restart: always
     networks:
       - mern-network
@@ -43,3 +39,60 @@ services:
 networks:
   mern-network:
     driver: bridge
+version: '3.8'
+
+services:
+  backend:
+    container_name: backend
+    build:
+      context: ./Backend
+      dockerfile: Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - NODE_ENV=production
+    env_file:
+      - ./Backend/.env
+    volumes:
+      - ./Backend:/app
+      - /app/node_modules
+    restart: unless-stopped
+    depends_on:
+      - db
+    networks:
+      - mern-network
+
+  frontend:
+    container_name: frontend
+    build:
+      context: ./my-react-app
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    env_file:
+      - ./my-react-app/.env
+    volumes:
+      - ./my-react-app:/app
+      - /app/node_modules
+    restart: unless-stopped
+    depends_on:
+      - backend
+    networks:
+      - mern-network
+
+  db:
+    container_name: db
+    image: mongo:latest
+    volumes:
+      - mongo-data:/data/db
+    restart: unless-stopped
+    networks:
+      - mern-network
+
+networks:
+  mern-network:
+    driver: bridge
+
+volumes:
+  mongo-data:
