@@ -52,7 +52,7 @@ const CartComponent = () => {
   
     } catch (error) {
       console.error('Error fetching cart:', error);
-      toast.error("Failed to fetch cart");
+      toast.error("Failed to fetch cart..");
     } finally {
       setLoading(false);
     }
