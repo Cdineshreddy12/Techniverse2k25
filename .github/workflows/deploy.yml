@@ -14,6 +14,30 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
+    - name: Debug SSH Key Format
+      run: |
+        echo "Checking if SSH key secret exists..."
+        if [ -n "${{ secrets.EC2_SSH_KEY }}" ]; then
+          echo "SSH key is set in secrets"
+          echo "First line of SSH key:"
+          echo "${{ secrets.EC2_SSH_KEY }}" | head -n 1
+          echo "Number of lines in SSH key:"
+          echo "${{ secrets.EC2_SSH_KEY }}" | wc -l
+        else
+          echo "SSH key is not set in secrets!"
+        fi
+
+    - name: Debug EC2 Connection
+      run: |
+        echo "Testing connection to EC2 host..."
+        echo "EC2 Host: ${{ secrets.EC2_HOST }}"
+        nc -zv ${{ secrets.EC2_HOST }} 22 || echo "Cannot connect to port 22"
+        echo "Attempting basic SSH connection..."
+        echo "${{ secrets.EC2_SSH_KEY }}" > private_key.pem
+        chmod 600 private_key.pem
+        ssh-keygen -l -f private_key.pem || echo "Invalid key format"
+        ssh -o StrictHostKeyChecking=no -i private_key.pem -v ec2-user@${{ secrets.EC2_HOST }} "echo 'SSH connection test'" || echo "SSH connection failed"
+
     - name: Debug AWS Credentials and Environment Variables
       run: |
         # Check if the AWS credentials are set in the environment
@@ -71,6 +95,7 @@ jobs:
         host: ${{ secrets.EC2_HOST }}
         username: ec2-user
         key: ${{ secrets.EC2_SSH_KEY }}
+        debug: true
         script: |
           # Debug connection
           whoami
@@ -85,7 +110,7 @@ jobs:
             sudo chmod +x /usr/local/bin/docker-compose
           fi
 
-          echo "Navigating to project directory.."
+          echo "Navigating to project directory..."
           cd /home/ec2-user/Techniverse2k25 || exit 1
           
           echo "Pulling latest changes..."
@@ -133,7 +158,7 @@ jobs:
           echo "Checking container status..."
           docker ps
           
-          echo "Checking logs.."
+          echo "Checking logs..."
           docker-compose -f docker-compose.prod.yml logs --tail=50
 
     - name: Deployment Status
