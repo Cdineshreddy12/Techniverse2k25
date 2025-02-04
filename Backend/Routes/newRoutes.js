@@ -96,7 +96,7 @@ router.get('/news/:id', async (req, res) => {
     if (!news) {
       return res.status(404).json({
         success: false,
-        error: 'News not found'
+        error: 'News not found.'
       });
     }
 
