@@ -119,7 +119,7 @@ jobs:
           echo "Checking container status..."
           docker ps
           
-          echo "Checking logs..."
+          echo "Checking logs.."
           docker-compose -f docker-compose.prod.yml logs --tail=50
 
     - name: Deployment Status
