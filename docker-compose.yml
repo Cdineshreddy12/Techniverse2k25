@@ -1,0 +1,50 @@
+﻿version: '3.8'
+services:
+  backend:
+    build:
+      context: ./Backend
+      dockerfile: Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - NODE_ENV=development
+    env_file:
+      - ./Backend/.env
+    volumes:
+      - ./Backend:/app
+      - /app/node_modules
+    depends_on:
+      - mongodb
+    networks:
+      - mern-network
+
+  frontend:
+    build:
+      context: ./my-react-app
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./my-react-app:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - mern-network
+
+  mongodb:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - mern-network
+
+networks:
+  mern-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:
