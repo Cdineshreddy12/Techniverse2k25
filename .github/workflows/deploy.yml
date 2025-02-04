@@ -112,9 +112,14 @@ jobs:
 
           echo "Navigating to project directory..."
           cd /home/ec2-user/Techniverse2k25 || exit 1
+
+           echo "Resetting to remote branch..."
+            git fetch origin main
+            git reset --hard origin/main
+            git clean -fd  # Remove untracked files
           
           echo "Pulling latest changes..."
-          git pull origin main || exit 1
+          git pull --rebase origin main || exit 1
           
           # Create Backend .env
           echo "PORT=4000" > Backend/.env
