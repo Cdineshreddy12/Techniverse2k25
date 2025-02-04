@@ -129,15 +129,6 @@ const AdministrationPage = () => {
         { name: "Mrs. D Srilakshmi", role: "Instructor, Music" }
       ]
     },
-    {
-      title: "Stage Management",
-      icon: MonitorPlay,
-      members: [
-        { name: "Dr. R. Srinivas Rao", role: "Mentor, English" },
-        { name: "Dr. M Yogeswari", role: "Asst. Professor, English" },
-        { name: "Mrs. K Yaminikrishna", role: "Instructor, Music" }
-      ]
-    }
   ];
 
   return (
