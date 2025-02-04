@@ -1,0 +1,220 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+@keyframes shimmer-natural {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(500%);
+  }
+}
+
+@keyframes shimmer-natural-delayed {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(500%);
+  }
+}
+
+.animate-shimmer-natural {
+  animation: shimmer-natural 3s infinite linear;
+}
+
+.animate-shimmer-natural-delayed {
+  animation: shimmer-natural-delayed 3s infinite linear;
+  animation-delay: 1.5s;
+}
+
+@layer utilities {
+    .animation-delay-200 {
+      animation-delay: 200ms;
+    }
+  
+    .animation-delay-500 {
+      animation-delay: 500ms;
+    }
+  
+    .animation-delay-700 {
+      animation-delay: 700ms;
+    }
+  }
+  
+  .animate-fill-forwards {
+    animation-fill-mode: forwards;
+  }
+  
+  .perspective {
+    perspective: 2000px;
+  }
+
+
+  .techniverse-title {
+    font-family: 'Cyberpunk', sans-serif;
+    background: linear-gradient(45deg, #ff00ff, #00ffff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    transform: skew(-15deg);
+    text-transform: none;
+    font-size: 3rem;
+    text-shadow: 2px 2px 10px rgba(255, 0, 255, 0.5);
+  }
+  
+  .techniverse-title::first-letter,
+  .techniverse-title::nth-letter(7) {
+    text-transform: uppercase;
+  }
+  
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  @keyframes pulse {
+    0% {
+      transform: scale(1);
+      opacity: 0.5;
+    }
+    50% {
+      transform: scale(1.1);
+      opacity: 0.3;
+    }
+    100% {
+      transform: scale(1);
+      opacity: 0.5;
+    }
+  }
+
+@keyframes shimmer-text {
+    0%, 100% {
+      background-size: 200% 200%;
+      background-position: left center;
+    }
+    50% {
+      background-size: 200% 200%;
+      background-position: right center;
+    }
+  }
+  
+  @keyframes gradient {
+    0%, 100% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+  }
+  
+  @keyframes bounce-x {
+    0%, 100% {
+      transform: translateX(0);
+    }
+    50% {
+      transform: translateX(4px);
+    }
+  }
+
+  @keyframes bounce-x {
+    0%, 100% { transform: translateX(0); }
+    50% { transform: translateX(4px); }
+  }
+  
+  @keyframes pulse-subtle {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.8; }
+  }
+  
+  .animate-bounce-x {
+    animation: bounce-x 1s infinite;
+  }
+  
+  .animate-pulse-subtle {
+    animation: pulse-subtle 2s infinite;
+  }
+  
+  .animate-on-mount {
+    transition: all 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .animate-in {
+    opacity: 1 !important;
+    transform: translate(0, 0) !important;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-20px); }
+  }
+  
+  @keyframes gradient-x {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+  
+  [data-animate] {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  [data-animate="fade-left"] {
+    transform: translateX(20px);
+  }
+  
+  [data-animate="fade-right"] {
+    transform: translateX(-20px);
+  }
+  
+  [data-animate="fade-up"] {
+    transform: translateY(20px);
+  }
+  
+  [data-animate="fade-down"] {
+    transform: translateY(-20px);
+  }
+  
+  .animate-in {
+    opacity: 1 !important;
+    transform: translate(0, 0) !important;
+  }
+  
+  .animate-float {
+    animation: float 8s ease-in-out infinite;
+  }
+  
+  .animate-gradient-x {
+    background-size: 200% 200%;
+    animation: gradient-x 15s ease infinite;
+  }
+
+  @keyframes gradient-x {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+  
+  @keyframes pulse-slow {
+    0%, 100% { opacity: 0.8; }
+    50% { opacity: 1; }
+  }
+  
+  .animate-gradient-x {
+    background-size: 200% 200%;
+    animation: gradient-x 15s ease infinite;
+  }
+  
+  .animate-pulse-slow {
+    animation: pulse-slow 3s ease-in-out infinite;
+  }
+
