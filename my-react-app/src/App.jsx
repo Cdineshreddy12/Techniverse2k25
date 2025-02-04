@@ -1,3 +1,5 @@
+// implement lazy loads
+
 import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Navbar from "./Components/NavBar";
