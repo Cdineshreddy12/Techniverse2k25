@@ -1,5 +1,5 @@
 import express from 'express';
-import News from '../models/newsModel.js';
+import News from '../Models/newsModel.js';
 import multer from 'multer';
 import { v2 as cloudinary } from 'cloudinary';
 
