@@ -70,7 +70,7 @@ const DepartmentCards = () => {
             </li>
             <li className="flex items-start gap-2 text-gray-400">
               <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 mt-2" />
-              <span>Early bird registration gets 15% off on all workshops</span>
+              <span>Early bird registration gets 5% off on all workshops</span>
             </li>
           </ul>
         </div>

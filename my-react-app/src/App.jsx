@@ -363,7 +363,9 @@ function App() {
               <Route path="/test-validation" element={<TestValidation />} />
 
               {/* Admin Dashboard Routes */}
-              <Route path="/adminDashboard" element={<RegisteredRoute><AdminDashboard /></RegisteredRoute>}>
+
+              {/* removed Registered Route here ,you can add after converting to https */}
+              <Route path="/adminDashboard" element={<AdminDashboard />}>
                 <Route path="departments" element={<DepartmentForm />} />
                 <Route path="events" element={<EventsManager />} />
                 <Route path="news" element={<NewsForm />} />

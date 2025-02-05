@@ -123,16 +123,7 @@ const ComboPackage = memo(() => {
     }
   };
 
-  function CyberpunkSpinner() {
-    return (
-      <div className="flex items-center justify-center h-screen bg-black">
-        <div className="relative w-16 h-16">
-          <div className="absolute inset-0 border-4 border-neon-pink rounded-full animate-spin"></div>
-          <div className="absolute inset-2 border-4 border-neon-blue rounded-full animate-spin-reverse"></div>
-        </div>
-      </div>
-    );
-  }
+
  
 
  
@@ -157,9 +148,70 @@ const ComboPackage = memo(() => {
   };
 
   if (packageLoading) {
-    return <div className="flex items-center justify-center p-8">
-      <div className="w-8 h-8 border-2 border-cyan-500 rounded-full animate-spin border-t-transparent"></div>
-    </div>;
+    return (
+      <div className="min-h-[600px] p-8">
+        <div className="text-center mb-12">
+          <h2 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse mb-4">
+            Combos Will Be Revealed Soon
+          </h2>
+          <div className="flex items-center justify-center gap-2 text-gray-400">
+            <Sparkles className="w-5 h-5 text-yellow-400 animate-bounce" />
+            <span>Stay tuned for exciting combo packages</span>
+            <Sparkles className="w-5 h-5 text-yellow-400 animate-bounce delay-100" />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4">
+          {[1, 2].map((idx) => (
+            <div 
+              key={idx}
+              className="relative rounded-2xl overflow-hidden transition-all duration-300"
+            >
+              {/* Shimmer effect overlay */}
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-shimmer" />
+              
+              {/* Card content */}
+              <div className="relative bg-gradient-to-br from-slate-800/50 via-slate-900 to-slate-800/50 p-6 h-[500px]">
+                <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" />
+                
+                {/* Lock icon container */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-6">
+                  <div className="w-20 h-20 rounded-full bg-slate-700/50 flex items-center justify-center animate-pulse">
+                    <Lock className="w-10 h-10 text-purple-400" />
+                  </div>
+                  
+                  {/* Placeholder lines with gradient */}
+                  <div className="space-y-4 w-full max-w-[80%]">
+                    <div className="h-6 bg-gradient-to-r from-slate-700 via-slate-600 to-slate-700 rounded animate-pulse" />
+                    <div className="h-4 bg-gradient-to-r from-slate-700 via-slate-600 to-slate-700 rounded animate-pulse w-3/4 mx-auto" />
+                    <div className="h-4 bg-gradient-to-r from-slate-700 via-slate-600 to-slate-700 rounded animate-pulse w-2/3 mx-auto" />
+                  </div>
+                  
+                  {/* Price placeholder */}
+                  <div className="mt-4 w-32 h-12 bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-blue-500/20 rounded-lg flex items-center justify-center">
+                    <div className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400 animate-pulse">
+                      ₹ ???
+                    </div>
+                  </div>
+                  
+                  {/* Bottom decoration */}
+                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-blue-500 opacity-50" />
+                </div>
+              </div>
+              
+              {/* Corner decorations */}
+              <div className="absolute top-0 left-0 w-16 h-16 bg-gradient-to-br from-blue-500/20 rotate-45 transform -translate-x-8 -translate-y-8" />
+              <div className="absolute bottom-0 right-0 w-16 h-16 bg-gradient-to-br from-purple-500/20 rotate-45 transform translate-x-8 translate-y-8" />
+            </div>
+          ))}
+        </div>
+        
+        {/* Bottom text */}
+        <div className="text-center mt-8 text-gray-400 animate-pulse">
+          <p>Get ready for an amazing deal!</p>
+        </div>
+      </div>
+    );
   }
 
  
