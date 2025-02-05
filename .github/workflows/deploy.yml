@@ -3,7 +3,6 @@
 on:
   push:
     branches: [main]
-  workflow_dispatch:
 
 env:
   AWS_REGION: us-east-1
@@ -13,16 +12,36 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
-      with:
-        fetch-depth: 0
+    - uses: actions/checkout@v2
 
-    - name: Check Disk Space Before
+    - name: Debug SSH Key Format
       run: |
-        echo "Initial disk space:"
-        df -h
-        echo "Docker space usage:"
-        docker system df
+        echo "Checking if SSH key secret exists..."
+        if [ -n "${{ secrets.EC2_SSH_KEY }}" ]; then
+          echo "SSH key is set in secrets"
+          echo "First line of SSH key:"
+          echo "${{ secrets.EC2_SSH_KEY }}" | head -n 1
+          echo "Number of lines in SSH key:"
+          echo "${{ secrets.EC2_SSH_KEY }}" | wc -l
+        else
+          echo "SSH key is not set in secrets!"
+        fi
+
+    - name: Deploy to EC2
+
+on:
+  push:
+    branches: [main]
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
 
     - name: Debug SSH Key Format
       run: |
@@ -37,17 +56,6 @@ jobs:
           echo "SSH key is not set in secrets!"
           exit 1
         fi
-
-    - name: Debug EC2 Connection
-      run: |
-        echo "Testing connection to EC2 host..."
-        echo "EC2 Host: ${{ secrets.EC2_HOST }}"
-        nc -zv ${{ secrets.EC2_HOST }} 22 || echo "Cannot connect to port 22"
-        echo "Attempting basic SSH connection..."
-        echo "${{ secrets.EC2_SSH_KEY }}" > private_key.pem
-        chmod 600 private_key.pem
-        ssh-keygen -l -f private_key.pem || echo "Invalid key format"
-        ssh -o StrictHostKeyChecking=no -i private_key.pem -v ec2-user@${{ secrets.EC2_HOST }} "echo 'SSH connection test'" || echo "SSH connection failed"
 
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
@@ -55,74 +63,6 @@ jobs:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ secrets.AWS_REGION }}
-
-    - name: Verify AWS Configuration
-      run: |
-        aws sts get-caller-identity
-        aws ec2 describe-instances --region us-east-1 || echo "Failed to describe instances"
-
-    - name: Deploy to EC2
-
-on:
-  push:
-    branches: [main]
-  workflow_dispatch:
-
-env:
-  AWS_REGION: us-east-1
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v3
-      with:
-        fetch-depth: 0
-
-    - name: Check Disk Space Before
-      run: |
-        echo "Initial disk space:"
-        df -h
-        echo "Docker space usage:"
-        docker system df
-
-    - name: Debug SSH Key Format
-      run: |
-        echo "Checking if SSH key secret exists..."
-        if [ -n "${{ secrets.EC2_SSH_KEY }}" ]; then
-          echo "SSH key is set in secrets"
-          echo "First line of SSH key:"
-          echo "${{ secrets.EC2_SSH_KEY }}" | head -n 1
-          echo "Number of lines in SSH key:"
-          echo "${{ secrets.EC2_SSH_KEY }}" | wc -l
-        else
-          echo "SSH key is not set in secrets!"
-          exit 1
-        fi
-
-    - name: Debug EC2 Connection
-      run: |
-        echo "Testing connection to EC2 host..."
-        echo "EC2 Host: ${{ secrets.EC2_HOST }}"
-        nc -zv ${{ secrets.EC2_HOST }} 22 || echo "Cannot connect to port 22"
-        echo "Attempting basic SSH connection..."
-        echo "${{ secrets.EC2_SSH_KEY }}" > private_key.pem
-        chmod 600 private_key.pem
-        ssh-keygen -l -f private_key.pem || echo "Invalid key format"
-        ssh -o StrictHostKeyChecking=no -i private_key.pem -v ec2-user@${{ secrets.EC2_HOST }} "echo 'SSH connection test'" || echo "SSH connection failed"
-
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ secrets.AWS_REGION }}
-
-    - name: Verify AWS Configuration
-      run: |
-        aws sts get-caller-identity
-        aws ec2 describe-instances --region us-east-1 || echo "Failed to describe instances"
 
     - name: Deploy to EC2
       uses: appleboy/ssh-action@master
@@ -132,50 +72,95 @@ jobs:
         key: ${{ secrets.EC2_SSH_KEY }}
         debug: true
         script: |
-          # [Your existing deployment script here]
-          # Aggressive cleanup and deployment steps...
-
-    - name: Setup Cleanup Cron
-      uses: appleboy/ssh-action@master
-      with:
-        host: ${{ secrets.EC2_HOST }}
-        username: ec2-user
-        key: ${{ secrets.EC2_SSH_KEY }}
-        script: |
-          # Create cleanup script
-          cat > ~/docker-cleanup.sh << 'EOL'
-          #!/bin/bash
-          docker system prune -af --volumes
-          docker builder prune -af
+          # Aggressive Cleanup Before Deployment
+          echo "Performing cleanup..."
+          docker system prune -af
           docker volume prune -f
           docker network prune -f
-          EOL
+          docker builder prune -af --keep-storage 2GB
           
-          chmod +x ~/docker-cleanup.sh
+          # Remove old images and containers
+          docker rm -f $(docker ps -aq) 2>/dev/null || true
+          docker rmi -f $(docker images -aq) 2>/dev/null || true
           
-          # Add to crontab (runs daily at midnight)
-          (crontab -l 2>/dev/null; echo "0 0 * * * ~/docker-cleanup.sh") | crontab -
+          # Clear system caches
+          sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches'
+          
+          # Check disk space after cleanup
+          df -h
+          
+          echo "Navigating to project directory..."
+          cd /home/ec2-user/Techniverse2k25 || exit 1
 
-    - name: Check Final Disk Space
-      if: always()
-      run: |
-        echo "Final disk space:"
-        df -h
-        echo "Docker space usage:"
-        docker system df
+          echo "Fetching latest changes..."
+          git fetch origin main
+          git reset --hard origin/main
+          git clean -fd
+
+          # Create Backend .env
+          cat > Backend/.env << EOL
+          PORT=4000
+          NODE_ENV=production
+          MONGODB_URI=${{ secrets.MONGODB_URI }}
+          CORS_ORIGIN=http://${{ secrets.EC2_HOST }}
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          JWT_EXPIRE=7d
+          RAZORPAY_KEY_ID=${{ secrets.RAZORPAY_KEY_ID }}
+          RAZORPAY_KEY_SECRET=${{ secrets.RAZORPAY_KEY_SECRET }}
+          AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION=${{ secrets.AWS_REGION }}
+          CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_API_KEY=${{ secrets.CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET=${{ secrets.CLOUDINARY_API_SECRET }}
+          KINDE_CLIENT_ID=${{ secrets.KINDE_CLIENT_ID }}
+          KINDE_CLIENT_SECRET=${{ secrets.KINDE_CLIENT_SECRET }}
+          KINDE_ISSUER_URL=${{ secrets.KINDE_ISSUER_URL }}
+          KINDE_REDIRECT_URL=http://${{ secrets.EC2_HOST }}:4000/api/auth/kinde_callback
+          KINDE_POST_LOGOUT_URL=http://${{ secrets.EC2_HOST }}:4000
+          PHONEPE_MERCHANT_ID=${{ secrets.PHONEPE_MERCHANT_ID }}
+          PHONEPE_SALT_KEY=${{ secrets.PHONEPE_SALT_KEY }}
+          PHONEPE_SALT_INDEX=${{ secrets.PHONEPE_SALT_INDEX }}
+          FRONTEND_URL=http://${{ secrets.EC2_HOST }}:5173
+          BACKEND_URL=http://${{ secrets.EC2_HOST }}:4000
+          EOL
+
+          # Create Frontend .env
+          cat > my-react-app/.env << EOL
+          VITE_CLERK_PUBLISHABLE_KEY=${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+          VITE_APP_KINDE_CLIENT_ID=${{ secrets.VITE_APP_KINDE_CLIENT_ID }}
+          VITE_APP_KINDE_ISSUER_URL=${{ secrets.VITE_APP_KINDE_ISSUER_URL }}
+          VITE_APP_KINDE_REDIRECT_URL=http://${{ secrets.EC2_HOST }}/profile
+          VITE_APP_KINDE_POST_LOGOUT_URL=http://${{ secrets.EC2_HOST }}
+          VITE_APP_BACKEND_URL=http://${{ secrets.EC2_HOST }}:4000
+          EOL
+
+          # Build and deploy with optimizations
+          echo "Starting optimized deployment..."
+          export DOCKER_BUILDKIT=1
+          export COMPOSE_DOCKER_CLI_BUILD=1
+          
+          # Stop and remove containers
+          docker-compose -f docker-compose.prod.yml down --remove-orphans
+          
+          # Build with layer caching disabled to save space
+          docker-compose -f docker-compose.prod.yml build --no-cache --parallel
+          
+          # Start containers
+          docker-compose -f docker-compose.prod.yml up -d
+          
+          # Wait for containers to be ready
+          sleep 15
+          
+          # Check container status
+          docker ps
+          
+          # Remove dangling images and volumes
+          docker image prune -f
+          docker volume prune -f
 
     - name: Verify Deployment
       run: |
-        # Wait for services to be fully up
         sleep 30
-        
-        # Check frontend
-        echo "Checking frontend..."
         curl -I http://${{ secrets.EC2_HOST }}:5173 || echo "Frontend not responding"
-        
-        # Check backend
-        echo "Checking backend..."
         curl -I http://${{ secrets.EC2_HOST }}:4000 || echo "Backend not responding"
-        
-        # Final status
-        echo "Deployment verification completed"
