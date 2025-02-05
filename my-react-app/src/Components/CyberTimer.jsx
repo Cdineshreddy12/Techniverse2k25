@@ -121,8 +121,8 @@ const CyberTimer = memo(({ eventDate = '2025-03-07T00:00:00'}) => {
       <div className="text-center mt-2 sm:mt-4 text-[10px] sm:text-sm text-cyan-400/80">
         <span className="font-mono">TECHNIVERSE 2025</span>
         <span className="mx-1 sm:mx-2">•</span>
-        <span className="font-mono hidden sm:inline">MARCH 15-17</span>
-        <span className="font-mono inline sm:hidden">MAR 15-17</span>
+        <span className="font-mono hidden sm:inline">MARCH 7-9</span>
+        <span className="font-mono inline sm:hidden">MAR 7-9</span>
       </div>
     </div>
   );
