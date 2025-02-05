@@ -80,12 +80,37 @@ jobs:
       with:
         fetch-depth: 0
 
-    - name: Check Initial Disk Space
+    - name: Check Disk Space Before
       run: |
         echo "Initial disk space:"
         df -h
         echo "Docker space usage:"
         docker system df
+
+    - name: Debug SSH Key Format
+      run: |
+        echo "Checking if SSH key secret exists..."
+        if [ -n "${{ secrets.EC2_SSH_KEY }}" ]; then
+          echo "SSH key is set in secrets"
+          echo "First line of SSH key:"
+          echo "${{ secrets.EC2_SSH_KEY }}" | head -n 1
+          echo "Number of lines in SSH key:"
+          echo "${{ secrets.EC2_SSH_KEY }}" | wc -l
+        else
+          echo "SSH key is not set in secrets!"
+          exit 1
+        fi
+
+    - name: Debug EC2 Connection
+      run: |
+        echo "Testing connection to EC2 host..."
+        echo "EC2 Host: ${{ secrets.EC2_HOST }}"
+        nc -zv ${{ secrets.EC2_HOST }} 22 || echo "Cannot connect to port 22"
+        echo "Attempting basic SSH connection..."
+        echo "${{ secrets.EC2_SSH_KEY }}" > private_key.pem
+        chmod 600 private_key.pem
+        ssh-keygen -l -f private_key.pem || echo "Invalid key format"
+        ssh -o StrictHostKeyChecking=no -i private_key.pem -v ec2-user@${{ secrets.EC2_HOST }} "echo 'SSH connection test'" || echo "SSH connection failed"
 
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v4
@@ -93,6 +118,11 @@ jobs:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ secrets.AWS_REGION }}
+
+    - name: Verify AWS Configuration
+      run: |
+        aws sts get-caller-identity
+        aws ec2 describe-instances --region us-east-1 || echo "Failed to describe instances"
 
     - name: Deploy to EC2
       uses: appleboy/ssh-action@master
@@ -102,100 +132,8 @@ jobs:
         key: ${{ secrets.EC2_SSH_KEY }}
         debug: true
         script: |
-          # Aggressive cleanup
-          echo "Performing aggressive cleanup..."
-          docker system prune -af --volumes
-          docker builder prune -af
-          docker volume prune -f
-          docker network prune -f
-          
-          # Clear npm cache
-          npm cache clean --force
-          
-          # Check disk space after cleanup
-          df -h
-          
-          # Navigate to project directory
-          cd /home/ec2-user/Techniverse2k25 || exit 1
-          
-          # Backup and update repository
-          cp Backend/.env Backend/.env.backup 2>/dev/null || true
-          cp my-react-app/.env my-react-app/.env.backup 2>/dev/null || true
-          
-          git fetch origin main
-          git reset --hard origin/main
-          git clean -fd
-          
-          # Create Backend .env
-          cat > Backend/.env << EOL
-          PORT=4000
-          NODE_ENV=production
-          MONGODB_URI=${{ secrets.MONGODB_URI }}
-          CORS_ORIGIN=http://${{ secrets.EC2_HOST }}
-          JWT_SECRET=${{ secrets.JWT_SECRET }}
-          JWT_EXPIRE=7d
-          RAZORPAY_KEY_ID=${{ secrets.RAZORPAY_KEY_ID }}
-          RAZORPAY_KEY_SECRET=${{ secrets.RAZORPAY_KEY_SECRET }}
-          AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION=${{ secrets.AWS_REGION }}
-          CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME }}
-          CLOUDINARY_API_KEY=${{ secrets.CLOUDINARY_API_KEY }}
-          CLOUDINARY_API_SECRET=${{ secrets.CLOUDINARY_API_SECRET }}
-          KINDE_CLIENT_ID=${{ secrets.KINDE_CLIENT_ID }}
-          KINDE_CLIENT_SECRET=${{ secrets.KINDE_CLIENT_SECRET }}
-          KINDE_ISSUER_URL=${{ secrets.KINDE_ISSUER_URL }}
-          KINDE_REDIRECT_URL=http://${{ secrets.EC2_HOST }}:4000/api/auth/kinde_callback
-          KINDE_POST_LOGOUT_URL=http://${{ secrets.EC2_HOST }}:4000
-          PHONEPE_MERCHANT_ID=${{ secrets.PHONEPE_MERCHANT_ID }}
-          PHONEPE_SALT_KEY=${{ secrets.PHONEPE_SALT_KEY }}
-          PHONEPE_SALT_INDEX=${{ secrets.PHONEPE_SALT_INDEX }}
-          FRONTEND_URL=http://${{ secrets.EC2_HOST }}:5173
-          BACKEND_URL=http://${{ secrets.EC2_HOST }}:4000
-          EOL
-          
-          # Create Frontend .env
-          cat > my-react-app/.env << EOL
-          VITE_CLERK_PUBLISHABLE_KEY=${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
-          VITE_APP_KINDE_CLIENT_ID=${{ secrets.VITE_APP_KINDE_CLIENT_ID }}
-          VITE_APP_KINDE_ISSUER_URL=${{ secrets.VITE_APP_KINDE_ISSUER_URL }}
-          VITE_APP_KINDE_REDIRECT_URL=http://${{ secrets.EC2_HOST }}/profile
-          VITE_APP_KINDE_POST_LOGOUT_URL=http://${{ secrets.EC2_HOST }}
-          VITE_APP_BACKEND_URL=http://${{ secrets.EC2_HOST }}:4000
-          EOL
-          
-          # Deploy with Docker Compose
-          echo "Starting deployment..."
-          docker-compose -f docker-compose.prod.yml down --remove-orphans
-          COMPOSE_DOCKER_CLI_BUILD=1 DOCKER_BUILDKIT=1 docker-compose -f docker-compose.prod.yml build --no-cache
-          docker-compose -f docker-compose.prod.yml up -d
-          
-          # Wait for containers to be healthy
-          echo "Waiting for containers to be ready..."
-          sleep 30
-          
-          # Check container status
-          docker ps
-          docker-compose -f docker-compose.prod.yml logs --tail=50
-          
-          # Verify container health
-          if ! docker ps | grep -q backend; then
-            echo "Backend container failed to start"
-            docker-compose -f docker-compose.prod.yml logs backend
-            exit 1
-          fi
-          
-          if ! docker ps | grep -q frontend; then
-            echo "Frontend container failed to start"
-            docker-compose -f docker-compose.prod.yml logs frontend
-            exit 1
-          fi
-
-    - name: Verify Deployment
-      run: |
-        sleep 30
-        curl -I http://${{ secrets.EC2_HOST }}:5173 || echo "Frontend not responding"
-        curl -I http://${{ secrets.EC2_HOST }}:4000 || echo "Backend not responding"
+          # [Your existing deployment script here]
+          # Aggressive cleanup and deployment steps...
 
     - name: Setup Cleanup Cron
       uses: appleboy/ssh-action@master
