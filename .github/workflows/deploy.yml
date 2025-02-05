@@ -3,6 +3,7 @@
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 env:
   AWS_REGION: us-east-1
@@ -12,7 +13,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+
+    - name: Check Disk Space Before
+      run: |
+        echo "Initial disk space:"
+        df -h
+        echo "Docker space usage:"
+        docker system df
 
     - name: Debug SSH Key Format
       run: |
@@ -25,6 +35,7 @@ jobs:
           echo "${{ secrets.EC2_SSH_KEY }}" | wc -l
         else
           echo "SSH key is not set in secrets!"
+          exit 1
         fi
 
     - name: Debug EC2 Connection
@@ -37,45 +48,6 @@ jobs:
         chmod 600 private_key.pem
         ssh-keygen -l -f private_key.pem || echo "Invalid key format"
         ssh -o StrictHostKeyChecking=no -i private_key.pem -v ec2-user@${{ secrets.EC2_HOST }} "echo 'SSH connection test'" || echo "SSH connection failed"
-
-    - name: Debug AWS Credentials and Environment Variables
-      run: |
-        # Check if the AWS credentials are set in the environment
-        echo "AWS Access Key ID: ${AWS_ACCESS_KEY_ID}"
-        echo "AWS Secret Access Key: ${AWS_SECRET_ACCESS_KEY}"
-        echo "AWS Region: ${AWS_REGION}"
-        
-        # List AWS configuration
-        aws configure list
-        
-        # Try getting AWS identity, and capture errors if any
-        aws sts get-caller-identity || echo "Failed to get identity, check AWS credentials and region."
-        
-        # Additional debug: Check AWS CLI version
-        aws --version
-        
-        # Check the AWS configuration for errors
-        aws configure get aws_access_key_id || echo "AWS Access Key ID not configured"
-        aws configure get aws_secret_access_key || echo "AWS Secret Access Key not configured"
-        aws configure get region || echo "AWS Region not configured"
-
-        # Debugging if environment variables are set correctly
-        echo "Checking environment variables for the Backend .env file:"
-        echo "MONGODB_URI: ${MONGODB_URI}"
-        echo "JWT_SECRET: ${JWT_SECRET}"
-        echo "RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID}"
-        echo "CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}"
-        echo "KINDE_CLIENT_ID: ${KINDE_CLIENT_ID}"
-
-      env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        AWS_REGION: ${{ secrets.AWS_REGION }}
-        MONGODB_URI: ${{ secrets.MONGODB_URI }}
-        JWT_SECRET: ${{ secrets.JWT_SECRET }}
-        RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
-        CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
-        KINDE_CLIENT_ID: ${{ secrets.KINDE_CLIENT_ID }}
 
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
@@ -103,71 +75,128 @@ jobs:
           echo "Current directory contents:"
           ls -la
 
+          # Cleanup before deployment
+          echo "Cleaning up Docker system..."
+          docker system prune -af --volumes || true
+          docker builder prune -af || true
+          
+          # Check disk space after cleanup
+          echo "Disk space after cleanup:"
+          df -h
+
           # Install Docker Compose if needed
           if ! command -v docker-compose &> /dev/null; then
-            echo "Installing Docker Compose."
+            echo "Installing Docker Compose..."
             sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
             sudo chmod +x /usr/local/bin/docker-compose
           fi
 
+          # Navigate and update repository
           echo "Navigating to project directory..."
           cd /home/ec2-user/Techniverse2k25 || exit 1
 
-           echo "Resetting to remote branch..."
-            git fetch origin main
-            git reset --hard origin/main
-            git clean -fd  # Remove untracked files
-          
-          echo "Pulling latest changes..."
-          git pull --rebase origin main || exit 1
-          
-          # Create Backend .env
-          echo "PORT=4000" > Backend/.env
-          echo "NODE_ENV=production" >> Backend/.env
-          echo "MONGODB_URI=${{ secrets.MONGODB_URI }}" >> Backend/.env
-          echo "CORS_ORIGIN=http://${{ secrets.EC2_HOST }}" >> Backend/.env
-          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> Backend/.env
-          echo "JWT_EXPIRE=7d" >> Backend/.env
-          echo "RAZORPAY_KEY_ID=${{ secrets.RAZORPAY_KEY_ID }}" >> Backend/.env
-          echo "RAZORPAY_KEY_SECRET=${{ secrets.RAZORPAY_KEY_SECRET }}" >> Backend/.env
-          echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> Backend/.env
-          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> Backend/.env
-          echo "AWS_REGION=${{ secrets.AWS_REGION }}" >> Backend/.env
-          echo "CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME }}" >> Backend/.env
-          echo "CLOUDINARY_API_KEY=${{ secrets.CLOUDINARY_API_KEY }}" >> Backend/.env
-          echo "CLOUDINARY_API_SECRET=${{ secrets.CLOUDINARY_API_SECRET }}" >> Backend/.env
-          echo "KINDE_CLIENT_ID=${{ secrets.KINDE_CLIENT_ID }}" >> Backend/.env
-          echo "KINDE_CLIENT_SECRET=${{ secrets.KINDE_CLIENT_SECRET }}" >> Backend/.env
-          echo "KINDE_ISSUER_URL=${{ secrets.KINDE_ISSUER_URL }}" >> Backend/.env
-          echo "KINDE_REDIRECT_URL=http://${{ secrets.EC2_HOST }}:4000/api/auth/kinde_callback" >> Backend/.env
-          echo "KINDE_POST_LOGOUT_URL=http://${{ secrets.EC2_HOST }}:4000" >> Backend/.env
-          echo "PHONEPE_MERCHANT_ID=${{ secrets.PHONEPE_MERCHANT_ID }}" >> Backend/.env
-          echo "PHONEPE_SALT_KEY=${{ secrets.PHONEPE_SALT_KEY }}" >> Backend/.env
-          echo "PHONEPE_SALT_INDEX=${{ secrets.PHONEPE_SALT_INDEX }}" >> Backend/.env
-          echo "FRONTEND_URL=http://${{ secrets.EC2_HOST }}:5173" >> Backend/.env
-          echo "BACKEND_URL=http://${{ secrets.EC2_HOST }}:4000" >> Backend/.env
+          echo "Backing up environment files..."
+          cp Backend/.env Backend/.env.backup 2>/dev/null || true
+          cp my-react-app/.env my-react-app/.env.backup 2>/dev/null || true
 
-          # Create Frontend .env
-          echo "VITE_CLERK_PUBLISHABLE_KEY=${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}" > my-react-app/.env
-          echo "VITE_APP_KINDE_CLIENT_ID=${{ secrets.VITE_APP_KINDE_CLIENT_ID }}" >> my-react-app/.env
-          echo "VITE_APP_KINDE_ISSUER_URL=${{ secrets.VITE_APP_KINDE_ISSUER_URL }}" >> my-react-app/.env
-          echo "VITE_APP_KINDE_REDIRECT_URL=http://${{ secrets.EC2_HOST }}/profile" >> my-react-app/.env
-          echo "VITE_APP_KINDE_POST_LOGOUT_URL=http://${{ secrets.EC2_HOST }}" >> my-react-app/.env
-          echo "VITE_APP_BACKEND_URL=http://${{ secrets.EC2_HOST }}:4000" >> my-react-app/.env
+          echo "Fetching latest changes..."
+          git fetch origin main
+          git reset --hard origin/main
+          git clean -fd
+          
+          echo "Creating Backend .env..."
+          cat > Backend/.env << EOL
+          PORT=4000
+          NODE_ENV=production
+          MONGODB_URI=${{ secrets.MONGODB_URI }}
+          CORS_ORIGIN=http://${{ secrets.EC2_HOST }}
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          JWT_EXPIRE=7d
+          RAZORPAY_KEY_ID=${{ secrets.RAZORPAY_KEY_ID }}
+          RAZORPAY_KEY_SECRET=${{ secrets.RAZORPAY_KEY_SECRET }}
+          AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION=${{ secrets.AWS_REGION }}
+          CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_API_KEY=${{ secrets.CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET=${{ secrets.CLOUDINARY_API_SECRET }}
+          KINDE_CLIENT_ID=${{ secrets.KINDE_CLIENT_ID }}
+          KINDE_CLIENT_SECRET=${{ secrets.KINDE_CLIENT_SECRET }}
+          KINDE_ISSUER_URL=${{ secrets.KINDE_ISSUER_URL }}
+          KINDE_REDIRECT_URL=http://${{ secrets.EC2_HOST }}:4000/api/auth/kinde_callback
+          KINDE_POST_LOGOUT_URL=http://${{ secrets.EC2_HOST }}:4000
+          PHONEPE_MERCHANT_ID=${{ secrets.PHONEPE_MERCHANT_ID }}
+          PHONEPE_SALT_KEY=${{ secrets.PHONEPE_SALT_KEY }}
+          PHONEPE_SALT_INDEX=${{ secrets.PHONEPE_SALT_INDEX }}
+          FRONTEND_URL=http://${{ secrets.EC2_HOST }}:5173
+          BACKEND_URL=http://${{ secrets.EC2_HOST }}:4000
+          EOL
+
+          echo "Creating Frontend .env..."
+          cat > my-react-app/.env << EOL
+          VITE_CLERK_PUBLISHABLE_KEY=${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+          VITE_APP_KINDE_CLIENT_ID=${{ secrets.VITE_APP_KINDE_CLIENT_ID }}
+          VITE_APP_KINDE_ISSUER_URL=${{ secrets.VITE_APP_KINDE_ISSUER_URL }}
+          VITE_APP_KINDE_REDIRECT_URL=http://${{ secrets.EC2_HOST }}/profile
+          VITE_APP_KINDE_POST_LOGOUT_URL=http://${{ secrets.EC2_HOST }}
+          VITE_APP_BACKEND_URL=http://${{ secrets.EC2_HOST }}:4000
+          EOL
 
           echo "Starting deployment..."
-          docker-compose -f docker-compose.prod.yml down || echo "Failed to stop containers"
-          docker-compose -f docker-compose.prod.yml build --no-cache || exit 1
+          # Stop and remove existing containers
+          docker-compose -f docker-compose.prod.yml down --remove-orphans || true
+          
+          # Build new containers
+          echo "Building containers..."
+          COMPOSE_DOCKER_CLI_BUILD=1 DOCKER_BUILDKIT=1 docker-compose -f docker-compose.prod.yml build --no-cache || exit 1
+          
+          # Start new containers
+          echo "Starting containers..."
           docker-compose -f docker-compose.prod.yml up -d || exit 1
           
-          echo "Checking container status.."
+          # Wait for containers to be healthy
+          echo "Waiting for containers to be ready..."
+          sleep 30
+          
+          echo "Checking container status..."
           docker ps
           
-          echo "Checking logs..."
+          echo "Checking container logs..."
           docker-compose -f docker-compose.prod.yml logs --tail=50
 
-    - name: Deployment Status
+          # Check if containers are running
+          if ! docker ps | grep -q backend; then
+            echo "Backend container failed to start"
+            docker-compose -f docker-compose.prod.yml logs backend
+            exit 1
+          fi
+          
+          if ! docker ps | grep -q frontend; then
+            echo "Frontend container failed to start"
+            docker-compose -f docker-compose.prod.yml logs frontend
+            exit 1
+          fi
+
+    - name: Check Final Disk Space
+      if: always()
       run: |
-        echo "Deployment completed"
+        echo "Final disk space:"
+        df -h
+        echo "Docker space usage:"
+        docker system df
+
+    - name: Verify Deployment
+      run: |
+        # Wait for services to be fully up
+        sleep 30
+        
+        # Check frontend
+        echo "Checking frontend..."
         curl -I http://${{ secrets.EC2_HOST }}:5173 || echo "Frontend not responding"
+        
+        # Check backend
+        echo "Checking backend..."
         curl -I http://${{ secrets.EC2_HOST }}:4000 || echo "Backend not responding"
+        
+        # Final status
+        echo "Deployment verification completed"
