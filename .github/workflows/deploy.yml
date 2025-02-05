@@ -27,36 +27,6 @@ jobs:
           echo "SSH key is not set in secrets!"
         fi
 
-    - name: Deploy to EC2
-
-on:
-  push:
-    branches: [main]
-
-env:
-  AWS_REGION: us-east-1
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v2
-
-    - name: Debug SSH Key Format
-      run: |
-        echo "Checking if SSH key secret exists..."
-        if [ -n "${{ secrets.EC2_SSH_KEY }}" ]; then
-          echo "SSH key is set in secrets"
-          echo "First line of SSH key:"
-          echo "${{ secrets.EC2_SSH_KEY }}" | head -n 1
-          echo "Number of lines in SSH key:"
-          echo "${{ secrets.EC2_SSH_KEY }}" | wc -l
-        else
-          echo "SSH key is not set in secrets!"
-          exit 1
-        fi
-
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
@@ -161,6 +131,19 @@ jobs:
 
     - name: Verify Deployment
       run: |
-        sleep 30
-        curl -I http://${{ secrets.EC2_HOST }}:5173 || echo "Frontend not responding"
-        curl -I http://${{ secrets.EC2_HOST }}:4000 || echo "Backend not responding"
+              sleep 30
+              echo "Checking Frontend..."
+              if curl -I http://${{ secrets.EC2_HOST }}:5173; then
+                echo "Frontend is responding"
+              else
+                echo "Frontend not responding"
+                exit 1
+              fi
+              
+              echo "Checking Backend..."
+              if curl -I http://${{ secrets.EC2_HOST }}:4000; then
+                echo "Backend is responding"
+              else
+                echo "Backend not responding"
+                exit 1
+              fi
