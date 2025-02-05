@@ -1,13 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState ,useEffect} from 'react';
 import { 
   Users2, Brain, Cpu,
-  ChevronDown, ChevronUp, Search 
+  ChevronDown, ChevronUp, Search,Megaphone,Laptop2,Building ,Sparkles
 } from 'lucide-react';
 
 const AdministrationPage = () => {
   const [expandedSection, setExpandedSection] = useState('Administrative Body');
   const [searchTerm, setSearchTerm] = useState('');
+  const [animateHeader, setAnimateHeader] = useState(false);
 
+  useEffect(() => {
+    // Trigger header animation after component mount
+    setAnimateHeader(true);
+  }, []);
+
+  
   const committees = [
     {
       title: "Administrative Body",
