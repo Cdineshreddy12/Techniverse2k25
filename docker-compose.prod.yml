@@ -6,36 +6,53 @@ services:
     build:
       context: ./Backend
       dockerfile: Dockerfile
+      args:
+        - NODE_ENV=production
     ports:
       - "4000:4000"
     environment:
-      - PORT=4000
       - NODE_ENV=production
     env_file:
       - ./Backend/.env
     volumes:
-      - ./Backend:/app
-      - /app/node_modules
+      - backend_node_modules:/app/node_modules
     restart: always
     networks:
       - mern-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   frontend:
     container_name: frontend
     build:
       context: ./my-react-app
       dockerfile: Dockerfile
+      args:
+        - NODE_ENV=production
     ports:
       - "5173:5173"
     env_file:
       - ./my-react-app/.env
     volumes:
-      - ./my-react-app:/app
-      - /app/node_modules
+      - frontend_node_modules:/app/node_modules
     restart: always
     networks:
       - mern-network
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5173"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 networks:
   mern-network:
     driver: bridge
+
+volumes:
+  backend_node_modules:
+  frontend_node_modules:

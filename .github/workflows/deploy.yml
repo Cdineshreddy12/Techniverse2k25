@@ -62,6 +62,39 @@ jobs:
         aws ec2 describe-instances --region us-east-1 || echo "Failed to describe instances"
 
     - name: Deploy to EC2
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+
+    - name: Check Initial Disk Space
+      run: |
+        echo "Initial disk space:"
+        df -h
+        echo "Docker space usage:"
+        docker system df
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
+
+    - name: Deploy to EC2
       uses: appleboy/ssh-action@master
       with:
         host: ${{ secrets.EC2_HOST }}
@@ -69,42 +102,31 @@ jobs:
         key: ${{ secrets.EC2_SSH_KEY }}
         debug: true
         script: |
-          # Debug connection
-          whoami
-          pwd
-          echo "Current directory contents:"
-          ls -la
-
-          # Cleanup before deployment
-          echo "Cleaning up Docker system..."
-          docker system prune -af --volumes || true
-          docker builder prune -af || true
+          # Aggressive cleanup
+          echo "Performing aggressive cleanup..."
+          docker system prune -af --volumes
+          docker builder prune -af
+          docker volume prune -f
+          docker network prune -f
+          
+          # Clear npm cache
+          npm cache clean --force
           
           # Check disk space after cleanup
-          echo "Disk space after cleanup:"
           df -h
-
-          # Install Docker Compose if needed
-          if ! command -v docker-compose &> /dev/null; then
-            echo "Installing Docker Compose..."
-            sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-            sudo chmod +x /usr/local/bin/docker-compose
-          fi
-
-          # Navigate and update repository
-          echo "Navigating to project directory..."
+          
+          # Navigate to project directory
           cd /home/ec2-user/Techniverse2k25 || exit 1
-
-          echo "Backing up environment files..."
+          
+          # Backup and update repository
           cp Backend/.env Backend/.env.backup 2>/dev/null || true
           cp my-react-app/.env my-react-app/.env.backup 2>/dev/null || true
-
-          echo "Fetching latest changes..."
+          
           git fetch origin main
           git reset --hard origin/main
           git clean -fd
           
-          echo "Creating Backend .env..."
+          # Create Backend .env
           cat > Backend/.env << EOL
           PORT=4000
           NODE_ENV=production
@@ -131,8 +153,8 @@ jobs:
           FRONTEND_URL=http://${{ secrets.EC2_HOST }}:5173
           BACKEND_URL=http://${{ secrets.EC2_HOST }}:4000
           EOL
-
-          echo "Creating Frontend .env..."
+          
+          # Create Frontend .env
           cat > my-react-app/.env << EOL
           VITE_CLERK_PUBLISHABLE_KEY=${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
           VITE_APP_KINDE_CLIENT_ID=${{ secrets.VITE_APP_KINDE_CLIENT_ID }}
@@ -141,30 +163,22 @@ jobs:
           VITE_APP_KINDE_POST_LOGOUT_URL=http://${{ secrets.EC2_HOST }}
           VITE_APP_BACKEND_URL=http://${{ secrets.EC2_HOST }}:4000
           EOL
-
+          
+          # Deploy with Docker Compose
           echo "Starting deployment..."
-          # Stop and remove existing containers
-          docker-compose -f docker-compose.prod.yml down --remove-orphans || true
-          
-          # Build new containers
-          echo "Building containers..."
-          COMPOSE_DOCKER_CLI_BUILD=1 DOCKER_BUILDKIT=1 docker-compose -f docker-compose.prod.yml build --no-cache || exit 1
-          
-          # Start new containers
-          echo "Starting containers..."
-          docker-compose -f docker-compose.prod.yml up -d || exit 1
+          docker-compose -f docker-compose.prod.yml down --remove-orphans
+          COMPOSE_DOCKER_CLI_BUILD=1 DOCKER_BUILDKIT=1 docker-compose -f docker-compose.prod.yml build --no-cache
+          docker-compose -f docker-compose.prod.yml up -d
           
           # Wait for containers to be healthy
           echo "Waiting for containers to be ready..."
           sleep 30
           
-          echo "Checking container status..."
+          # Check container status
           docker ps
-          
-          echo "Checking container logs..."
           docker-compose -f docker-compose.prod.yml logs --tail=50
-
-          # Check if containers are running
+          
+          # Verify container health
           if ! docker ps | grep -q backend; then
             echo "Backend container failed to start"
             docker-compose -f docker-compose.prod.yml logs backend
@@ -176,6 +190,33 @@ jobs:
             docker-compose -f docker-compose.prod.yml logs frontend
             exit 1
           fi
+
+    - name: Verify Deployment
+      run: |
+        sleep 30
+        curl -I http://${{ secrets.EC2_HOST }}:5173 || echo "Frontend not responding"
+        curl -I http://${{ secrets.EC2_HOST }}:4000 || echo "Backend not responding"
+
+    - name: Setup Cleanup Cron
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ec2-user
+        key: ${{ secrets.EC2_SSH_KEY }}
+        script: |
+          # Create cleanup script
+          cat > ~/docker-cleanup.sh << 'EOL'
+          #!/bin/bash
+          docker system prune -af --volumes
+          docker builder prune -af
+          docker volume prune -f
+          docker network prune -f
+          EOL
+          
+          chmod +x ~/docker-cleanup.sh
+          
+          # Add to crontab (runs daily at midnight)
+          (crontab -l 2>/dev/null; echo "0 0 * * * ~/docker-cleanup.sh") | crontab -
 
     - name: Check Final Disk Space
       if: always()
