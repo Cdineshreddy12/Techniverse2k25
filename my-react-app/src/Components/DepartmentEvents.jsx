@@ -19,10 +19,9 @@ const DepartmentCards = () => {
   const fetchDepartments = async () => {
     try {
       console.log('Starting fetchDepartments');
-    console.log('API Config:', API_CONFIG); // Debug API config
-    console.log('Base URL:', import.meta.env.VITE_APP_BACKEND_URL); 
-
-      const response = await fetch(API_CONFIG.getUrl('departments'));
+      console.log('Current Origin:', window.location.origin); // Debug
+      const url = API_CONFIG.getUrl('departments');
+      const response = await fetch(url);
       const data = await response.json();
       setDepartments(data.departments || []);
     } catch (error) {
