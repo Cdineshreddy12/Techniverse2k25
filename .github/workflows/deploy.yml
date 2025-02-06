@@ -14,20 +14,6 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
-    - name: Debug SSH Key Format
-      run: |
-        echo "Checking if SSH key secret exists..."
-        if [ -n "${{ secrets.EC2_SSH_KEY }}" ]; then
-          echo "SSH key is set in secrets"
-          echo "First line of SSH key:"
-          echo "${{ secrets.EC2_SSH_KEY }}" | head -n 1
-          echo "Number of lines in SSH key:"
-          echo "${{ secrets.EC2_SSH_KEY }}" | wc -l
-        else
-          echo "SSH key is not set in secrets!"
-          exit 1
-        fi
-
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
@@ -43,7 +29,7 @@ jobs:
         key: ${{ secrets.EC2_SSH_KEY }}
         debug: true
         script: |
-          # Aggressive Cleanup
+          # Cleanup
           echo "Performing cleanup..."
           docker system prune -af
           docker volume prune -f
@@ -52,80 +38,15 @@ jobs:
           docker rm -f $(docker ps -aq) 2>/dev/null || true
           docker rmi -f $(docker images -aq) 2>/dev/null || true
           
-          # Update Nginx configuration
-          sudo tee /etc/nginx/conf.d/mern-app.conf << 'EOL'
-          server {
-              listen 80;
-              server_name ${{ secrets.EC2_HOST }};
-
-              location / {
-                  proxy_pass http://localhost:5173;
-                  proxy_http_version 1.1;
-                  proxy_set_header Upgrade $http_upgrade;
-                  proxy_set_header Connection 'upgrade';
-                  proxy_set_header Host $host;
-                  proxy_cache_bypass $http_upgrade;
-              }
-
-              location /api {
-                  proxy_pass http://localhost:4000;
-                  proxy_http_version 1.1;
-                  proxy_set_header Upgrade $http_upgrade;
-                  proxy_set_header Connection 'upgrade';
-                  proxy_set_header Host $host;
-                  proxy_cache_bypass $http_upgrade;
-              }
-          }
-          EOL
-
-          sudo nginx -t && sudo systemctl reload nginx
-          
-          echo "Navigating to project directory..."
+          # Navigate to project directory
           cd /home/ec2-user/Techniverse2k25 || exit 1
 
+          # Update code
           echo "Fetching latest changes..."
           git fetch origin main
           git reset --hard origin/main
           git clean -fd
-
-          # Create Backend .env
-          cat > Backend/.env << EOL
-          PORT=4000
-          NODE_ENV=production
-          MONGODB_URI=${{ secrets.MONGODB_URI }}
-          CORS_ORIGIN=http://${{ secrets.EC2_HOST }}
-          JWT_SECRET=${{ secrets.JWT_SECRET }}
-          JWT_EXPIRE=7d
-          RAZORPAY_KEY_ID=${{ secrets.RAZORPAY_KEY_ID }}
-          RAZORPAY_KEY_SECRET=${{ secrets.RAZORPAY_KEY_SECRET }}
-          AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION=${{ secrets.AWS_REGION }}
-          CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME }}
-          CLOUDINARY_API_KEY=${{ secrets.CLOUDINARY_API_KEY }}
-          CLOUDINARY_API_SECRET=${{ secrets.CLOUDINARY_API_SECRET }}
-          KINDE_CLIENT_ID=${{ secrets.KINDE_CLIENT_ID }}
-          KINDE_CLIENT_SECRET=${{ secrets.KINDE_CLIENT_SECRET }}
-          KINDE_ISSUER_URL=${{ secrets.KINDE_ISSUER_URL }}
-          KINDE_REDIRECT_URL=http://${{ secrets.EC2_HOST }}/api/auth/kinde_callback
-          KINDE_POST_LOGOUT_URL=http://${{ secrets.EC2_HOST }}
-          PHONEPE_MERCHANT_ID=${{ secrets.PHONEPE_MERCHANT_ID }}
-          PHONEPE_SALT_KEY=${{ secrets.PHONEPE_SALT_KEY }}
-          PHONEPE_SALT_INDEX=${{ secrets.PHONEPE_SALT_INDEX }}
-          FRONTEND_URL=http://${{ secrets.EC2_HOST }}
-          BACKEND_URL=http://${{ secrets.EC2_HOST }}/api
-          EOL
-
-          # Create Frontend .env
-          cat > my-react-app/.env << EOL
-          VITE_CLERK_PUBLISHABLE_KEY=${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
-          VITE_APP_KINDE_CLIENT_ID=${{ secrets.VITE_APP_KINDE_CLIENT_ID }}
-          VITE_APP_KINDE_ISSUER_URL=${{ secrets.VITE_APP_KINDE_ISSUER_URL }}
-          VITE_APP_KINDE_REDIRECT_URL=http://${{ secrets.EC2_HOST }}/profile
-          VITE_APP_KINDE_POST_LOGOUT_URL=http://${{ secrets.EC2_HOST }}
-          VITE_APP_BACKEND_URL=http://${{ secrets.EC2_HOST }}/api
-          EOL
-
+          
           # Deploy
           echo "Starting deployment..."
           export DOCKER_BUILDKIT=1
@@ -141,5 +62,6 @@ jobs:
     - name: Verify Deployment
       run: |
         sleep 30
-        curl -I http://${{ secrets.EC2_HOST }} || echo "Frontend not responding"
-        curl -I http://${{ secrets.EC2_HOST }}/api || echo "Backend not responding"
+        # Use HTTPS for verification
+        curl -I https://techniverse25.rguktsklm.ac.in || echo "Frontend not responding"
+        curl -I https://techniverse25.rguktsklm.ac.in/api || echo "Backend not responding"

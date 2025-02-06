@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import * as Icons from 'lucide-react';
 import toast from 'react-hot-toast';
-
+import API_CONFIG from '../config/api';
 const DepartmentCards = () => {
   const navigate = useNavigate();
   const [departments, setDepartments] = useState([]);
@@ -18,7 +18,11 @@ const DepartmentCards = () => {
 
   const fetchDepartments = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_APP_BACKEND_URL}/api/departments`);
+      console.log('Starting fetchDepartments');
+    console.log('API Config:', API_CONFIG); // Debug API config
+    console.log('Base URL:', import.meta.env.VITE_APP_BACKEND_URL); 
+
+      const response = await fetch(API_CONFIG.getUrl('departments'));
       const data = await response.json();
       setDepartments(data.departments || []);
     } catch (error) {

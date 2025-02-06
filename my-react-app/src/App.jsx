@@ -1,5 +1,5 @@
 import React, { Suspense, lazy } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import {  Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { store } from './Redux/mainStore.js';
 import { Provider } from 'react-redux';
 import { Toaster } from 'react-hot-toast';

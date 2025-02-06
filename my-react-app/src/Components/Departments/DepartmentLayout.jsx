@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, Outlet, useLocation, useParams } from 'react-router-dom';
 import { Loader } from 'lucide-react';
-
+import API_CONFIG from '../../config/api';
 const DepartmentLayout = () => {
   const location = useLocation();
   const { departmentId } = useParams(); // Changed from deptId to departmentId
@@ -11,7 +11,7 @@ const DepartmentLayout = () => {
   useEffect(() => {
     const fetchDepartment = async () => {
       try {
-        const response = await fetch(`${import.meta.env.VITE_APP_BACKEND_URL}/api/departments/${departmentId}`);
+        const response = await fetch(API_CONFIG.getUrl('departments'));
         if (!response.ok) throw new Error('Failed to fetch department');
         const data = await response.json();
         
