@@ -1,12 +1,13 @@
 // src/config/api.js
+const BASE_URL = window.location.origin;
 const API_CONFIG = {
-    baseURL: `${import.meta.env.VITE_APP_BACKEND_URL}/api`,
+    baseURL: BASE_URL,
     getUrl: (endpoint) => {
-        const cleanEndpoint = endpoint.replace(/^\/+|\/+$/g, '');
-        const url = `${API_CONFIG.baseURL}/${cleanEndpoint}`;
-        console.log('Generated URL:', url); // Debug URL construction
-        return url;
-      }
+      const cleanEndpoint = endpoint.replace(/^\/+|\/+$/g, '');
+      const url = `${BASE_URL}/api/${cleanEndpoint}`;
+      console.log('API Call URL:', url); // Debug
+      return url;
+    }
   };
   
   export default API_CONFIG;
