@@ -8,10 +8,9 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies
-RUN npm config set registry http://registry.npmjs.org/ && \
-    npm install && \
-    npm install expresscheckout-nodejs && \
-    npm audit fix
+RUN npm config set registry https://registry.npmjs.org/ && \
+    npm install --legacy-peer-deps && \
+    npm install expresscheckout-nodejs --legacy-peer-deps
 
 # Copy the rest of the application files
 COPY . .
