@@ -25,7 +25,7 @@ const AboutPage = () => {
 
       <div className="max-w-7xl mx-auto py-20 relative">
         {/* Title */}
-        <h1 className="text-5xl md:text-6xl font-bold text-center bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-purple-400 mb-16">
+        <h1 className="text-5xl mt-24 md:text-6xl font-bold text-center bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-purple-400 mb-16">
           About TechniVerse
         </h1>
 
@@ -40,13 +40,14 @@ const AboutPage = () => {
               
               <div className="relative rounded-xl overflow-hidden bg-slate-900/90 border border-slate-800/50 backdrop-blur-sm">
                 <div className="aspect-video">
-                  <iframe 
-                    className="w-full h-full"
-                    src="https://www.youtube.com/embed/YOUR_VIDEO_ID"
-                    title="TechniVerse 2K24"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                  />
+                <iframe 
+                      className="w-full h-full"
+                      src="https://www.youtube.com/embed/ppZEEBdB-fw" 
+                      title="TechniVerse 2K24"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+
                 </div>
               </div>
             </div>

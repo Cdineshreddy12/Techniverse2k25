@@ -2,29 +2,70 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Menu, X, Home, Info, Clock, Users2, 
-  Sparkles, ShoppingCart, LogOut, LogIn, User, Stars
+  Sparkles, ShoppingCart, LogOut, LogIn, User, Stars,Newspaper,
+  BadgeCheckIcon,
+  TableColumnsSplit
 } from 'lucide-react';
 import { useKindeAuth } from '@kinde-oss/kinde-auth-react';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import Logo from './Logo';
-
+import {createApiClient} from '../config/kindeAPI'
 const Navbar = ({ onScrollToSection }) => {
+
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const menuRef = useRef(null);
+  const drawerRef = useRef(null);
 
   const { isLoading, isAuthenticated, user, login, logout } = useKindeAuth();
   const { items, total } = useSelector(state => state.cart);
-
+  const [userData, setUserData] = useState(null);
+  const api = createApiClient();
   const navigate = useNavigate();
+
+   // Add this useEffect for fetching user data
+   useEffect(() => {
+    const fetchUserData = async () => {
+        if (isAuthenticated && user?.id) {
+            try {
+                const data = await api.getUser(user.id);
+                
+                // Check if registration is needed
+                if (data.needsRegistration) {
+                    console.log('Registration needed, redirecting...');
+                    navigate('/register');
+                    return;
+                }
+                
+                // Only set user data if it's a success response
+                if (data.success && data.user) {
+                    setUserData(data.user);
+                }
+            } catch (error) {
+                console.error('Failed to fetch user data:', error);
+                
+                if (error.message === 'Authentication failed') {
+                    console.log('Authentication failed, retrying login...');
+                    return;
+                }
+                
+                // For other errors, redirect to registration
+                navigate('/register');
+            }
+        }
+    };
+
+    fetchUserData();
+}, [isAuthenticated, user?.id]);
+
   useEffect(() => {
     const handleScroll = () => {
       setScrolled(window.scrollY > 20);
     };
 
     const handleClickOutside = (event) => {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
+      if (drawerRef.current && !drawerRef.current.contains(event.target)) {
         setIsOpen(false);
       }
     };
@@ -41,107 +82,106 @@ const Navbar = ({ onScrollToSection }) => {
   const navigationItems = [
     { title: 'Home', icon: <Home className="w-4 h-4" />, path: '/' },
     { title: 'About', icon: <Info className="w-4 h-4" />, path: '/about' },
-    { title: 'Administration', icon: <Users2 className="w-4 h-4" />, path: '/administration' }
+    { title: 'Administration', icon: <Users2 className="w-4 h-4" />, path: '/administration' },
+    { title: 'News', icon: <Newspaper className="w-4 h-4" />, path: '/news' },
+    { title: 'Sponsors', icon: <BadgeCheckIcon className="w-4 h-4" />, path: '/sponsors' },
+    { title: 'Teams', icon: <TableColumnsSplit className="w-4 h-4" />, path: '/teams' }
   ];
 
-
-
-  const ShimmeringText = () => (
-    <div className="relative group">
-      <div className="relative flex items-center  overflow-hidden">
-        {/* Main text container */}
-        <div className="relative">
-          <div className="text-2xl pt-2 pr-2 font-bold relative overflow-hidden italic">
-            {/* Main text with enhanced T and V */}
-            <span className="relative inline-block">
-              {/* T with larger size */}
-              <span className="inline-block text-[3rem] md:text-[4rem] font-bold text-cyan-400 transform hover:scale-110 transition-transform">
-                T
-              </span>
-              <span className=" text-white md:text-[3rem] font-bold">
-                echni
-              </span>
-            </span>
-            
-            <span className="relative inline-block">
-              {/* V with larger size */}
-              <span className="inline-block text-[3rem] md:text-[4rem]  font-bold text-purple-400 transform hover:scale-110 transition-transform">
-                V
-              </span>
-              <span className="font-bold md:text-[3rem] text-white">
-                erse
-              </span>
-            </span>
-            
-            {/* Primary shimmer */}
-            <div className="absolute top-0 left-0 w-full h-full">
-              <div className="w-1/2 h-full bg-gradient-to-r from-transparent via-white to-transparent opacity-20 absolute animate-shimmer" />
-            </div>
-            
-            {/* Secondary shimmer */}
-            <div className="absolute top-0 left-[-100%] w-full h-full">
-              <div className="w-1/2 h-full bg-gradient-to-r from-transparent via-white to-transparent opacity-20 absolute animate-flash" />
-            </div>
-            
-            {/* Hover underline effect */}
-            <div className="absolute bottom-0 left-0 w-full h-[2px] bg-gradient-to-r from-cyan-400 via-purple-400 to-blue-500 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300" />
-          </div>
-        </div>
-      </div>
-      
-      {/* Hover glow effect */}
-      <div className="absolute inset-0 -z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-        <div className="absolute inset-0 bg-gradient-to-r from-cyan-400/20 via-purple-400/20 to-blue-500/20 blur-xl animate-pulse-glow" />
-      </div>
-    </div>
-  );
   
 
-  const MobileMenuItem = ({ item }) => (
-    <button
-      onClick={() => {
-        onScrollToSection(item.scrollTo);
-        setIsOpen(false);
-      }}
-      className="w-full flex items-center space-x-3 px-6 py-4 hover:bg-white/10 transition-colors"
+  const MobileMenuItem = ({ item, onClick }) => (
+    <Link
+      to={item.path}
+      onClick={onClick}
+      className="w-full flex items-center space-x-3 px-6 py-4 hover:bg-white/10 transition-colors group"
     >
-      <span className="text-sky-400">{item.icon}</span>
+      <span className="text-sky-400 group-hover:scale-110 transition-transform duration-200">
+        {item.icon}
+      </span>
       <span className="text-white font-medium">{item.title}</span>
-    </button>
+    </Link>
   );
 
-// auth buttons
-const AuthButtons = () => (
-  <div className="flex items-center ml-4 pl-4 border-l border-white/10">
-    {isAuthenticated ? (
-      <>
-        <Link 
-          to="/profile"
-          className="flex items-center space-x-2 text-white hover:text-sky-400 transition-colors group"
-        >
-          <User size={16} className="group-hover:animate-bounce-x" />
-          <span className="font-medium">{user?.given_name || 'User'}</span>
-        </Link>
+  const MobileAuthButtons = () => (
+    <div className="px-6 py-4 border-t border-white/10">
+      {isAuthenticated ? (
+        <div className="space-y-3">
+          <Link 
+            to="/profile"
+            className="w-full flex items-center space-x-3 p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-colors group"
+            onClick={() => setIsOpen(false)}
+          >
+            <User size={16} className="text-sky-400 group-hover:scale-110 transition-transform duration-200" />
+            <span className="text-white font-medium">
+              {userData?.name || user?.given_name || 'User'}
+            </span>
+          </Link>
+          <button 
+            onClick={() => {
+              logout();
+              setUserData(null);
+              setIsOpen(false);
+            }}
+            className="w-full flex items-center space-x-3 p-3 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-500 group"
+          >
+            <LogOut size={16} className="group-hover:scale-110 transition-transform duration-200" />
+            <span className="font-medium">Logout</span>
+          </button>
+        </div>
+      ) : (
         <button 
-          onClick={logout}
-          className="ml-4 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg text-sm font-medium transition-colors flex items-center space-x-2 group"
+          onClick={() => {
+            login();
+            setIsOpen(false);
+          }}
+          className="w-full flex items-center space-x-3 p-3 rounded-lg bg-sky-500/40 hover:bg-sky-500/20 text-sky-400 group"
         >
-          <LogOut size={16} className="group-hover:animate-bounce-x" />
-          <span>Logout</span>
+          <LogIn size={16} className="group-hover:scale-110 transition-transform duration-200" />
+          <span className="font-medium">Login</span>
         </button>
-      </>
-    ) : (
-      <button 
-        onClick={login}
-        className="ml-4 px-4 py-2 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 rounded-lg text-sm font-medium transition-colors flex items-center space-x-2 group"
-      >
-        <LogIn size={16} className="group-hover:animate-bounce-x" />
-        <span>Login</span>
-      </button>
-    )}
-  </div>
-);
+      )}
+    </div>
+  );
 
+
+    // Modify your AuthButtons component to use userData
+    const AuthButtons = () => (
+      <div className="flex items-center ml-4 pl-4 border-l border-white/10">
+        {isAuthenticated ? (
+          <>
+            <Link 
+              to="/profile"
+              className="flex items-center space-x-2 text-white hover:text-sky-400 transition-colors group"
+            >
+              <User size={16} className="group-hover:animate-bounce-x" />
+              <span className="font-medium">
+                {userData?.name || user?.given_name || 'User'}
+              </span>
+            </Link>
+            <button 
+              onClick={() => {
+                logout();
+                setUserData(null); // Clear user data on logout
+              }}
+              className="ml-4 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg text-sm font-medium transition-colors flex items-center space-x-2 group"
+            >
+              <LogOut size={16} className="group-hover:animate-bounce-x" />
+              <span>Logout</span>
+            </button>
+          </>
+        ) : (
+          <button 
+            onClick={login}
+            className="ml-4 px-4 py-2 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 rounded-lg text-sm font-medium transition-colors flex items-center space-x-2 group"
+          >
+            <LogIn size={16} className="group-hover:animate-bounce-x" />
+            <span>Login</span>
+          </button>
+        )}
+      </div>
+    );
+  
 
   return (
     <nav 
@@ -152,20 +192,23 @@ const AuthButtons = () => (
     >
       <div className="max-w-7xl mx-auto px-6">
         <div className="flex items-center justify-between">
-          {/* Logo and Brand Section */}
           <div className="flex items-center space-x-3 group cursor-pointer" onClick={() => onScrollToSection('home')}>
             <div className="flex ml-[-40px]">
               <Logo />
             </div>
           </div>
 
-          {/* Mobile Actions */}
           <div className="lg:hidden flex items-center space-x-3">
             <Link 
               to="/cart"
-              className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors group"
+              className="relative p-2 rounded-full bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors group"
             >
               <ShoppingCart size={20} className="group-hover:animate-bounce-x" />
+              {items.length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-purple-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                  {items.length}
+                </span>
+              )}
             </Link>
             <button
               className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
@@ -175,9 +218,8 @@ const AuthButtons = () => (
             </button>
           </div>
 
-          {/* Desktop Navigation */}
           <div className="hidden lg:flex items-center space-x-1">
-          {navigationItems.map((item, index) => (
+            {navigationItems.map((item, index) => (
               <Link
                 key={index}
                 to={item.path}
@@ -188,61 +230,81 @@ const AuthButtons = () => (
               </Link>
             ))}
 
-          <Link 
-            to="/cart"
-            className="relative px-4 py-2 rounded-lg text-sm font-medium text-gray-300 hover:text-white hover:bg-white/5 transition-all flex items-center space-x-2 group"
-          >
-            <div className="relative">
-              <ShoppingCart className="w-4 h-4 group-hover:animate-bounce-x" />
-              {items.length > 0 && (
-                <span className="absolute -top-2 -right-2 bg-purple-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
-                  {items.length}
-                </span>
-              )}
-            </div>
-            <span>Cart</span>
-          </Link>
+            <Link 
+              to="/cart"
+              className="relative px-4 py-2 rounded-lg text-sm font-medium text-gray-300 hover:text-white hover:bg-white/5 transition-all flex items-center space-x-2 group"
+            >
+              <div className="relative">
+                <ShoppingCart className="w-4 h-4 group-hover:animate-bounce-x" />
+                {items.length > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-purple-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                    {items.length}
+                  </span>
+                )}
+              </div>
+              <span>Cart</span>
+            </Link>
 
-
-
-           <div>
-                 <AuthButtons />
-           </div>
-            
+            <AuthButtons />
           </div>
         </div>
       </div>
 
-      {/* Mobile Menu */}
-      {isOpen && (
-        <div className="lg:hidden fixed top-0 inset-0 bg-slate-900 z-50">
-          <div className="flex justify-between items-center p-6 border-b border-white/10 bg-slate-800">
+      {/* Mobile Menu with Animation */}
+      <div 
+        className={`fixed inset-0 bg-black backdrop-blur-sm transition-opacity duration-400 ${
+          isOpen ? 'opacity-100 visible' : 'opacity-0 invisible'
+        }`}
+        onClick={() => setIsOpen(false)}
+      >
+        <div
+          ref={drawerRef}
+          className={`fixed top-0 right-0 w-80 h-full bg-black shadow-xl transform transition-transform duration-300 ease-in-out ${
+            isOpen ? 'translate-x-0' : 'translate-x-full'
+          }`}
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="flex justify-between items-center p-6 border-b border-white/10 bg-slate-900">
             <div className="flex items-center space-x-3">
-              <div className="relative">
-                <div className='flex ml-[-50px]'>
-                    <Logo />
-                      <div className='left-[100px] top-2'>
-                        <ShimmeringText />  
-                      </div>
-                </div>
-                
-              </div>
+              
             </div>
             <button
               onClick={() => setIsOpen(false)}
-              className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+              className="p-2 rounded-full bg-white/30 hover:bg-white/10 text-gray-200 hover:text-white transition-colors group"
             >
-              <X size={24} className="hover:animate-pulse-subtle" />
+              <X size={24} className="group-hover:rotate-90 transition-transform duration-200" />
             </button>
           </div>
           
-          <div className="bg-slate-900">
+          <div className="py-4 bg-black ">
             {navigationItems.map((item, index) => (
-              <MobileMenuItem key={index} item={item} />
+              <MobileMenuItem 
+                key={index} 
+                item={item} 
+                onClick={() => setIsOpen(false)}
+              />
             ))}
+            
+            <Link
+              to="/cart"
+              onClick={() => setIsOpen(false)}
+              className="w-full flex items-center space-x-3 px-6 py-4 hover:bg-white/10 transition-colors group"
+            >
+              <div className="relative">
+                <ShoppingCart className="w-4 h-4 text-sky-400 group-hover:scale-110 transition-transform duration-200" />
+                {items.length > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-purple-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                    {items.length}
+                  </span>
+                )}
+              </div>
+              <span className="text-white font-medium">Cart</span>
+            </Link>
+
+            <MobileAuthButtons />
           </div>
         </div>
-      )}
+      </div>
     </nav>
   );
 };

@@ -1,6 +1,41 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, Calendar, ArrowRight, AlertCircle, Tag, Eye } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import debounce from 'lodash/debounce';
+import API_CONFIG from '../config/api';
+
+const CATEGORIES = [
+  { value: '', label: 'All Categories' },
+  { value: 'announcement', label: 'Announcements' },
+  { value: 'update', label: 'Updates' },
+  { value: 'result', label: 'Results' },
+  { value: 'general', label: 'General' }
+];
+
+const MIN_SEARCH_LENGTH = 3;
+const DEBOUNCE_DELAY = 3000;
+
+// Separate API call
+const fetchNews = async ({ page = 1, search = '', category = '', important = false }) => {
+  const params = new URLSearchParams({
+    page,
+    limit: 9,
+  });
+
+  if (search && search.length >= MIN_SEARCH_LENGTH) params.append('search', search);
+  if (category) params.append('category', category);
+  if (important) params.append('important', 'true');
+
+  const url = API_CONFIG.getUrl(`news?${params.toString()}`);
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  return response.json();
+};
 
 const NewsCard = ({ news }) => {
   const formattedDate = new Date(news.publishDate).toLocaleDateString('en-US', {
@@ -36,7 +71,6 @@ const NewsCard = ({ news }) => {
         />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/50 to-transparent"/>
         
-        {/* Category Badge */}
         <div className="absolute top-3 left-3">
           <span className={`px-2 py-1 rounded-full text-xs font-medium border
             ${news.category === 'announcement' ? 'bg-purple-500/20 text-purple-400 border-purple-500/20' :
@@ -99,48 +133,128 @@ const NewsCard = ({ news }) => {
   );
 };
 
+const NewsFilters = ({ filters, onFilterChange }) => {
+  const handleInputChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    onFilterChange(name, type === 'checkbox' ? checked : value);
+  };
+
+  return (
+    <div className="flex flex-wrap gap-4 items-center">
+      <div className="relative flex-1 min-w-[200px]">
+        <input
+          type="text"
+          name="search"
+          value={filters.search}
+          onChange={handleInputChange}
+          placeholder="Search news (min 3 characters)..."
+          className="w-full px-4 py-2 bg-slate-800 border border-slate-700 
+                   rounded-lg text-white placeholder-slate-400 pr-10"
+        />
+        <Search className="absolute right-3 top-2.5 w-5 h-5 text-slate-400" />
+      </div>
+
+      <select
+        name="category"
+        value={filters.category}
+        onChange={handleInputChange}
+        className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg 
+                 text-white appearance-none cursor-pointer"
+      >
+        {CATEGORIES.map(cat => (
+          <option key={cat.value} value={cat.value}>{cat.label}</option>
+        ))}
+      </select>
+
+      <label className="flex items-center gap-2 text-white cursor-pointer">
+        <input
+          type="checkbox"
+          name="important"
+          checked={filters.important}
+          onChange={handleInputChange}
+          className="w-4 h-4 rounded border-slate-700 bg-slate-800"
+        />
+        Important Only
+      </label>
+    </div>
+  );
+};
+
 const NewsList = () => {
-  const [news, setNews] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [category, setCategory] = useState('');
+  const queryClient = useQueryClient();
+  const [filters, setFilters] = useState({
+    search: '',
+    category: '',
+    important: false
+  });
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
 
-  useEffect(() => {
-    fetchNews();
-  }, [searchTerm, category, currentPage]);
+  // Create memoized debounced search handler
+  const debouncedSetSearch = useMemo(
+    () => debounce((value) => {
+      setDebouncedSearch(value);
+      setCurrentPage(1);
+    }, DEBOUNCE_DELAY),
+    []
+  );
 
-  const fetchNews = async () => {
-    try {
-      setLoading(true);
-      const params = new URLSearchParams({
-        page: currentPage,
-        limit: 9
-      });
-
-      if (searchTerm) params.append('search', searchTerm);
-      if (category) params.append('category', category);
-
-      const response = await fetch(`${import.meta.env.VITE_APP_BACKEND_URL}/api/news?${params}`);
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to fetch news');
-      }
-
-      setNews(data.news);
-      setTotalPages(data.pagination.totalPages);
-    } catch (error) {
-      console.error('Error fetching news:', error);
-      setError(error.message);
-    } finally {
-      setLoading(false);
+  // Handle filter changes
+  const handleFilterChange = (name, value) => {
+    setFilters(prev => ({ ...prev, [name]: value }));
+    setCurrentPage(1);
+    
+    if (name === 'search') {
+      debouncedSetSearch(value);
     }
   };
 
-  if (loading) {
+  // Enhanced query with prefetching
+  const { 
+    data, 
+    isLoading, 
+    isError, 
+    error,
+    isFetching,
+    isPreviousData
+  } = useQuery({
+    queryKey: ['news', { 
+      page: currentPage, 
+      search: debouncedSearch, 
+      category: filters.category,
+      important: filters.important 
+    }],
+    queryFn: () => fetchNews({ 
+      page: currentPage, 
+      search: debouncedSearch, 
+      category: filters.category,
+      important: filters.important
+    }),
+    staleTime: 5 * 60 * 1000,
+    keepPreviousData: true,
+    retry: 2,
+    onSuccess: (data) => {
+      // Prefetch next page
+      if (!isPreviousData && data.pagination.hasNextPage) {
+        queryClient.prefetchQuery({
+          queryKey: ['news', { 
+            page: currentPage + 1, 
+            search: debouncedSearch, 
+            category: filters.category,
+            important: filters.important 
+          }],
+          queryFn: () => fetchNews({ 
+            page: currentPage + 1, 
+            search: debouncedSearch, 
+            category: filters.category,
+            important: filters.important
+          })
+        });
+      }
+    }
+  });
+
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="flex items-center gap-2">
@@ -151,58 +265,54 @@ const NewsList = () => {
     );
   }
 
-  if (error) {
+  if (isError) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-red-400">Error: {error}</div>
+        <div className="text-red-400">Error: {error.message}</div>
       </div>
     );
   }
 
-  return (
-    <div className="container mx-auto px-4 py-8">
-      {/* Filters */}
-      <div className="mb-8 space-y-4 sm:space-y-0 sm:flex sm:items-center sm:justify-between">
-        <h1 className="text-2xl sm:text-3xl font-bold text-white">Latest News</h1>
-        
-        <div className="flex flex-wrap gap-4">
-          <div className="relative">
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search news..."
-              className="w-full sm:w-64 px-4 py-2 bg-slate-800 border border-slate-700 
-                       rounded-lg text-white placeholder-slate-400 pr-10"
-            />
-            <Search className="absolute right-3 top-2.5 w-5 h-5 text-slate-400" />
-          </div>
+  const { news, pagination } = data;
+  const { totalPages } = pagination;
 
-          <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg 
-                     text-white appearance-none cursor-pointer"
-          >
-            <option value="">All Categories</option>
-            <option value="announcement">Announcements</option>
-            <option value="update">Updates</option>
-            <option value="result">Results</option>
-            <option value="general">General</option>
-          </select>
+  return (
+    <div className="container mt-16 mx-auto px-4 py-8">
+      <div className="mb-8 space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl sm:text-3xl font-bold text-white">Latest News</h1>
+          {isFetching && !isLoading && (
+            <div className="flex items-center gap-2 text-slate-400">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-sky-500" />
+              <span className="text-sm">Updating...</span>
+            </div>
+          )}
         </div>
+        
+        <NewsFilters 
+          filters={filters} 
+          onFilterChange={handleFilterChange}
+        />
       </div>
 
-      {/* News Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {news.map((item) => (
           <NewsCard key={item._id} news={item} />
         ))}
       </div>
 
-      {/* Pagination */}
       {totalPages > 1 && (
         <div className="mt-8 flex justify-center gap-2">
+          <button
+            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+            disabled={currentPage === 1 || isFetching}
+            className="px-4 py-2 rounded-lg text-sm font-medium 
+                     bg-slate-800 text-slate-400 hover:bg-slate-700
+                     disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Previous
+          </button>
+          
           {[...Array(totalPages)].map((_, i) => (
             <button
               key={i}
@@ -211,17 +321,32 @@ const NewsList = () => {
                 ${currentPage === i + 1
                   ? 'bg-sky-500 text-white'
                   : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                }`}
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+              disabled={isFetching}
             >
               {i + 1}
             </button>
           ))}
+          
+          <button
+            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+            disabled={currentPage === totalPages || isFetching}
+            className="px-4 py-2 rounded-lg text-sm font-medium 
+                     bg-slate-800 text-slate-400 hover:bg-slate-700
+                     disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Next
+          </button>
         </div>
       )}
 
       {news.length === 0 && (
         <div className="text-center py-12">
-          <p className="text-slate-400 text-lg">No news found</p>
+          <p className="text-slate-400 text-lg">
+            {debouncedSearch && debouncedSearch.length < MIN_SEARCH_LENGTH 
+              ? 'Please enter at least 2 characters to search'
+              : 'No news found'}
+          </p>
         </div>
       )}
     </div>

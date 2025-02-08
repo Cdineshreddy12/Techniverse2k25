@@ -1,13 +1,35 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Calendar, User, Tag, Eye, ChevronLeft, AlertCircle } from 'lucide-react';
-
+import API_CONFIG from '../config/api';
+import { useQuery } from '@tanstack/react-query';
 const NewsDetail = () => {
   const { newsId } = useParams();
-  const [news, setNews] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [relatedNews, setRelatedNews] = useState([]);
+
+
+
+
+    // Single query to fetch both news detail and related news
+    const { data, isLoading, error } = useQuery({
+      queryKey: ['news', newsId],
+      queryFn: async () => {
+        const url = API_CONFIG.getUrl(`news/${newsId}`);
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to fetch news');
+        }
+        
+        return data;
+      },
+      staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
+      cacheTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+    });
 
   useEffect(() => {
     fetchNewsDetail();
@@ -15,39 +37,35 @@ const NewsDetail = () => {
 
   const fetchNewsDetail = async () => {
     try {
-      setLoading(true);
-      const response = await fetch(`${import.meta.env.VITE_APP_BACKEND_URL}/api/news/${newsId}`);
-      const data = await response.json();
-
+      isLoading(true);
+      const url = API_CONFIG.getUrl(`news/${newsId}`);
+      const response = await fetch(url);
+  
       if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+  
+      const data = await response.json();
+  
+      if (!data.success) {
         throw new Error(data.error || 'Failed to fetch news');
       }
-
+  
       setNews(data.news);
-
-      // Fetch related news based on department or tags
-      if (data.news.departments?.length || data.news.tags?.length) {
-        const params = new URLSearchParams();
-        if (data.news.departments?.[0]) {
-          params.append('department', data.news.departments[0]);
-        }
-        if (data.news.tags?.length) {
-          params.append('tags', data.news.tags.join(','));
-        }
-        
-        const relatedResponse = await fetch(`${import.meta.env.VITE_APP_BACKEND_URL}/api/news?${params}&limit=3`);
-        const relatedData = await relatedResponse.json();
-        setRelatedNews(relatedData.news.filter(item => item._id !== newsId));
+      // Set related news from the response
+      if (data.relatedNews) {
+        relatedNews(data.relatedNews);
       }
+  
     } catch (error) {
       console.error('Error fetching news:', error);
       setError(error.message);
     } finally {
-      setLoading(false);
+      isLoading(false);
     }
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="flex items-center gap-2">
@@ -58,21 +76,21 @@ const NewsDetail = () => {
     );
   }
 
-  if (error || !news) {
+  if (error || !data?.news) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-red-400">Error: {error || 'News not found'}</div>
       </div>
     );
   }
-
+  const { news, relatedNews = [] } = data;
   const formattedDate = new Date(news.publishDate).toLocaleDateString('en-US', {
     day: 'numeric',
     month: 'long',
     year: 'numeric'
   });
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto mt-12 px-4 py-8">
       {/* Back Button */}
       <Link
         to="/news"
@@ -252,6 +270,19 @@ const NewsDetail = () => {
       </article>
     </div>
   );
+};
+
+export const prefetchNewsDetail = async (queryClient, newsId) => {
+  await queryClient.prefetchQuery({
+    queryKey: ['news', newsId],
+    queryFn: async () => {
+      const url = API_CONFIG.getUrl(`news/${newsId}`);
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Network response was not ok');
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 };
 
 export default NewsDetail;

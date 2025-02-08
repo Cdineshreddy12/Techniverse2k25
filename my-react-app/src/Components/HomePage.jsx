@@ -15,6 +15,7 @@ import QRTesting from './QrTesting.jsx';
 import DepartmentEvents from './DepartmentEvents.jsx';
 import { useKindeAuth } from '@kinde-oss/kinde-auth-react';
 import toast from 'react-hot-toast';
+import API_CONFIG from '../config/api.js';
 const TechIcon = ({ icon: Icon, style, delay = 0 }) => (
   <div 
     className={`absolute transform opacity-20 text-cyan-400
@@ -165,7 +166,8 @@ const HomePage = () => {
   const {user}=useKindeAuth();
   const handlePackageSelect = async (pkg, optionId) => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_APP_BACKEND_URL}/api/combo/select`, {
+      const url=API_CONFIG('combo/select');
+      const response = await fetch(url,{
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -204,8 +206,8 @@ const HomePage = () => {
 
   const stats = [
     { value: '40+', label: 'Tech Events', icon: Terminal },
-    { value: '10+', label: 'Innovation Workshops', icon: Brain },
-    { value: '₹100k+', label: 'Prize Pool', icon: Trophy },
+    { value: '7 +', label: 'Innovation Workshops', icon: Brain },
+    { value: '₹10k+', label: 'Prize Pool', icon: Trophy },
     { value: '3000+', label: 'Tech Enthusiasts', icon: Users }
   ];
 
@@ -241,14 +243,14 @@ const HomePage = () => {
               <div className="absolute -inset-1 bg-gradient-to-r from-cyan-500 to-purple-500 rounded-lg blur opacity-25 group-hover:opacity-100 transition duration-1000 group-hover:duration-200" />
               <div className="relative px-3 sm:px-6 py-2 bg-slate-900 rounded-lg border border-cyan-500/30">
                 <p className="text-sm sm:text-base md:text-lg lg:text-xl text-cyan-200 font-medium">
-                  ONE OF THE LARGEST TECH FEST IN SRIKAKULAM
+                  ONE OF THE LARGEST TECH FEST CONDUCTED BY RGUKT-SRIKAKULAM
                 </p>
               </div>
             </div>
 
             {/* Description */}
             <p className="text-xs sm:text-sm md:text-base text-gray-400 max-w-2xl mx-auto mb-6 sm:mb-8 px-4">
-              Uniting <span className="text-cyan-400 font-semibold">2000+</span> brilliant minds in a 
+              Uniting <span className="text-cyan-400 font-semibold">3000+</span> brilliant minds in a 
               <span className="hidden sm:inline"> celebration of innovation and technology.</span>
               <span className="inline sm:hidden"> tech celebration.</span>
               <br className="hidden sm:block" />

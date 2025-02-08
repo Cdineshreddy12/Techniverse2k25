@@ -19,41 +19,32 @@ import { Buffer } from 'buffer';
 import cartRoutes from './Routes/CartRoutes.js'
 import comboRoutes from './Routes/comboRoutes.js'
 import RegistrationRoutes from './Routes/Registration.js'
-import { loadKindeAuth } from './KindeAuth.js';
+
 import { Student } from './Models/StudentSchema.js';
 import QRRoutes from './Routes/QRRoutes.js'
 import exportRoutes from './Routes/ExportRoutes.js'
 import newRoutes from './Routes/newRoutes.js'
+import PaymentRoutes from './Routes/PaymentRoutes.js'
+import path from "path"
+import { fileURLToPath } from "url";
 // Load environment variables
 dotenv.config();
 
 // Initialize express app
 const app = express();
 
-// Initialize Kinde auth
-const initializeAuth = async () => {
-  try {
-    const kindeAuth = await loadKindeAuth();
-    
-    // Apply Kinde middleware
-    app.use(kindeAuth.middleware());
+// Convert __dirname to work with ES6 modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-    // Protected route example
-    app.get('/protected', kindeAuth.protect(), (req, res) => {
-      res.json({ user: req.user });
-    });
+// Serve static files from 'public' folder
+app.use(express.static(path.join(__dirname, "public")));
 
-    // Start your server only after Kinde is initialized
-    const PORT = process.env.PORT || 3000;
-    app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
-    });
+app.get("/google65f85b9b14c46c09.html", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "googleXXXXXXXXXX.html"));
+});
 
-  } catch (error) {
-    console.error('Failed to initialize Kinde auth:', error);
-    process.exit(1);
-  }
-};
+
 
 
 AWS.config.update({
@@ -146,6 +137,7 @@ app.use('/api',exportRoutes );
 app.use('/api',newRoutes);
 app.use('/api',cartRoutes);
 app.use('/api',comboRoutes);
+app.use('/api',PaymentRoutes);
 // Send confirmation email
 // Verify recipient email
 const verifyRecipientEmail = async (recipientEmail) => {

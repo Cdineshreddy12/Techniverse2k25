@@ -223,9 +223,10 @@
       const file = e.target.files[0];
       if (file) {
         const url = URL.createObjectURL(file);
-        onChange(url);
+        onChange({ file, url }); // Pass both file and URL
       }
     };
+    
 
     return (
       <div className="space-y-2">

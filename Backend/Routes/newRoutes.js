@@ -33,29 +33,43 @@ router.get('/news', async (req, res) => {
     } = req.query;
 
     const query = {};
-    
+    const conditions = [];
+
     // Build query based on filters
     if (status) query.status = status;
     if (category) query.category = category;
     if (department) query.departments = department;
     if (important) query.important = important === 'true';
+    
     if (search) {
-      query.$or = [
-        { title: { $regex: search, $options: 'i' } },
-        { content: { $regex: search, $options: 'i' } },
-        { tags: { $regex: search, $options: 'i' } }
-      ];
+      conditions.push({
+        $or: [
+          { title: { $regex: search, $options: 'i' } },
+          { content: { $regex: search, $options: 'i' } },
+          { tags: { $regex: search, $options: 'i' } }
+        ]
+      });
     }
 
-    // For public access, only show published and active news
+    // For public access
     if (!req.query.admin) {
-      query.status = 'published';
-      query.publishDate = { $lte: new Date() };
-      query.$or = [
-        { expiryDate: { $exists: false } },
-        { expiryDate: { $gt: new Date() } }
-      ];
+      conditions.push(
+        { status: 'published' },
+        {
+          $or: [
+            { expiryDate: null },  // Handle null case
+            { expiryDate: { $exists: false } },  // Handle non-existent case
+            { expiryDate: { $gt: new Date() } }  // Handle future expiry
+          ]
+        }
+      );
     }
+
+    if (conditions.length > 0) {
+      query.$and = conditions;
+    }
+
+    console.log('Query:', JSON.stringify(query));
 
     const skip = (page - 1) * limit;
     
@@ -65,6 +79,8 @@ router.get('/news', async (req, res) => {
       .sort({ publishDate: -1, createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit));
+
+    console.log('Found news count:', news.length);
 
     const total = await News.countDocuments(query);
 
@@ -87,8 +103,10 @@ router.get('/news', async (req, res) => {
 });
 
 // Get single news
+// Get single news
 router.get('/news/:id', async (req, res) => {
   try {
+    // First fetch the requested news item
     const news = await News.findById(req.params.id)
       .populate('departments', 'name shortName')
       .populate('relatedEvents', 'title startTime');
@@ -104,10 +122,28 @@ router.get('/news/:id', async (req, res) => {
     news.viewCount += 1;
     await news.save();
 
+    // Get related news
+    const relatedQuery = {
+      _id: { $ne: req.params.id }, // Exclude current news
+      status: 'published',
+      $or: [
+        { expiryDate: null },
+        { expiryDate: { $exists: false } },
+        { expiryDate: { $gt: new Date() } }
+      ]
+    };
+
+    const relatedNews = await News.find(relatedQuery)
+      .populate('departments', 'name shortName')
+      .limit(3)
+      .sort({ publishDate: -1 });
+
     res.json({
       success: true,
-      news
+      news,
+      relatedNews
     });
+
   } catch (error) {
     console.error('Get news error:', error);
     res.status(500).json({

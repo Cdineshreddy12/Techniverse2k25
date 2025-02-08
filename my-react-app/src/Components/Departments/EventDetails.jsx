@@ -10,6 +10,7 @@ import { useDispatch } from 'react-redux';
 import { store } from '../../Redux/mainStore';
 import { addToCart } from '../../Redux/cartSlice';
 import { useKindeAuth } from '@kinde-oss/kinde-auth-react';
+import API_CONFIG from '../../config/api';
 const EventDetails = () => {
   const { departmentId, eventId } = useParams();
   const navigate = useNavigate();
@@ -21,37 +22,44 @@ const {user}=useKindeAuth();
   const dispatch = useDispatch();
   const [addingToCart, setAddingToCart] = useState(false);
 
-  const addToBackendCart = async (kindeId, item) => {
+  const addToBackendCart = async (kindeId) => {
+    if (!event.eventInfo || !event.eventInfo.id) {
+      throw new Error('Invalid event data');
+    }
+    
+    const eventId = event.eventInfo.id;
+    console.log("Event ID:", eventId);
+    
+    const cartItem = {
+      eventId: eventId,  // Use the correct ID from eventInfo
+      price: event.registration.fee
+    };
+  
     console.log('Sending to backend:', {
       kindeId,
-      item: {
-        eventId: event._id, // This should be the MongoDB _id
-        price: event.registration.fee
-      }
+      item: cartItem
     });
   
-    const response = await fetch(`${import.meta.env.VITE_APP_BACKEND_URL}/api/cart/add`, {
+    const url = API_CONFIG.getUrl('cart/add');
+  
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         kindeId,
-        item: {
-          eventId: event._id,
-          price: event.registration.fee
-        }
+        item: cartItem
       })
     });
   
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to add item to cart');
+      throw new Error(errorData.error || errorData.details || 'Failed to add item to cart');
     }
     
     return response.json();
   };
-  
 
   useEffect(() => {
     fetchEventDetails();
@@ -401,35 +409,34 @@ const {user}=useKindeAuth();
                   }
               
                   // Update backend first
-                  const backendResponse = await addToBackendCart(user.id, {
-                    eventId: event._id,
-                    price: event.registration.fee
-                  });
+                 // Just pass the whole event object
+                const backendResponse = await addToBackendCart(user.id);
               
-                  if (backendResponse.success) {
-                    // Prepare cart item for Redux
-                    const cartItem = {
-                      id: event._id,
-                      fee: event.registration.fee,
-                      eventInfo: {
-                        ...event.eventInfo,
-                        department: {
-                          id: departmentId,
-                          shortName: event.eventInfo.department.shortName,
-                          color: event.eventInfo.department.color
-                        }
-                      },
-                      schedule: event.schedule,
-                      registration: event.registration,
-                      media: event.media
-                    };
-                    
+                                
+                if (backendResponse.success) {
+                  // Prepare cart item for Redux with correct ID
+                  const cartItem = {
+                    id: event.eventInfo.id,
+                    fee: event.registration.fee,
+                    eventInfo: {
+                      ...event.eventInfo,
+                      department: {
+                        id: departmentId,
+                        shortName: event.eventInfo.department.shortName,
+                        color: event.eventInfo.department.color
+                      }
+                    },
+                    schedule: event.schedule,
+                    registration: event.registration,
+                    media: event.media
+                  };
                     // If backend succeeds, update Redux
                     dispatch(addToCart(cartItem));
                     setShowSuccess(true);
                     toast.success('Added to cart successfully!');
                     setTimeout(() => setShowSuccess(false), 2000);
                   }
+                  
               
                 } catch (error) {
                   console.error('Error adding to cart:', error);

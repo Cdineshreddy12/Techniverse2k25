@@ -11,8 +11,11 @@ const DepartmentLayout = () => {
   useEffect(() => {
     const fetchDepartment = async () => {
       try {
-        const response = await fetch(API_CONFIG.getUrl('departments'));
+        const url = API_CONFIG.getUrl(`departments/${departmentId}`);
+        const response = await fetch(url);
+        
         if (!response.ok) throw new Error('Failed to fetch department');
+        
         const data = await response.json();
         
         if (data.success) {
@@ -26,6 +29,7 @@ const DepartmentLayout = () => {
         setLoading(false);
       }
     };
+    
 
     if (departmentId) {
       fetchDepartment();

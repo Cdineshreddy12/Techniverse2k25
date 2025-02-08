@@ -1,51 +1,108 @@
-import React, { useState } from 'react';
+import React, { useState,useEffect } from 'react';
 import { useKindeAuth } from '@kinde-oss/kinde-auth-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
-
+import { createApiClient } from '../config/kindeAPI';
 const RegistrationForm = () => {
   const { user } = useKindeAuth();
   const navigate = useNavigate();
-
+  const api = createApiClient();
   const [formData, setFormData] = useState({
-    name: user?.name || '', // Pre-fill with user name if available
+    name: user?.name || '',
     collegeId: '',
     branch: '',
-    collegeName: ''
+    collegeName: '',
+    mobileNumber: ''
   });
   
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isStudentEmail = user?.email?.toLowerCase().startsWith('s');
 
+  useEffect(() => {
+    const checkRegistration = async () => {
+        if (!user?.id) {
+            setIsLoading(false);
+            return;
+        }
+
+        try {
+            const data = await api.getUser(user.id);
+            console.log('Registration check response:', data); // Debug log
+
+            if (data.success && data.user) {
+                // User exists and is registered
+                toast.success('Already registered!');
+                navigate('/cart');
+            } else if (data.needsRegistration) {
+                // User needs to complete registration
+                setIsLoading(false);
+            }
+        } catch (error) {
+            console.error('Failed to check registration:', error);
+            toast.error('Failed to verify registration status');
+            setIsLoading(false);
+        }
+    };
+
+    checkRegistration();
+}, [user?.id, navigate, api]);
+
+ 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
     
     try {
-      const response = await fetch(`${import.meta.env.VITE_APP_BACKEND_URL}/api/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          kindeId: user.id,
-          name:formData.name,
-          email: user.email,
-          ...formData
-        })
-      });
+      if (!formData.name || !user?.email || !formData.mobileNumber) {
+        throw new Error('Please fill in all required fields');
+      }
+  
+      const registrationData = {
+        kindeId: user.id,
+        name: formData.name,
+        email: user.email,
+        mobileNumber: formData.mobileNumber,
+        registrationType: isStudentEmail ? 'student' : 'other', // Add this
+        ...(isStudentEmail 
+          ? { 
+              collegeId: formData.collegeId,
+              branch: formData.branch
+            } 
+          : { 
+              collegeName: formData.collegeName 
+            }
+        )
+      };
+  
+      console.log('Sending registration data:', registrationData);
+      await api.registerUser(registrationData);
       
-      if (!response.ok) throw new Error('Registration failed');
       toast.success('Registration completed successfully!');
-      // Add a small delay before redirecting to allow the success toast to be visible
-      setTimeout(() => {
-        navigate('/cart');
-      }, 1500);
+      setTimeout(() => navigate('/cart'), 1500);
     } catch (error) {
-      toast.error('Failed to register. Please try again.');
+      console.error('Registration error:', error);
+      toast.error(error.message || 'Failed to register. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
   };
+
+    // Form validation
+    const validateForm = () => {
+      if (!formData.name?.trim()) return false;
+      if (!formData.mobileNumber?.match(/^[6-9]\d{9}$/)) return false;
+      
+      if (isStudentEmail) {
+        if (!formData.collegeId?.trim()) return false;
+        if (!formData.branch) return false;
+      } else {
+        if (!formData.collegeName?.trim()) return false;
+      }
+      
+      return true;
+    };
+
 
   // Rest of your component remains the same
   return (
@@ -117,6 +174,23 @@ const RegistrationForm = () => {
                       <option value="CIVIL" className="bg-slate-800">Civil</option>
                     </select>
                   </div>
+
+                  <div>
+                    <label className="block text-gray-300 text-sm font-medium mb-2">
+                      Mobile Number
+                    </label>
+                    <input
+                      type="tel"
+                      value={formData.mobileNumber}
+                      onChange={(e) => setFormData({ ...formData, mobileNumber: e.target.value })}
+                      className="w-full bg-slate-900 text-white rounded-lg px-4 py-3 border border-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all duration-200"
+                      required
+                      placeholder="Enter your mobile number"
+                      pattern="[0-9]{10}"
+                      title="Please enter a valid 10-digit mobile number"
+                    />
+                  </div>
+
                 </div>
               </>
             ) : (
@@ -149,23 +223,40 @@ const RegistrationForm = () => {
                             placeholder="Enter your college name"
                             />
                         </div>
+
+                        <div>
+                        <label className="block text-gray-300 text-sm font-medium mb-2">
+                          Mobile Number
+                        </label>
+                        <input
+                          type="tel"
+                          value={formData.mobileNumber}
+                          onChange={(e) => setFormData({ ...formData, mobileNumber: e.target.value })}
+                          className="w-full bg-slate-900 text-white rounded-lg px-4 py-3 border border-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all duration-200"
+                          required
+                          placeholder="Enter your mobile number"
+                          pattern="[0-9]{10}"
+                          title="Please enter a valid 10-digit mobile number"
+                        />
+                      </div>
                 </div>
             )}
 
-            <button 
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-medium py-3 px-4 rounded-lg transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-            >
-              {isSubmitting ? (
-                <div className="flex items-center justify-center">
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                  Processing...
-                </div>
-              ) : (
-                'Complete Registration'
-              )}
-            </button>
+              <button 
+                      type="submit"
+                      disabled={isSubmitting || !validateForm()}
+                      className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-medium py-3 px-4 rounded-lg transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                    >
+                      {isSubmitting ? (
+                        <div className="flex items-center justify-center">
+                          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                          Processing...
+                        </div>
+                      ) : (
+                        'Complete Registration'
+                      )}
+                    </button>
+
           </form>
 
           {/* Bottom Info */}

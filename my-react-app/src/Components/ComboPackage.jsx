@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useKindeAuth } from '@kinde-oss/kinde-auth-react';
 import toast from 'react-hot-toast';
 import { usePackage } from './utils/PackageContext.jsx';
+import API_CONFIG from '../config/api.js';
 
 // Add custom shimmer animation
 const customStyles = `
@@ -118,7 +119,8 @@ const ComboPackage = memo(() => {
       }
 
       const selectedOption = pkg.options[optionIdx];
-      const response = await fetch(`${import.meta.env.VITE_APP_BACKEND_URL}/api/combo/select`, {
+      const url=API_CONFIG.getUrl(`combo/select`)
+      const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Calendar, Clock, Users, Trophy,Search,Loader } from 'lucide-react';
 import { useParams } from 'react-router-dom';
+import API_CONFIG from '../../config/api';
 const useScrollAnimation = () => {
   const [isVisible, setIsVisible] = useState(false);
   const elementRef = useRef(null);
@@ -281,13 +282,15 @@ const Events = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState(null);
 
+ 
+
   useEffect(() => {
     const fetchEvents = async () => {
       try {
         setLoading(true);
         setError(null);
-        
-        const response = await fetch(`${import.meta.env.VITE_APP_BACKEND_URL}/api/departments/${departmentId}/events`);
+        const url=API_CONFIG.getUrl(`departments/${departmentId}/events`);
+        const response = await fetch(url);
         
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);

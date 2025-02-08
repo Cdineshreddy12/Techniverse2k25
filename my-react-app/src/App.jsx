@@ -12,7 +12,9 @@ import { PackageProvider } from './Components/utils/PackageContext.jsx';
 import Navbar from "./Components/NavBar";
 import Footer from './Components/Footer.jsx';
 import UnauthorizedPage from './Components/unAuthorisedPage.jsx';
-
+import NewsDetail from './Components/NewsDetail.jsx';
+import NewsList from './Components/NewsList.jsx';
+import { createApiClient } from './config/kindeAPI.js';
 // Lazy load components based on route priority
 const TechniverseHome = lazy(() => import("./Components/HomePage"));
 const AboutPage = lazy(() => import("./Components/About"));
@@ -44,7 +46,9 @@ const ExportRegistrations = lazy(() => import('./Components/AdminComponents/expo
 const NewsForm = lazy(() => import('./Components/AdminComponents/NewsFormComponent.jsx'));
 const AdministrationPage = lazy(() => import('./Components/AdminstrationComponent.jsx'));
 const IntroAnimation = lazy(() => import('./Components/AdminComponents/IntroAnimation.jsx'));
-
+import PaymentFailure from './Components/paymentFailure.jsx';
+import PaymentSuccess from './Components/paymentSuccess.jsx';
+import TeamShowcase from './Components/TeamShowCase.jsx';
 // Optimized loading spinner
 const LoadingSpinner = () => (
   <div className="fixed inset-0 bg-slate-950/80 flex items-center justify-center">
@@ -114,6 +118,9 @@ const RegisteredRoute = React.memo(({ children }) => {
   const location = useLocation();
   const checkAttempted = React.useRef(false);
 
+  // Create API client
+  const api = React.useMemo(() => createApiClient(), []);
+
   React.useEffect(() => {
     let isMounted = true;
 
@@ -124,26 +131,26 @@ const RegisteredRoute = React.memo(({ children }) => {
       }
 
       try {
-        const response = await fetch(
-          `${import.meta.env.VITE_APP_BACKEND_URL}/api/user/${user.id}`,
-          {
-            method: 'GET',
-            headers: {
-              'Accept': 'application/json',
-              'Content-Type': 'application/json'
-            },
+        const data = await api.getUser(user.id);
+
+        if (data?.needsRegistration) {
+          if (isMounted) {
+            setIsRegistered(false);
+            setCheckingRegistration(false);
+            checkAttempted.current = true;
+            toast.error('Please complete registration to continue');
           }
-        );
+          return;
+        }
 
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        const data = await response.json();
-        const userExists = Boolean(data && typeof data === 'object' && !Array.isArray(data) && Object.keys(data).length > 0);
-
-        if (isMounted) {
-          setIsRegistered(userExists);
-          setCheckingRegistration(false);
-          checkAttempted.current = true;
-          if (!userExists) toast.error('Please complete registration to continue');
+        if (data?.success && data?.user) {
+          if (isMounted) {
+            setIsRegistered(true);
+            setCheckingRegistration(false);
+            checkAttempted.current = true;
+          }
+        } else {
+          throw new Error('Invalid response format');
         }
       } catch (error) {
         console.error('Registration Check Error:', error);
@@ -151,7 +158,12 @@ const RegisteredRoute = React.memo(({ children }) => {
           setIsRegistered(false);
           setCheckingRegistration(false);
           checkAttempted.current = true;
-          toast.error(`Registration check failed: ${error.message}`);
+          
+          if (error.message === 'Authentication failed') {
+            toast.error('Authentication failed. Please try logging in again.');
+          } else {
+            toast.error('Registration check failed. Please try again.');
+          }
         }
       }
     };
@@ -163,7 +175,7 @@ const RegisteredRoute = React.memo(({ children }) => {
     return () => {
       isMounted = false;
     };
-  }, [user?.id, isAuthenticated]);
+  }, [user?.id, isAuthenticated, api]);
 
   if (isLoading || checkingRegistration) return <LoadingSpinner />;
   if (!isAuthenticated) return <Navigate to="/" />;
@@ -171,6 +183,7 @@ const RegisteredRoute = React.memo(({ children }) => {
   
   return children;
 });
+
 
 const ProtectedRoute = React.memo(({ children }) => {
   const { isAuthenticated, isLoading } = useKindeAuth();
@@ -262,7 +275,12 @@ function App() {
                     <Route path="/unauthorized" element={<UnauthorizedPage />} />
                     <Route path="/about" element={<AboutPage />} />
                     <Route path="/intro" element={<IntroAnimation />} />
-                    
+                    <Route path="/news" element={<NewsList />} />
+                    <Route path="/sponsors" element={<SponsorScroll/>} />
+                    <Route path="/teams" element={<TeamShowcase/>} />
+                    <Route path="/news/:newsId" element={<NewsDetail />} />
+                    <Route path="/payment/success" element={<PaymentSuccess />} />
+                    <Route path="/payment/failure" element={<PaymentFailure/>} />
                     {/* Protected Routes */}
                     <Route path="/register" element={
                       <ProtectedRoute>
@@ -275,9 +293,9 @@ function App() {
                       </RegisteredRoute>
                     } />
                     <Route path="/cart" element={
-                      <RegisteredRoute>
+                 
                         <CartComponent />
-                      </RegisteredRoute>
+                    
                     } />
                     <Route path="/administration" element={<AdministrationPage />} />
                     <Route path="/payment" element={

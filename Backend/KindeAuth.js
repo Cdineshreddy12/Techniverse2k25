@@ -1,21 +1,40 @@
-const loadKindeAuth = async () => {
-    try {
-      // Dynamic import of the CommonJS module
-      const { KindeAuthMiddleware } = await import('@kinde-oss/kinde-node-express');
-      
-      const kindeAuth = new KindeAuthMiddleware(
-        process.env.KINDE_CLIENT_ID,
-        process.env.KINDE_CLIENT_SECRET,
-        process.env.KINDE_ISSUER_URL,
-        process.env.KINDE_REDIRECT_URL,
-        process.env.KINDE_POST_LOGOUT_URL
-      );
-  
-      return kindeAuth;
-    } catch (error) {
-      console.error('Error loading Kinde auth:', error);
-      throw error;
+// KindeAuth.js
+import jwt from 'jsonwebtoken';
+
+export const kindeMiddleware = async (req, res, next) => {
+  try {
+    // Handle OPTIONS requests
+    if (req.method === 'OPTIONS') {
+      return res.status(204).end();
     }
-  };
-  
-  export { loadKindeAuth };
+
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader?.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.decode(token);
+    
+    if (!decoded?.sub) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+
+    req.user = {
+      id: decoded.sub,
+      clientId: decoded.azp,
+      issuer: decoded.iss
+    };
+
+    console.log('Auth successful:', {
+      userId: req.user.id,
+      path: req.path
+    });
+
+    next();
+  } catch (error) {
+    console.error('Auth error:', error);
+    res.status(401).json({ error: 'Authentication failed' });
+  }
+};

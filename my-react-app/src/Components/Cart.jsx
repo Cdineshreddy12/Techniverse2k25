@@ -13,14 +13,50 @@ import { removeFromCart, clearCart } from '../Redux/cartSlice.js';
 import { useKindeAuth } from '@kinde-oss/kinde-auth-react';
 import { useNavigate } from 'react-router-dom';
 import { useState,useEffect } from 'react';
+import API_CONFIG from '../config/api.js';
+import { addToCart } from '../Redux/cartSlice.js';
+import { X } from 'lucide-react';
+import { toast } from 'react-hot-toast';
+import PaymentHandler from './PaymentPage.jsx';
+  
 const CartComponent = () => {
   const { user } = useKindeAuth();
-
+  const [paymentSession, setPaymentSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
   const cartItems = useSelector(state => state.cart.items);
+
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+
+  const initiatePayment = async () => {
+    try {
+      const response = await fetch(API_CONFIG.getUrl('payment/initiate'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          amount: calculateTotal(),
+          cartItems,
+          kindeId: user.id
+        })
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setPaymentSession(data.sessionData);
+        
+      } else {
+        toast.error(data.error || 'Payment initiation failed');
+      }
+    } catch (error) {
+      console.error('Payment error:', error);
+      toast.error('Failed to initiate payment');
+    }
+  };
 
 
   useEffect(() => {
@@ -32,7 +68,8 @@ const CartComponent = () => {
   const fetchCart = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${import.meta.env.VITE_APP_BACKEND_URL}/api/cart/${user.id}`);
+      const url=API_CONFIG.getUrl(`cart/${user.id}`)
+      const response = await fetch(url);
       const data = await response.json();
       
       if (data.error) {
@@ -60,7 +97,8 @@ const CartComponent = () => {
 
   const removeItem = async (itemId) => {
     try {
-      await fetch(`${import.meta.env.VITE_APP_BACKEND_URL}/api/cart/${user.id}/${itemId}`, { 
+        const url=API_CONFIG.getUrl(`cart/${user.id}/${itemId}`)
+      await fetch(url, { 
         method: 'DELETE'
       });
       
@@ -82,6 +120,14 @@ const CartComponent = () => {
   const calculateTotal = () => {
       return cartItems.reduce((sum, item) => sum + item.registration.fee, 0);
   };
+
+  const handlePaymentSuccess = () => {
+    // Clear cart and show success message
+    dispatch(clearCart());
+    toast.success('Payment successful!');
+    navigate('/dashboard/registrations');
+  };
+
 
  function CyberpunkSpinner() {
     return (
@@ -118,30 +164,7 @@ const CartComponent = () => {
       );
   }
 
-  const proceedToPayment = async () => {
-      try {
-          const response = await fetch('/api/initiate-payment', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                  kindeId: user.id,
-                  selectedEvents: cartItems
-              })
-          });
 
-          if (!response.ok) throw new Error();
-          
-          const data = await response.json();
-          navigate('/payment', { 
-              state: { 
-                  transactionId: data.transactionId,
-                  amount: calculateTotal()
-              }
-          });
-      } catch (error) {
-          toast.error("Failed to initiate payment");
-      }
-  };
 
     return (
         <div className="min-h-screen mt-16 bg-gradient-to-b from-[#0A0A1B] to-[#1a1a3a] text-white">
@@ -168,6 +191,8 @@ const CartComponent = () => {
                         <span className="text-xs md:text-sm">Instant Registration</span>
                     </div>
                 </div>
+
+                
 
                 {/* Cart Items */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-4">
@@ -238,6 +263,14 @@ const CartComponent = () => {
                     ))}
                 </div>
 
+                {paymentSession && (
+                    <PaymentHandler 
+                      sessionData={paymentSession}
+                      onClose={() => setPaymentSession(false)}
+                    />
+                  )}
+
+
                 {/* Cart Summary - Fixed at bottom */}
                 <div className="fixed bottom-0 inset-x-0 bg-slate-800/95 backdrop-blur-md border-t border-slate-700">
                     <div className="max-w-7xl mx-auto px-4 py-3 md:py-4">
@@ -253,15 +286,15 @@ const CartComponent = () => {
                                 <div className="text-center md:text-left">
                                     <p className="text-xs md:text-sm text-gray-400">Total Amount</p>
                                     <p className="text-xl md:text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 text-transparent bg-clip-text">
-                                        ₹{total}
+                                        ₹{calculateTotal()}
                                     </p>
                                 </div>
                             </div>
                             <button 
-                                onClick={proceedToPayment}
-                                className="w-full md:w-auto px-6 md:px-8 py-2 md:py-3 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 transition-all duration-300 font-medium shadow-lg hover:shadow-purple-500/25 transform hover:scale-105 text-sm md:text-base"
+                              onClick={initiatePayment}
+                              className="w-full md:w-auto px-6 md:px-8 py-2 md:py-3 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 transition-all duration-300 font-medium shadow-lg hover:shadow-purple-500/25 transform hover:scale-105 text-sm md:text-base"
                             >
-                                Proceed to Payment
+                              Proceed to Payment
                             </button>
                         </div>
                     </div>

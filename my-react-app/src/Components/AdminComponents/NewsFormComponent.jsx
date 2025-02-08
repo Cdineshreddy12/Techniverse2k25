@@ -278,15 +278,19 @@ const NewsForm = ({ news, onClose, onSubmitSuccess }) => {
     <div className="space-y-6">
       <ImageUpload
         label="Thumbnail"
-        value={formData.thumbnail}
-        onChange={(file) => setFormData({
-          ...formData,
-          thumbnailFile: file,
-          thumbnail: file ? URL.createObjectURL(file) : null
-        })}
+        value={formData.thumbnail} // Pass only the preview URL
+        onChange={({ file, url }) => {
+          setFormData((prev) => ({
+            ...prev,
+            thumbnailFile: file,
+            thumbnail: url, // Store preview URL
+          }));
+        }}
       />
     </div>
   );
+  
+  
 
   const renderRelationsTab = () => (
     <div className="space-y-6">
