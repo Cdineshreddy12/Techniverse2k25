@@ -122,7 +122,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' })); // Parse URL-enc
 app.use('/uploads', express.static('uploads'));
 
 // Health check route
-app.get('/health', (req, res) => {
+app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'OK', timestamp: new Date() });
 });
 
