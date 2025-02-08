@@ -7,9 +7,11 @@ WORKDIR /app
 # Copy only package.json and package-lock.json first (improves build caching)
 COPY package*.json ./
 
-# Set npm registry and increase memory for installation
-RUN npm config set registry http://registry.npmjs.org/ \
-    && npm ci --only=production --legacy-peer-deps
+# Install dependencies
+RUN npm config set registry http://registry.npmjs.org/ &&\
+    npm install \  # This will install all dependencies from package.json &&\
+    npm install --save-dev \ # This will install dev dependencies if needed &&\
+    npm audit fix # Fix any security issues
 
 # Copy the rest of the application files
 COPY . .
