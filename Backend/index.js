@@ -33,17 +33,13 @@ dotenv.config();
 // Initialize express app
 const app = express();
 
-// Convert __dirname to work with ES6 modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Serve static files from the Backend folder
+app.use(express.static(__dirname));
 
-// Serve static files from 'public' folder
-app.use(express.static(path.join(__dirname, "public")));
-
+// Serve google verification file
 app.get("/google65f85b9b14c46c09.html", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "googleXXXXXXXXXX.html"));
+  res.sendFile(path.join(__dirname, "google65f85b9b14c46c09.html"));
 });
-
 
 
 

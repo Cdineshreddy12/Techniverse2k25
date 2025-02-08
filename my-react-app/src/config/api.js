@@ -1,5 +1,5 @@
 // src/config/api.js
-const BASE_URL = import.meta.env.VITE_APP_BACKEND_URL || window.location.origin;
+const BASE_URL = import.meta.env.VITE_BACKEND_URL || window.location.origin;
 const API_CONFIG = {
     baseURL: BASE_URL,
     getUrl: (endpoint) => {

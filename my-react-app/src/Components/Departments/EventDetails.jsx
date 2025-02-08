@@ -64,14 +64,15 @@ const {user}=useKindeAuth();
   useEffect(() => {
     fetchEventDetails();
   }, [departmentId, eventId]);
-
+  
   const fetchEventDetails = async () => {
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_APP_BACKEND_URL}/api/departments/${departmentId}/events/${eventId}`
-      );
+      const apiUrl = API_CONFIG.getUrl(`departments/${departmentId}/events/${eventId}`);
+      console.log("Fetching from:", apiUrl); // Debugging log
+  
+      const response = await fetch(apiUrl);
       const data = await response.json();
-      
+  
       if (data.success) {
         console.log('Event data:', data.event);
         setEvent(data.event);
