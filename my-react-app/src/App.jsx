@@ -186,10 +186,10 @@ const RegisteredRoute = React.memo(({ children }) => {
 
 
 console.log("Kinde Env Variables...:");
-console.log("VITE_APP_KINDE_CLIENT_ID:", import.meta.env.VITE_KINDE_CLIENT_ID);
-console.log("VITE_APP_KINDE_ISSUER_URL:", import.meta.env.VITE_KINDE_ISSUER_URL);
-console.log("VITE_APP_KINDE_REDIRECT_URL:", import.meta.env.VITE_KINDE_REDIRECT_URL);
-console.log("VITE_APP_KINDE_POST_LOGOUT_URL:", import.meta.env.VITE_KINDE_POST_LOGOUT_URL);
+console.log("VITE_KINDE_CLIENT_ID:", import.meta.env.VITE_APP_KINDE_CLIENT_ID);
+console.log("VITE_KINDE_ISSUER_URL:", import.meta.env.VITE_APP_KINDE_ISSUER_URL);
+console.log("VITE_KINDE_REDIRECT_URL:", import.meta.env.VITE_APP_KINDE_REDIRECT_URL);
+console.log("VITE_APP_KINDE_POST_LOGOUT_URL:", import.meta.env.VITE_APP_KINDE_POST_LOGOUT_URL);
 
 
 const ProtectedRoute = React.memo(({ children }) => {
@@ -250,10 +250,10 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <Provider store={store}>
         <KindeProvider
-          clientId={import.meta.env.VITE_KINDE_CLIENT_ID}
-          domain={import.meta.env.VITE_KINDE_ISSUER_URL}
-          redirectUri={import.meta.env.VITE_KINDE_REDIRECT_URL}
-          logoutUri={import.meta.env.VITE_KINDE_POST_LOGOUT_URL}
+          clientId={import.meta.env.VITE_APP_KINDE_CLIENT_ID}
+          domain={import.meta.env.VITE_APP_KINDE_ISSUER_URL}
+          redirectUri={import.meta.env.VITE_APP_KINDE_REDIRECT_URL}
+          logoutUri={import.meta.env.VITE_APP_KINDE_POST_LOGOUT_URL}
         >
           <PackageProvider>
             <ErrorBoundary>

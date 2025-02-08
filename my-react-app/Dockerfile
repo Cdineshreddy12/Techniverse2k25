@@ -11,8 +11,29 @@ RUN npm ci --legacy-peer-deps --no-audit --prefer-offline \
     --max-old-space-size=2048 \
     && npm cache clean --force
 
-# Copy source and build
+# Copy source
 COPY . .
+
+# Create .env.production file before build
+ARG VITE_APP_BACKEND_URL
+ARG VITE_APP_KINDE_CLIENT_ID
+ARG VITE_APP_KINDE_ISSUER_URL
+ARG VITE_APP_KINDE_REDIRECT_URL
+ARG VITE_APP_KINDE_POST_LOGOUT_URL
+
+# Create .env.production with build arguments
+RUN printf "VITE_APP_BACKEND_URL=%s\n\
+VITE_APP_KINDE_CLIENT_ID=%s\n\
+VITE_APP_KINDE_ISSUER_URL=%s\n\
+VITE_APP_KINDE_REDIRECT_URL=%s\n\
+VITE_APP_KINDE_POST_LOGOUT_URL=%s" \
+    "$VITE_APP_BACKEND_URL" \
+    "$VITE_APP_KINDE_CLIENT_ID" \
+    "$VITE_APP_KINDE_ISSUER_URL" \
+    "$VITE_APP_KINDE_REDIRECT_URL" \
+    "$VITE_APP_KINDE_POST_LOGOUT_URL" > .env.production
+
+# Build the application
 RUN npm run build
 
 # Production stage

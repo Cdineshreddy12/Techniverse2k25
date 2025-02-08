@@ -30,6 +30,12 @@ services:
     build:
       context: ./my-react-app
       dockerfile: Dockerfile
+      args:
+        VITE_APP_BACKEND_URL: https://www.techniverse25.rguktsklm.ac.in
+        VITE_APP_KINDE_CLIENT_ID: b33e1744e75f47efba1e56f8f6956266
+        VITE_APP_KINDE_ISSUER_URL: https://techniverse.kinde.com
+        VITE_APP_KINDE_REDIRECT_URL: https://www.techniverse25.rguktsklm.ac.in/profile
+        VITE_APP_KINDE_POST_LOGOUT_URL: https://www.techniverse25.rguktsklm.ac.in
     ports:
       - "5173:80"
     env_file:

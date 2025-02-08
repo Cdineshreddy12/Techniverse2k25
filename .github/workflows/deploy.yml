@@ -53,8 +53,19 @@ jobs:
           export COMPOSE_DOCKER_CLI_BUILD=1
           
           docker-compose -f docker-compose.prod.yml down --remove-orphans
-          docker-compose -f docker-compose.prod.yml build --no-cache
-          docker-compose -f docker-compose.prod.yml up -d
+          if docker-compose -f docker-compose.prod.yml build \
+                --build-arg VITE_APP_BACKEND_URL=https://www.techniverse25.rguktsklm.ac.in \
+                --build-arg VITE_APP_KINDE_CLIENT_ID=b33e1744e75f47efba1e56f8f6956266 \
+                --build-arg VITE_APP_KINDE_ISSUER_URL=https://techniverse.kinde.com \
+                --build-arg VITE_APP_KINDE_REDIRECT_URL=https://www.techniverse25.rguktsklm.ac.in/profile \
+                --build-arg VITE_APP_KINDE_POST_LOGOUT_URL=https://www.techniverse25.rguktsklm.ac.in \
+                --no-cache; then
+              echo "Build successful, starting containers..."
+              docker-compose -f docker-compose.prod.yml up -d
+          else 
+              echo "Build failed!"
+              exit 1
+          fi
           
           sleep 15
           docker ps
