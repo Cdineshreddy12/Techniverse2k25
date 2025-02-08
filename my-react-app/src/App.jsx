@@ -185,7 +185,7 @@ const RegisteredRoute = React.memo(({ children }) => {
 });
 
 
-console.log("Kinde Env Variables..:");
+console.log("Kinde Env Variables...:");
 console.log("VITE_APP_KINDE_CLIENT_ID:", import.meta.env.VITE_APP_KINDE_CLIENT_ID);
 console.log("VITE_APP_KINDE_ISSUER_URL:", import.meta.env.VITE_APP_KINDE_ISSUER_URL);
 console.log("VITE_APP_KINDE_REDIRECT_URL:", import.meta.env.VITE_APP_KINDE_REDIRECT_URL);
