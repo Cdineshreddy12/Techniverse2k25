@@ -4,7 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { createApiClient } from '../config/kindeAPI';
 const RegistrationForm = () => {
-  const { user } = useKindeAuth();
+  const { user, isAuthenticated } = useKindeAuth();
+  const [registrationChecked, setRegistrationChecked] = useState(false);
   const navigate = useNavigate();
   const api = createApiClient();
   const [formData, setFormData] = useState({
@@ -19,38 +20,75 @@ const RegistrationForm = () => {
 
   const isStudentEmail = user?.email?.toLowerCase().startsWith('s');
 
-  useEffect(() => {
-    const checkRegistration = async () => {
-        if (!user?.id) {
-            setIsLoading(false);
-            return;
+    // Single check for registration status
+    useEffect(() => {
+      let mounted = true;
+  
+      const checkRegistration = async () => {
+        if (!isAuthenticated || !user?.id || registrationChecked) {
+          setIsLoading(false);
+          return;
         }
-
+  
         try {
-            const data = await api.getUser(user.id);
-            console.log('Registration check response:', data); // Debug log
-
-            if (data.success && data.user) {
-                // User exists and is registered
-                toast.success('Already registered!');
-                navigate('/cart');
-            } else if (data.needsRegistration) {
-                // User needs to complete registration
-                setIsLoading(false);
-            }
-        } catch (error) {
-            console.error('Failed to check registration:', error);
-            toast.error('Failed to verify registration status');
+          const data = await api.getUser(user.id);
+  
+          if (!mounted) return;
+  
+          if (data.success && data.user) {
+            toast.success('Already registered!');
+            navigate('/cart');
+          } else if (data.needsRegistration) {
             setIsLoading(false);
+          }
+        } catch (error) {
+          console.error('Failed to check registration:', error);
+          if (mounted) {
+            setIsLoading(false);
+            // Only show error toast if it's not an auth error
+            if (error.message !== 'Authentication failed') {
+              toast.error('Failed to verify registration status');
+            }
+          }
+        } finally {
+          if (mounted) {
+            setRegistrationChecked(true);
+            setIsLoading(false);
+          }
         }
-    };
-
-    checkRegistration();
-}, [user?.id, navigate, api]);
+      };
+  
+      checkRegistration();
+  
+      return () => {
+        mounted = false;
+      };
+    }, [isAuthenticated, user?.id, registrationChecked]);
 
  
-  const handleSubmit = async (e) => {
+    
+  // Debounced form validation
+  const debouncedValidateForm = React.useCallback(
+    debounce(() => {
+      if (!formData.name?.trim()) return false;
+      if (!formData.mobileNumber?.match(/^[6-9]\d{9}$/)) return false;
+      
+      if (isStudentEmail) {
+        if (!formData.collegeId?.trim()) return false;
+        if (!formData.branch) return false;
+      } else {
+        if (!formData.collegeName?.trim()) return false;
+      }
+      
+      return true;
+    }, 300),
+    [formData, isStudentEmail]
+  );
+
+   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
+    
     setIsSubmitting(true);
     
     try {
@@ -63,7 +101,7 @@ const RegistrationForm = () => {
         name: formData.name,
         email: user.email,
         mobileNumber: formData.mobileNumber,
-        registrationType: isStudentEmail ? 'student' : 'other', // Add this
+        registrationType: isStudentEmail ? 'student' : 'other',
         ...(isStudentEmail 
           ? { 
               collegeId: formData.collegeId,
@@ -75,11 +113,9 @@ const RegistrationForm = () => {
         )
       };
   
-      console.log('Sending registration data:', registrationData);
       await api.registerUser(registrationData);
-      
       toast.success('Registration completed successfully!');
-      setTimeout(() => navigate('/cart'), 1500);
+      navigate('/cart');
     } catch (error) {
       console.error('Registration error:', error);
       toast.error(error.message || 'Failed to register. Please try again.');
@@ -104,6 +140,13 @@ const RegistrationForm = () => {
     };
 
 
+    if (isLoading) {
+      return <div className="min-h-screen bg-slate-900 pt-24 flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+      </div>;
+    }
+
+
   // Rest of your component remains the same
   return (
     <div className="min-h-screen bg-slate-900 pt-24 pb-12 px-4">
@@ -111,7 +154,7 @@ const RegistrationForm = () => {
         {/* Title Section */}
         <div className="text-center mb-8">
           <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 bg-clip-text text-transparent mb-2">
-            Techni<span className="text-indigo-400">V</span>erse
+            Techni<span className="text-indigo-300">V</span>erse
           </h1>
           <p className="text-gray-400 text-lg">Complete Your Registration</p>
         </div>

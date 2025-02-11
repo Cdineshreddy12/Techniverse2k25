@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { KindeProvider, useKindeAuth } from '@kinde-oss/kinde-auth-react';
 import { PackageProvider } from './Components/utils/PackageContext.jsx';
-
+import { useEffect } from 'react';
 // Immediately needed components
 import Navbar from "./Components/NavBar";
 import Footer from './Components/Footer.jsx';
@@ -233,6 +233,21 @@ const queryClient = new QueryClient({
 });
 
 function App() {
+
+  const { isAuthenticated, login } = useKindeAuth();
+
+    // Check for cached auth on mount
+    useEffect(() => {
+      const checkAuth = async () => {
+        const cachedToken = localStorage.getItem('kinde_auth_token');
+        if (cachedToken && !isAuthenticated) {
+          await login();
+        }
+      };
+      
+      checkAuth();
+    }, []);
+
   // Prefetch critical components
   React.useEffect(() => {
     const prefetchComponents = async () => {

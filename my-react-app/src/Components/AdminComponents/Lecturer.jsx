@@ -39,9 +39,12 @@ const LecturerForm = ({ lecturer, onChange }) => {
       </div>
 
       <ImageUpload
-        label="Photo"
-        value={lecturer.photo}
-        onChange={(url) => onChange({ ...lecturer, photo: url })}
+        label="Lecturer Photo"
+        value={lecturer.photo || ''}
+        onChange={(value) => onChange({
+          ...lecturer,
+          photo: value
+        })}
       />
 
       <div>

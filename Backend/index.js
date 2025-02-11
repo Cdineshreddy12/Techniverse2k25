@@ -27,19 +27,12 @@ import newRoutes from './Routes/newRoutes.js'
 import PaymentRoutes from './Routes/PaymentRoutes.js'
 import path from "path"
 import { fileURLToPath } from "url";
+import workshopRoutes from './Routes/workShopRoutes.js'
 // Load environment variables
 dotenv.config();
 
 // Initialize express app
 const app = express();
-
-// Serve static files from the Backend folder
-app.use(express.static(__dirname));
-
-// Serve google verification file
-app.get("/google65f85b9b14c46c09.html", (req, res) => {
-  res.sendFile(path.join(__dirname, "google65f85b9b14c46c09.html"));
-});
 
 
 
@@ -134,6 +127,7 @@ app.use('/api',newRoutes);
 app.use('/api',cartRoutes);
 app.use('/api',comboRoutes);
 app.use('/api',PaymentRoutes);
+app.use('/api',workshopRoutes);
 // Send confirmation email
 // Verify recipient email
 const verifyRecipientEmail = async (recipientEmail) => {

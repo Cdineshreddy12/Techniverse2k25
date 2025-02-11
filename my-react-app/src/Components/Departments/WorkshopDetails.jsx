@@ -1,252 +1,337 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Calendar, Clock, MapPin, Users, AlertCircle, ChevronLeft, Check,ArrowLeft } from 'lucide-react';
+import { 
+  Users, Calendar, Clock, Phone, Tag, Check, 
+  ArrowLeft, Loader, IndianRupee, CalendarClock, MapPin, 
+  ShoppingCart, AlertCircle, GraduationCap
+} from 'lucide-react';
+import toast from 'react-hot-toast';
+import { useDispatch } from 'react-redux';
+import { store } from '../../Redux/mainStore';
+import { addToCart } from '../../Redux/cartSlice';
+import { useKindeAuth } from '@kinde-oss/kinde-auth-react';
+import API_CONFIG from '../../config/api';
+
 const WorkshopDetails = () => {
-  const { id, department } = useParams();
+  const { departmentId, workshopId } = useParams();
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(true);
+  const [workshop, setWorkshop] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [addingToCart, setAddingToCart] = useState(false);
+  
+  const { user } = useKindeAuth();
+  const dispatch = useDispatch();
+
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 500);
-    return () => clearTimeout(timer);
-  }, []);
+    fetchWorkshopDetails();
+  }, [departmentId, workshopId]);
 
-  const handleRegistration = () => {
-    setShowSuccess(true);
-    setTimeout(() => {
-      setShowSuccess(false);
-    }, 5000);
+  const fetchWorkshopDetails = async () => {
+    try {
+      const apiUrl = API_CONFIG.getUrl(`departments/${departmentId}/workshops/${workshopId}`);
+      const response = await fetch(apiUrl);
+      const data = await response.json();
+  
+      if (data.success) {
+        setWorkshop(data.workshop);
+      } else {
+        throw new Error(data.error || 'Failed to fetch workshop details');
+      }
+    } catch (error) {
+      toast.error(error.message);
+      console.error('Error fetching workshop:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const workshop = {
-    id,
-    title: "Web Development Bootcamp",
-    date: "2025-02-15",
-    time: "10:00 AM - 4:00 PM",
-    duration: "6 Hours",
-    venue: "Main Seminar Hall",
-    capacity: 100,
-    seatsAvailable: 35,
-    image: "https://images.pexels.com/photos/1714208/pexels-photo-1714208.jpeg?auto=compress&cs=tinysrgb&w=1200",
-    registration: {
-      deadline: "2025-02-10",
-      fee: "₹500",
-      status: "Open",
-      earlyBirdDiscount: "10% off until Jan 31"
-    },
-    description: "Join us for an intensive hands-on workshop covering modern web development technologies and practices. Learn from industry experts and build real-world applications.",
-    schedule: [
-      { time: "10:00 AM - 10:30 AM", activity: "Registration and Kit Distribution" },
-      { time: "10:30 AM - 11:30 AM", activity: "Introduction to Web Technologies" },
-      { time: "11:30 AM - 1:00 PM", activity: "Hands-on Session I" },
-      { time: "1:00 PM - 2:00 PM", activity: "Lunch Break" },
-      { time: "2:00 PM - 3:30 PM", activity: "Hands-on Session II" },
-      { time: "3:30 PM - 4:00 PM", activity: "Project Showcase and Certificate Distribution" }
-    ],
-    prerequisites: [
-      "Basic understanding of HTML and CSS",
-      "Laptop with Node.js installed",
-      "Code editor (VS Code recommended)",
-      "Basic JavaScript knowledge"
-    ],
-    benefits: [
-      "Hands-on experience with industry tools",
-      "Certificate of completion",
-      "Project portfolio",
-      "Networking opportunities"
-    ]
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
-  const fadeInClass = isLoading ? 'opacity-0' : 'opacity-100 translate-y-0';
-
-  return (
-    <div className="min-h-screen bg-slate-900 pb-24">
-      {/* Success Message */}
-      {showSuccess && (
-        <div className="fixed bottom-24 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-md px-4">
-          <div className="bg-green-600 text-white rounded-lg p-4 shadow-lg">
-            <div className="flex items-center justify-center gap-2 mb-2">
-              <Check size={20} />
-              <p className="font-semibold">Checkout  in Cart!</p>
-            </div>
-            <p className="text-sm text-center">
-              Explore more workshops and courses in our catalog
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Hero Section */}
-      <div className="relative h-96 mb-8">
-        <div className="absolute inset-0">
-          <img 
-            src={workshop.image || "/api/placeholder/1200/400"}
-            alt={workshop.title}
-            className="w-full h-full object-cover"
-          />
-        </div>
-
-        <div className="relative z-20 h-full max-w-6xl mx-auto px-4 flex flex-col justify-end pb-8">
-          <div className={`transition-all duration-500 ${fadeInClass}`}>
-            <div className="flex  z-[0] flex-wrap gap-3 mb-4">
-              <span className="px-3 py-1 bg-indigo-500/20 text-indigo-300 rounded-full text-sm 
-                           backdrop-blur-sm flex items-center gap-2">
-                Workshop
-              </span>
-              <span className="px-3 py-1 bg-slate-800/80 text-slate-300 rounded-full text-sm 
-                           backdrop-blur-sm flex items-center gap-2">
-                <Clock className="w-4 h-4" /> {workshop.duration}
-              </span>
-              <span className="px-3 py-1 bg-slate-800/80 text-slate-300 rounded-full text-sm 
-                           backdrop-blur-sm flex items-center gap-2">
-                <MapPin className="w-4 h-4" /> {workshop.venue}
-              </span>
-            </div>
-            <h1 className="text-4xl font-bold text-white  mb-4 drop-shadow-lg">{workshop.title}</h1>
-          </div>
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="flex items-center space-x-3">
+          <Loader className="w-6 h-6 text-indigo-500 animate-spin" />
+          <span className="text-white">Loading workshop details...</span>
         </div>
       </div>
+    );
+  }
 
-      <div className="max-w-6xl mx-auto px-4">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Description */}
-            <div className={`transition-all duration-500 delay-100 ${fadeInClass}`}>
-              <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
-                <h2 className="text-xl font-semibold text-white mb-4">About the Workshop</h2>
-                <p className="text-slate-300 leading-relaxed">{workshop.description}</p>
-              </div>
-            </div>
-
-            {/* Schedule */}
-            <div className={`transition-all duration-500 delay-200 ${fadeInClass}`}>
-              <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
-                <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-indigo-400" />
-                  Schedule
-                </h2>
-                <div className="space-y-3">
-                  {workshop.schedule.map((item, index) => (
-                    <div 
-                      key={index}
-                      className="flex flex-col sm:flex-row gap-3 p-4 bg-slate-900 rounded-lg border border-slate-700"
-                    >
-                      <div className="sm:w-48 font-medium text-indigo-300">
-                        {item.time}
-                      </div>
-                      <div className="flex-1 text-slate-300">
-                        {item.activity}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Prerequisites & Benefits */}
-            <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 transition-all duration-500 delay-300 ${fadeInClass}`}>
-              <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
-                <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-                  <AlertCircle className="w-5 h-5 text-indigo-400" />
-                  Prerequisites
-                </h2>
-                <ul className="space-y-3">
-                  {workshop.prerequisites.map((item, index) => (
-                    <li key={index} className="flex items-start gap-2 text-slate-300">
-                      <span className="text-indigo-400 mt-1">•</span>
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
-                <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-                  <Users className="w-5 h-5 text-indigo-400" />
-                  What You'll Get
-                </h2>
-                <ul className="space-y-3">
-                  {workshop.benefits.map((item, index) => (
-                    <li key={index} className="flex items-start gap-2 text-slate-300">
-                      <span className="text-emerald-400 mt-1">•</span>
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </div>
-
-          {/* Registration Info - Side Panel */}
-          <div className={`transition-all duration-500 delay-400 ${fadeInClass}`}>
-            <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 lg:sticky lg:top-6">
-              <h2 className="text-xl font-semibold text-white mb-4">Registration Details</h2>
-              
-              <div className="mb-6 p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-lg">
-                <p className="text-indigo-300 font-medium">Early Bird Discount Available</p>
-                <p className="text-indigo-200 text-sm mt-1">
-                  {workshop.registration.earlyBirdDiscount}
-                </p>
-              </div>
-
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 gap-4">
-                  <div className="p-4 bg-slate-900 rounded-lg border border-slate-700">
-                    <p className="text-slate-400 mb-1 text-sm">Registration Fee</p>
-                    <p className="text-white text-lg font-semibold">{workshop.registration.fee}</p>
-                  </div>
-                  <div className="p-4 bg-slate-900 rounded-lg border border-slate-700">
-                    <p className="text-slate-400 mb-1 text-sm">Registration Deadline</p>
-                    <p className="text-white text-lg font-semibold">{workshop.registration.deadline}</p>
-                  </div>
-                  <div className="p-4 bg-slate-900 rounded-lg border border-slate-700">
-                    <p className="text-slate-400 mb-1 text-sm">Available Seats</p>
-                    <p className="text-white text-lg font-semibold">
-                      {workshop.seatsAvailable} / {workshop.capacity}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Fixed Bottom Registration Button */}
-      <div className="fixed bottom-0 left-0 right-0 bg-slate-900/80 backdrop-blur-md border-t border-slate-700 p-4 z-[100]">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-
-          <div className='flex gap-10'>
-              <button 
-                  onClick={() => navigate(-1)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg 
-                          bg-slate-800 hover:bg-slate-700 border border-slate-600 
-                          text-white transition-all duration-300"
-                >
-                  <ArrowLeft size={18} />
-                  <span className="hidden sm:inline">Back</span>
-                </button>
-
-              <div>
-                <p className="text-white font-semibold text-lg">{workshop.registration.fee}</p>
-                <p className="text-gray-400 text-sm">Registration Fee</p>
-              </div>
-          </div>
-          <button 
-            onClick={handleRegistration}
-            disabled={showSuccess}
-            className={`px-6 py-3 rounded-lg text-white font-medium
-                     transition-all duration-300
-                     ${showSuccess 
-                       ? 'bg-green-600 cursor-not-allowed'
-                       : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500'
-                     }`}
+  if (!workshop) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-white mb-2">Workshop Not Found</h2>
+          <p className="text-gray-400 mb-6">The workshop you're looking for doesn't exist.</p>
+          <button
+            onClick={() => navigate(-1)}
+            className="px-6 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600"
           >
-            {showSuccess ? 'Added to Cart' : 'Add to Cart'}
+            Go Back
           </button>
         </div>
       </div>
+    );
+  }
+
+  const PriceDisplay = ({ workshop }) => (
+    <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+      <div className="flex items-center justify-between mb-4">
+        <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 p-2.5">
+          <IndianRupee className="w-full h-full text-white" />
+        </div>
+        <span className="text-gray-400 text-sm">Workshop Fee</span>
+      </div>
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <p className="text-xl font-bold text-white line-through text-opacity-50">
+            ₹{workshop.price}
+          </p>
+          <span className="text-sm text-emerald-400">
+            Available in Combo Package
+          </span>
+        </div>
+        <p className="text-sm text-gray-400">
+          *Workshop can be bundled with event packages for best value
+        </p>
+        <div className="mt-4 px-4 py-3 bg-purple-500/10 rounded-lg border border-purple-500/20">
+          <div className="flex items-center gap-2">
+            <Star className="w-5 h-5 text-purple-400" />
+            <p className="text-sm text-purple-400">
+              RGUKT students get special combo rates
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+  
+
+  return (
+    <div className="min-h-screen bg-slate-900 relative pb-24">
+      {/* Hero Section */}
+      <div className="h-[40vh] relative">
+        <img 
+          src={workshop.bannerDesktop || "/api/placeholder/1920/1080"} 
+          alt={workshop.title}
+          className="w-full h-full object-cover"
+        />
+      </div>
+
+      {/* Content Container */}
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        {/* Title and Description */}
+        <div className="mb-12">
+          <div className="flex items-center gap-2 mb-4">
+            {workshop.departments.map(dept => (
+              <span key={dept._id} 
+                className={`px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r ${dept.color} text-white`}>
+                {dept.shortName}
+              </span>
+            ))}
+            <span className="px-3 py-1 rounded-full text-xs font-medium
+                         bg-emerald-500/20 text-emerald-400 border border-emerald-500/20">
+              {workshop.status}
+            </span>
+          </div>
+          
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-4">
+            {workshop.title}
+          </h1>
+          <p className="text-gray-300 text-base sm:text-lg max-w-3xl whitespace-pre-wrap">
+            {workshop.description}
+          </p>
+        </div>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+          <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 p-2.5">
+                <CalendarClock className="w-full h-full text-white" />
+              </div>
+              <span className="text-gray-400 text-sm">Schedule</span>
+            </div>
+            <p className="text-xl font-bold text-white">
+              {workshop.schedule.length} Sessions
+            </p>
+            <p className="text-sm text-gray-400">{formatDate(workshop.registrationEndTime)}</p>
+          </div>
+
+          <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 p-2.5">
+                <Users className="w-full h-full text-white" />
+              </div>
+              <span className="text-gray-400 text-sm">Registrations</span>
+            </div>
+            <p className="text-xl font-bold text-white">{workshop.registrations}</p>
+          </div>
+
+          <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 p-2.5">
+                <Clock className="w-full h-full text-white" />
+              </div>
+              <span className="text-gray-400 text-sm">Duration</span>
+            </div>
+            <p className="text-xl font-bold text-white">{workshop.totalLearningHours} Hours</p>
+          </div>
+
+          <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 p-2.5">
+                <GraduationCap className="w-full h-full text-white" />
+              </div>
+              <span className="text-gray-400 text-sm">Lecturer</span>
+            </div>
+            <p className="text-xl font-bold text-white truncate">{workshop.lecturer.name}</p>
+          </div>
+        </div>
+
+        {/* Lecturer Section */}
+        <div className="bg-slate-800 rounded-xl p-6 sm:p-8 border border-slate-700 mb-12">
+          <h2 className="text-2xl font-bold text-white mb-6">About the Lecturer</h2>
+          <div className="flex flex-col md:flex-row gap-8">
+            <div className="w-full md:w-1/3">
+              <div className="aspect-square rounded-xl overflow-hidden bg-slate-700">
+                <img 
+                  src={workshop.lecturer.photo || "/api/placeholder/400/400"} 
+                  alt={workshop.lecturer.name}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            </div>
+            <div className="w-full md:w-2/3">
+              <h3 className="text-xl font-bold text-white mb-2">{workshop.lecturer.name}</h3>
+              <p className="text-lg text-indigo-400 mb-4">{workshop.lecturer.title}</p>
+              <div className="space-y-3">
+                {workshop.lecturer.specifications.map((spec, index) => (
+                  <p key={index} className="text-gray-300">{spec}</p>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Schedule Section */}
+        {workshop.schedule.length > 0 && (
+          <div className="bg-slate-800 rounded-xl p-6 sm:p-8 border border-slate-700 mb-12">
+            <h2 className="text-2xl font-bold text-white mb-6">Workshop Schedule</h2>
+            <div className="space-y-4">
+              {workshop.schedule.map((session, index) => (
+                <div key={session.id} className="bg-slate-900 rounded-lg p-6 border border-slate-700">
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    <div className="sm:w-48">
+                      <p className="text-indigo-400 font-medium">{session.time}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-300">{session.activity}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="fixed bottom-0 left-0 right-0 bg-slate-900/80 backdrop-blur-md border-t border-slate-700 p-4">
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            {/* Left Section */}
+            <div className="flex items-center gap-6">
+              <button 
+                onClick={() => navigate(-1)}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg 
+                        bg-slate-800 hover:bg-slate-700 border border-slate-600 
+                        text-white transition-all duration-300"
+              >
+                <ArrowLeft size={18} />
+                <span className="hidden sm:inline">Back</span>
+              </button>
+
+              {/* Registration Info */}
+              <div className="hidden md:block">
+                <p className="text-gray-400 text-sm">Registration Closes</p>
+                <p className="text-white font-medium">{formatDate(workshop.registrationEndTime)}</p>
+              </div>
+            </div>
+
+            {/* Right Section */}
+            <div className="flex items-center gap-6">
+              {/* Pricing Info */}
+              <div className="text-right">
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-gray-400 text-sm">Workshop Value</p>
+                  <p className="text-base line-through text-gray-500">₹{workshop.price}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Star className="w-4 h-4 text-purple-400" />
+                  <p className="text-sm text-purple-400">Available in Combo Package</p>
+                </div>
+              </div>
+
+              {/* Action Button */}
+              <button
+                onClick={() => {
+                  if (!user?.id) {
+                    toast.error('Please login to add to cart');
+                    return;
+                  }
+                  
+                  if (workshop.status !== 'upcoming') {
+                    toast.error('Workshop registration is closed');
+                    return;
+                  }
+                  
+                  dispatch(addToCart({
+                    type: 'workshop',
+                    item: {
+                      id: workshop._id,
+                      title: workshop.title,
+                      description: workshop.description,
+                      departments: workshop.departments,
+                      lecturer: workshop.lecturer,
+                      price: workshop.price,
+                      registration: workshop.registration,
+                      media: {
+                        bannerDesktop: workshop.bannerDesktop,
+                        bannerMobile: workshop.bannerMobile
+                      }
+                    }
+                  }));
+                  toast.success('Workshop added to cart!');
+                  navigate('/cart'); // Optionally navigate to cart after adding
+                }}
+                disabled={workshop.status !== 'upcoming'}
+                className={`flex items-center gap-2 px-6 py-3 rounded-lg text-white font-medium
+                          transition-all duration-300 shadow-lg
+                          ${workshop.status === 'upcoming'
+                            ? 'bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 hover:shadow-purple-500/25'
+                            : 'bg-slate-700 cursor-not-allowed'}`}
+              >
+                <ShoppingCart className="w-5 h-5" />
+                <span>Add to Cart</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Mobile Registration Date - Shows only on small screens */}
+          <div className="md:hidden mt-2 text-center">
+            <p className="text-gray-400 text-sm">Registration Closes</p>
+            <p className="text-white font-medium">{formatDate(workshop.registrationEndTime)}</p>
+          </div>
+        </div>
     </div>
   );
 };

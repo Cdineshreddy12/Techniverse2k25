@@ -5,14 +5,15 @@ import { Student } from '../Models/StudentSchema.js';
 import { Registration } from '../Models/RegistrationSchema.js';
 import Event from '../Models/eventModel.js';
 import dotenv from 'dotenv'
+import PaymentSecurityService from '../PaymentSecurity.js';
 dotenv.config();
-
+const paymentSecurity = new PaymentSecurityService(process.env.HDFC_RESPONSE_KEY);
 const router = express.Router();
 
 console.log('Merchant ID:', process.env.HDFC_MERCHANT_ID);
 console.log('API Key:', process.env.HDFC_API_KEY);
 
-const SANDBOX_BASE_URL = "https://smartgatewayuat.hdfcbank.com";
+const SANDBOX_BASE_URL = "https://smartgateway.hdfcbank.com";
 // Initialize Juspay
 const juspay = new Juspay({
   merchantId:process.env.HDFC_MERCHANT_ID ,
@@ -148,50 +149,94 @@ router.post('/payment/callback', async (req, res) => {
     }
 });
 
-// 3. Payment Webhook (Server-side notifications)
+
+// Update the webhook route
 router.post('/payment/webhook', async (req, res) => {
+    let session;
     try {
-        const { order_id, status, txn_id, registration_ids } = req.body;
+        // 1. Verify signature
+        if (!paymentSecurity.verifySignature(req.body)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid signature'
+            });
+        }
 
-        // Verify webhook signature if provided
-        // Add your webhook signature verification logic here
+        // 2. Get registration from order ID
+        const registration = await Registration.findOne({
+            'paymentDetails.orderId': req.body.order_id
+        });
 
-        // Get registration IDs from merchant params
-        const registrationIds = registration_ids.split('_');
+        if (!registration) {
+            throw new Error('Registration not found');
+        }
 
-        // Update all registrations
-        await Promise.all(registrationIds.map(async (regId) => {
-            const registration = await Registration.findById(regId);
-            if (!registration) return;
+        // 3. Validate payment response
+        await paymentSecurity.validatePaymentResponse(req.body, registration);
 
-            registration.paymentStatus = status === "CHARGED" ? 'completed' : 'failed';
-            registration.transactionId = txn_id;
-            registration.updatedAt = new Date();
+        // 4. Start transaction session
+        session = await mongoose.startSession();
+        session.startTransaction();
 
-            if (status === "CHARGED") {
-                // Update event registration counts
-                for (const event of registration.selectedEvents) {
-                    await Event.findByIdAndUpdate(event.eventId, {
-                        $inc: { registrationCount: 1 }
-                    });
-                    event.status = 'confirmed';
-                }
+        // 5. Transform and update payment details
+        const webhookData = paymentSecurity.transformWebhookData(req.body);
+        await registration.handleWebhook(webhookData);
 
-                // Add registration to student's registrations array
-                await Student.findOneAndUpdate(
-                    { kindeId: registration.student },
-                    { $push: { registrations: registration._id } }
+        // 6. Process successful payment
+        if (webhookData.status === 'CHARGED') {
+            // Update event registrations
+            for (const event of registration.selectedEvents) {
+                await Event.findByIdAndUpdate(
+                    event.eventId,
+                    { $inc: { registrationCount: 1 } },
+                    { session }
                 );
             }
 
-            await registration.save();
-        }));
+            // Update student registrations
+            await Student.findOneAndUpdate(
+                { kindeId: registration.kindeId },
+                { 
+                    $addToSet: { registrations: registration._id },
+                    // Clear cart after successful payment
+                    $set: { 
+                        cart: [],
+                        workshops: []
+                    }
+                },
+                { session }
+            );
 
-        res.json({ success: true });
+            // Set payment completion timestamp
+            registration.paymentCompletedAt = new Date();
+            await registration.save({ session });
+        }
+
+        // 7. Commit transaction
+        await session.commitTransaction();
+
+        // 8. Send response
+        res.json({
+            success: true,
+            message: 'Payment processed successfully',
+            status: webhookData.status
+        });
 
     } catch (error) {
+        // Rollback transaction if exists
+        if (session) {
+            await session.abortTransaction();
+        }
+
         console.error('Webhook processing failed:', error);
-        res.status(500).json({ success: false, error: error.message });
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    } finally {
+        if (session) {
+            session.endSession();
+        }
     }
 });
 

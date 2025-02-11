@@ -1,249 +1,281 @@
 import React, { useState } from 'react';
-import { Users, Code2, Cpu, Wrench, Zap, Building2, ChevronDown, Mail, Phone, Github, Linkedin } from 'lucide-react';
+import { Users, ChevronDown } from 'lucide-react';
+import {  Code2, Mail, Phone, Github, Linkedin, UserCircle2 } from 'lucide-react';
 
-const departments = [
+
+const webTeam = {
+  id: 'web-team',
+  name: 'Web & Social Media Team',
+  description: 'The creative minds behind our digital presence',
+  members: [
     {
-      id: 'cse',
-      name: 'Computer Science',
-      icon: Code2,
-      webTeam: [
-        {
-          id: 'web-lead-1',
-          name: 'Alex Johnson',
-          role: 'Web Development Lead',
-          imageUrl: 'https://images.unsplash.com/photo-1633332755192-727a05c4013d?w=400&h=400&fit=crop',
-          email: 'alex@example.com',
-          phone: '+1 234 567 8900',
-          github: 'https://github.com',
-          linkedin: 'https://linkedin.com'
-        },
-      ],
-      coordinators: [
-        {
-          id: 'cse-head',
-          name: 'Dr. Sarah Miller',
-          designation: 'Department Head',
-          role: 'Professor & HoD',
-          imageUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&h=400&fit=crop',
-          email: 'sarah.miller@example.com',
-          phone: '+1 234 567 8902',
-          linkedin: 'https://linkedin.com'
-        },
-        {
-          id: 'cse-assoc-1',
-          name: 'Dr. James Wilson',
-          designation: 'Associate Head',
-          role: 'Associate Professor',
-          imageUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop',
-          email: 'james.wilson@example.com',
-          linkedin: 'https://linkedin.com'
-        },
-        {
-          id: 'cse-senior-1',
-          name: 'Dr. Emily Wang',
-          designation: 'Senior Coordinator',
-          role: 'Assistant Professor',
-          imageUrl: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400&h=400&fit=crop',
-          email: 'emily.wang@example.com',
-          phone: '+1 234 567 8903'
-        },
-        {
-          id: 'cse-coord-1',
-          name: 'Prof. Robert Brown',
-          designation: 'Coordinator',
-          role: 'Assistant Professor',
-          imageUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=400&fit=crop',
-          email: 'robert.brown@example.com'
-        }, {
-            id: 'cse-senior-1',
-            name: 'Dr. Emily Wang',
-            designation: 'Senior Coordinator',
-            role: 'Assistant Professor',
-            imageUrl: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400&h=400&fit=crop',
-            email: 'emily.wang@example.com',
-            phone: '+1 234 567 8903'
-          },
-          {
-            id: 'cse-coord-1',
-            name: 'Prof. Robert Brown',
-            designation: 'Coordinator',
-            role: 'Assistant Professor',
-            imageUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=400&fit=crop',
-            email: 'robert.brown@example.com'
-          }, {
-            id: 'cse-senior-1',
-            name: 'Dr. Emily Wang',
-            designation: 'Senior Coordinator',
-            role: 'Assistant Professor',
-            imageUrl: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400&h=400&fit=crop',
-            email: 'emily.wang@example.com',
-            phone: '+1 234 567 8903'
-          },
-          {
-            id: 'cse-coord-1',
-            name: 'Prof. Robert Brown',
-            designation: 'Coordinator',
-            role: 'Assistant Professor',
-            imageUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=400&fit=crop',
-            email: 'robert.brown@example.com'
-          }, {
-            id: 'cse-senior-1',
-            name: 'Dr. Emily Wang',
-            designation: 'Senior Coordinator',
-            role: 'Assistant Professor',
-            imageUrl: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400&h=400&fit=crop',
-            email: 'emily.wang@example.com',
-            phone: '+1 234 567 8903'
-          },
-          {
-            id: 'cse-coord-1',
-            name: 'Prof. Robert Brown',
-            designation: 'Coordinator',
-            role: 'Assistant Professor',
-            imageUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=400&fit=crop',
-            email: 'robert.brown@example.com'
-          }
-      ]
+      name: 'K.Dileep Kumar',
+      phone: '8074683901',
+      role: 'Web Team Lead',
+      github: 'https://github.com',
+      linkedin: 'https://linkedin.com'
     },
     {
-      id: 'ece',
-      name: 'Electronics',
-      icon: Cpu,
-      coordinators: [
-        {
-          id: 'ece-head',
-          name: 'Dr. David Lee',
-          designation: 'Department Head',
-          role: 'Professor & HoD',
-          imageUrl: 'https://images.unsplash.com/photo-1519345182560-3f2917c472ef?w=400&h=400&fit=crop',
-          email: 'david.lee@example.com',
-          phone: '+1 234 567 8904',
-          linkedin: 'https://linkedin.com'
-        },
-        {
-          id: 'ece-senior-1',
-          name: 'Dr. Maria Garcia',
-          designation: 'Senior Coordinator',
-          role: 'Associate Professor',
-          imageUrl: 'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?w=400&h=400&fit=crop',
-          email: 'maria.garcia@example.com',
-          linkedin: 'https://linkedin.com'
-        }
-      ]
-    },
-    {
-      id: 'mech',
-      name: 'Mechanical',
-      icon: Wrench,
-      coordinators: [
-        {
-          id: 'mech-head',
-          name: 'Dr. John Smith',
-          designation: 'Department Head',
-          role: 'Professor & HoD',
-          imageUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop',
-          email: 'john.smith@example.com',
-          phone: '+1 234 567 8905',
-          linkedin: 'https://linkedin.com'
-        },
-        {
-          id: 'mech-coord-1',
-          name: 'Prof. Rachel Kim',
-          designation: 'Coordinator',
-          role: 'Assistant Professor',
-          imageUrl: 'https://images.unsplash.com/photo-1534751516642-a1af1ef26a56?w=400&h=400&fit=crop',
-          email: 'rachel.kim@example.com'
-        }
-      ]
-    },
-    {
-      id: 'eee',
-      name: 'Electrical',
-      icon: Zap,
-      coordinators: [
-        {
-          id: 'eee-head',
-          name: 'Dr. Elizabeth Taylor',
-          designation: 'Department Head',
-          role: 'Professor & HoD',
-          imageUrl: 'https://images.unsplash.com/photo-1553267751-1c148a7280a1?w=400&h=400&fit=crop',
-          email: 'elizabeth.taylor@example.com',
-          phone: '+1 234 567 8906'
-        },
-        {
-          id: 'eee-assoc-1',
-          name: 'Dr. William Jones',
-          designation: 'Associate Head',
-          role: 'Associate Professor',
-          imageUrl: 'https://images.unsplash.com/photo-1500048993953-d23a436266cf?w=400&h=400&fit=crop',
-          email: 'william.jones@example.com'
-        }
-      ]
-    },
-    {
-      id: 'civil',
-      name: 'Civil',
-      icon: Building2,
-      coordinators: [
-        {
-          id: 'civil-head',
-          name: 'Dr. Andrew Clark',
-          designation: 'Department Head',
-          role: 'Professor & HoD',
-          imageUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=400&fit=crop',
-          email: 'andrew.clark@example.com',
-          phone: '+1 234 567 8907',
-          linkedin: 'https://linkedin.com'
-        },
-        {
-          id: 'civil-senior-1',
-          name: 'Dr. Michelle Rodriguez',
-          designation: 'Senior Coordinator',
-          role: 'Associate Professor',
-          imageUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400&h=400&fit=crop',
-          email: 'michelle.r@example.com'
-        }
-      ]
+      name: 'C. Dinesh Reddy ',
+      id: 'S211119',
+      phone: '8074683901',
+      branch: 'CSE',
+      year: 'E2',
+      role: 'MERN STACK DEVELOPER',
+      github: 'https://github.com',
+      linkedin: 'https://linkedin.com'
     }
-  ];
+  ]
+};
 
-function WebTeamSection({ webTeam }) {
-    return (
-      <div className="bg-gray-900 rounded-lg p-6 mb-8">
-        <div className="flex items-center gap-3 mb-6">
-          <Code2 className="h-6 w-6 text-purple-400" />
-          <h2 className="text-2xl font-bold text-white">Web Development Team</h2>
+const otherTeams = [
+  {
+    id: 'student-coordinators',
+    name: 'Student Coordinators (Overall Monitoring)',
+    members: [
+      {
+        name: 'B. Yashwanth',
+        id: 'S210770',
+        phone: '8374095230',
+        branch: 'EEE',
+        year: 'E2',
+        role: 'Cultural, Stage Management, Disciplinary'
+      },
+      {
+        name: 'U. Nikhitha',
+        id: 'S210369',
+        phone: '79819 39943',
+        branch: 'EEE',
+        year: 'E2',
+        role: 'Cultural, Stage Management, Disciplinary'
+      },
+      {
+        name: 'H. Dilleswararao',
+        id: 'S210490',
+        phone: '6302647598',
+        branch: 'CIVIL',
+        year: 'E2',
+        role: 'Design, Photography, Social Media, Print Media'
+      },
+      {
+        name: 'T. Likitha',
+        id: 'S210637',
+        phone: '8688919136',
+        branch: 'CIVIL',
+        year: 'E2',
+        role: 'Marketing, Hospitality, Registrations'
+      },
+      {
+        name: 'P. Vishnu Vardhan',
+        id: 'S211114',
+        phone: '9121678776',
+        branch: 'CSE',
+        year: 'E2',
+        role: 'Infrastructure, Decoration'
+      }
+    ]
+  },
+  {
+    id: 'marketing',
+    name: 'Marketing And Publicity Team',
+    members: [
+      {
+        name: 'A. Jeevan Jyothikar',
+        id: 'S210513',
+        phone: '79959 05539',
+        branch: 'EEE',
+        year: 'E2'
+      },
+      {
+        name: 'K. Vyshnavi (POC)',
+        id: 'S210809',
+        phone: '8247004083',
+        branch: 'CIVIL',
+        year: 'E2'
+      },
+      {
+        name: 'K. Nagalakshmi',
+        id: 'S210883',
+        phone: '8309202747',
+        branch: 'CSE',
+        year: 'E2'
+      },
+      {
+        name: 'K. P. Deepak (POC)',
+        id: 'S200972',
+        phone: '7075898604',
+        branch: 'CSE',
+        year: 'E2'
+      }
+    ]
+  },
+  {
+    id: 'hospitality',
+    name: 'Hospitality Team',
+    members: [
+      {
+        name: 'Bhuvanesh',
+        id: 'S210333',
+        phone: '7330971969',
+        branch: 'ECE',
+        year: 'E2'
+      },
+      {
+        name: 'Uma Maheswari (POC)',
+        id: 'S210110',
+        phone: '8247480798',
+        branch: 'ECE',
+        year: 'E2'
+      },
+      {
+        name: 'B. Leena Rani (POC)',
+        id: 'S210360',
+        phone: '9573116139',
+        branch: 'ECE',
+        year: 'E2'
+      }
+    ]
+  },
+  {
+    id: 'infrastructure',
+    name: 'Infrastructure Team',
+    members: [
+      {
+        name: 'P. Karthik (POC)',
+        id: 'S200858',
+        phone: '9515079090',
+        branch: 'ECE',
+        year: 'E2'
+      },
+      {
+        name: 'Shaik Bansi Basha (POC)',
+        id: 'S210957',
+        phone: '7989943237',
+        branch: 'CSE',
+        year: 'E2'
+      }
+    ]
+  },
+  {
+    id: 'print-media',
+    name: 'Print And Media Team',
+    members: [
+      {
+        name: 'S. Aparna (POC)',
+        id: 'S210358',
+        phone: '9381860873',
+        branch: 'ECE',
+        year: 'E2'
+      },
+      {
+        name: 'B. Nikitha',
+        id: 'S220323',
+        phone: '7386219915',
+        branch: 'CIVIL',
+        year: 'E2'
+      }
+    ]
+  },
+  {
+    id: 'tech-expo',
+    name: 'Tech Expo Team',
+    members: [
+      {
+        name: 'K. Akash Varma (POC)',
+        id: 'S210684',
+        phone: '6305412224',
+        branch: 'ECE',
+        year: 'E2'
+      },
+      {
+        name: 'L. Pooja (POC)',
+        id: 'S190620',
+        phone: '8919630287',
+        branch: 'CIVIL',
+        year: 'E2'
+      },
+      {
+        name: 'Aditya Batchu (POC)',
+        id: 'S210639',
+        phone: '6300993370',
+        branch: 'CSE',
+        year: 'E2'
+      }
+    ]
+  }
+];
+
+
+function WebTeamCard({ member }) {
+  return (
+    <div className="relative group">
+      <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-600 to-blue-500 rounded-lg blur opacity-100 group-hover:opacity-100 transition duration-1000 group-hover:duration-200"></div>
+      <div className="relative bg-gray-900 rounded-lg p-6 ring-1 ring-gray-500/50 hover:ring-purple-500/50 transition-all">
+        <div className="flex items-center gap-4 mb-4">
+          <div className="relative w-16 h-16 rounded-full bg-gradient-to-r from-purple-500 to-blue-500 p-0.5">
+            <div className="w-full h-full rounded-full bg-gray-900 flex items-center justify-center">
+              <UserCircle2 className="w-8 h-8 text-purple-400" />
+            </div>
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold text-white">{member.name}</h3>
+            <p className="text-sm text-purple-400">{member.role}</p>
+          </div>
         </div>
-        <div className="grid gap-4 md:grid-cols-2">
-          {webTeam.map(member => (
-            <TeamMemberCard key={member.id} member={member} />
-          ))}
+        <div className="space-y-2">
+          <p className="text-sm text-gray-400">{member.id} • {member.branch} {member.year}</p>
+          <div className="flex flex-wrap gap-3">
+            {member.phone && (
+              <a 
+                href={`tel:${member.phone}`}
+                className="text-purple-400 hover:text-purple-300 transition-colors flex items-center gap-1 text-sm"
+              >
+                <Phone className="h-4 w-4" />
+                <span>{member.phone}</span>
+              </a>
+            )}
+            {member.github && (
+              <a 
+                href={member.github}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-purple-400 hover:text-purple-300 transition-colors flex items-center gap-1 text-sm"
+              >
+                <Github className="h-4 w-4" />
+                <span>GitHub</span>
+              </a>
+            )}
+            {member.linkedin && (
+              <a 
+                href={member.linkedin}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-purple-400 hover:text-purple-300 transition-colors flex items-center gap-1 text-sm"
+              >
+                <Linkedin className="h-4 w-4" />
+                <span>LinkedIn</span>
+              </a>
+            )}
+          </div>
         </div>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
-function TeamMemberCard({ member }) {
+function RegularTeamMemberCard({ member }) {
   return (
-    <div className="flex gap-4 bg-gray-900 rounded-lg p-4 hover:bg-gray-800/50 transition-all">
-      <img 
-        src={member.imageUrl} 
-        alt={member.name}
-        className="h-20 w-20 rounded-lg object-cover"
-      />
+    <div className="bg-gray-800/50 rounded-lg p-4 hover:bg-gray-800 transition-all flex gap-4 ring-1 ring-gray-700/50">
+      <div className="w-16 h-16 rounded-full bg-gray-700 flex items-center justify-center">
+        <UserCircle2 className="w-8 h-8 text-gray-400" />
+      </div>
       <div className="flex-1">
         <h3 className="text-lg font-semibold text-white">{member.name}</h3>
-        <p className="text-sm text-purple-300 mb-2">{member.role}</p>
+        <p className="text-sm text-purple-300 mb-2">{member.id} - {member.branch} {member.year}</p>
+        {member.role && (
+          <p className="text-sm text-gray-400 mb-2">{member.role}</p>
+        )}
         <div className="flex flex-wrap gap-3">
-          {member.email && (
-            <a 
-              href={`mailto:${member.email}`}
-              className="text-purple-400 hover:text-purple-300 transition-colors flex items-center gap-1 text-sm"
-            >
-              <Mail className="h-4 w-4" />
-              <span>{member.email}</span>
-            </a>
-          )}
           {member.phone && (
             <a 
               href={`tel:${member.phone}`}
@@ -253,80 +285,37 @@ function TeamMemberCard({ member }) {
               <span>{member.phone}</span>
             </a>
           )}
-          {member.github && (
-            <a 
-              href={member.github}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-purple-400 hover:text-purple-300 transition-colors flex items-center gap-1 text-sm"
-            >
-              <Github className="h-4 w-4" />
-              <span>GitHub</span>
-            </a>
-          )}
-          {member.linkedin && (
-            <a 
-              href={member.linkedin}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-purple-400 hover:text-purple-300 transition-colors flex items-center gap-1 text-sm"
-            >
-              <Linkedin className="h-4 w-4" />
-              <span>LinkedIn</span>
-            </a>
-          )}
         </div>
       </div>
     </div>
   );
 }
 
-function DepartmentAccordion({ department, isOpen, onToggle }) {
-  const Icon = department.icon;
-
-  const hierarchyLevels = {
-    'Department Head': 'border-l-4 border-purple-500',
-    'Associate Head': 'border-l-4 border-purple-400 ml-4',
-    'Senior Coordinator': 'border-l-4 border-purple-300 ml-8',
-    'Coordinator': 'border-l-4 border-purple-200 ml-12',
-  };
+function TeamSection({ team, isOpen, onToggle }) {
+  const Icon = team.icon || Users;
   
   return (
-    <div className="bg-gray-900 rounded-lg overflow-hidden">
+    <div className="bg-gray-900/50 rounded-lg overflow-hidden mb-4 ring-1 ring-gray-800/50">
       <button
         onClick={onToggle}
-        className="w-full px-6 py-4 flex items-center justify-between bg-gray-800 hover:bg-gray-700 transition-colors"
+        className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-800/50 transition-colors"
       >
         <div className="flex items-center gap-3">
           <div className="p-2 bg-purple-900/20 rounded-lg">
             <Icon className="h-6 w-6 text-purple-400" />
           </div>
-          <h2 className="text-xl font-bold text-white">{department.name}</h2>
+          <h2 className="text-xl font-bold text-white">{team.name}</h2>
+          <span className="text-sm text-purple-400">({team.members.length} members)</span>
         </div>
         <ChevronDown className={`h-5 w-5 text-purple-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
       
       {isOpen && (
         <div className="p-6">
-          <div className="space-y-4">
-            {Object.entries(hierarchyLevels).map(([level, className]) => {
-              const membersAtLevel = department.coordinators?.filter(m => m.designation === level) || [];
-              if (membersAtLevel.length === 0) return null;
-              
-              return (
-                <div key={level} className={className + " pl-4"}>
-                  <div className="flex items-center gap-3 mb-3">
-                    <h3 className="text-lg font-semibold text-purple-300">{level}</h3>
-                    <div className="flex-1 h-px bg-purple-900/50"></div>
-                  </div>
-                  <div className="grid gap-4">
-                    {membersAtLevel.map(member => (
-                      <TeamMemberCard key={member.id} member={member} />
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
+          <div className="grid gap-4 md:grid-cols-2">
+            {team.members.map((member) => (
+              <RegularTeamMemberCard key={member.id} member={member} />
+            ))}
           </div>
         </div>
       )}
@@ -335,35 +324,46 @@ function DepartmentAccordion({ department, isOpen, onToggle }) {
 }
 
 function TeamShowcase() {
-  const [openDepartment, setOpenDepartment] = useState('cse');
-
-  const allWebTeamMembers = departments.reduce((acc, dept) => {
-    return [...acc, ...(dept.webTeam || [])];
-  }, []);
+  const [openTeam, setOpenTeam] = useState('student-coordinators');
 
   return (
-    <div className="min-h-screen mt-12 bg-black py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto">
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-white mb-4 bg-gradient-to-r from-purple-400 to-purple-600 bg-clip-text text-transparent">
-            Our Teams
+    <div className="min-h-screen mt-12 bg-gradient-to-b from-black to-gray-900 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto">
+        <div className="text-center mb-16">
+          <h1 className="text-5xl font-bold text-white mb-4 bg-gradient-to-r from-purple-400 via-blue-500 to-purple-600 bg-clip-text text-transparent">
+            TECHNIVERSE 2K25
           </h1>
-          <p className="text-purple-300">
-            Meet our talented team members across different departments
+          <p className="text-xl text-purple-300">
+            Meet the talented teams behind the magic
           </p>
         </div>
 
-        {/* Web Development Team Section */}
-        <WebTeamSection webTeam={allWebTeamMembers} />
-        
-        {/* Department Coordinators Section */}
-        <div className="grid gap-3">
-          {departments.map(department => (
-            <DepartmentAccordion 
-              key={department.id} 
-              department={department}
-              isOpen={openDepartment === department.id}
-              onToggle={() => setOpenDepartment(openDepartment === department.id ? null : department.id)}
+        {/* Web Team Featured Section */}
+        <div className="mb-16">
+          <div className="flex items-center gap-3 mb-8">
+            <div className="p-2 bg-purple-900/20 rounded-lg">
+              <Code2 className="h-8 w-8 text-purple-400" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-white">{webTeam.name}</h2>
+              <p className="text-purple-400">{webTeam.description}</p>
+            </div>
+          </div>
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {webTeam.members.map((member) => (
+              <WebTeamCard key={member.id} member={member} />
+            ))}
+          </div>
+        </div>
+
+        {/* Other Teams */}
+        <div className="space-y-4">
+          {otherTeams.map((team) => (
+            <TeamSection 
+              key={team.id}
+              team={team}
+              isOpen={openTeam === team.id}
+              onToggle={() => setOpenTeam(openTeam === team.id ? null : team.id)}
             />
           ))}
         </div>

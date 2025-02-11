@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-
+import { useQuery } from '@tanstack/react-query';
+import { workshopService } from '../../../services/workshopService';
+import { useMemo } from 'react';
 const useScrollAnimation = () => {
   const [isVisible, setIsVisible] = useState(false);
   const elementRef = useRef(null);
@@ -33,10 +35,12 @@ const useScrollAnimation = () => {
   return [elementRef, isVisible];
 };
 
-const WorkshopCard = ({ workshop, index }) => {
+const WorkshopCard = ({ workshop, index,deptId }) => {
   const [cardRef, isVisible] = useScrollAnimation();
   const isEven = index % 2 === 0;
-  
+    // Extract department ID from the workshop's departments array
+    const departmentId = workshop.departments[0]?._id;
+  console.log('deptID',departmentId )
   return (
     <div 
       ref={cardRef}
@@ -47,7 +51,7 @@ const WorkshopCard = ({ workshop, index }) => {
                     ${isVisible ? 'translate-x-0 opacity-100' : 
                       isEven ? 'translate-x-full opacity-0' : '-translate-x-full opacity-0'}`}>
         <Link 
-          to={`/departments/${workshop.department}/workshops/${workshop.id}`}
+          to={`/departments/${departmentId }/workshops/${workshop._id}`}
           className="block group relative w-full h-full"
         >
           {/* Mobile-visible, desktop-hover glow effect */}
@@ -67,22 +71,25 @@ const WorkshopCard = ({ workshop, index }) => {
               {/* Image Section */}
               <div className="w-full h-48 relative">
                 <img
-                  src={workshop.image}
+                  src={workshop.bannerDesktop || workshop.bannerMobile}
                   alt={workshop.title}
                   className="w-full h-full object-cover"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/50 to-transparent" />
                 
-                {/* Badges */}
+                {/* Status Badge */}
                 <div className="absolute top-4 left-4">
-                  <span className="px-2.5 py-1 bg-indigo-500/20 rounded-md text-xs font-medium 
-                               text-indigo-300 border border-indigo-500/20 backdrop-blur-sm">
-                    {workshop.category}
+                  <span className={`px-2.5 py-1 rounded-md text-xs font-medium 
+                               border backdrop-blur-sm
+                               ${getStatusStyles(workshop.status)}`}>
+                    {workshop.status}
                   </span>
                 </div>
+                
+                {/* Duration */}
                 <span className="absolute top-4 right-4 px-2.5 py-1 bg-slate-900/80 backdrop-blur-sm 
                              rounded-md text-xs text-slate-300 border border-slate-700/30">
-                  {workshop.duration}
+                  {workshop.schedule?.length * 2 || 0} Hours
                 </span>
               </div>
 
@@ -106,14 +113,14 @@ const WorkshopCard = ({ workshop, index }) => {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} 
                             d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
-                    <span>{workshop.date}</span>
+                    <span>{formatDate(workshop.registrationEndTime)}</span>
                   </div>
                   <div className="flex items-center gap-1.5 text-xs text-slate-300">
                     <svg className="w-4 h-4 text-indigo-400/70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} 
                             d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <span>{workshop.time}</span>
+                    <span>{workshop.registrations} Registrations</span>
                   </div>
                 </div>
               </div>
@@ -158,188 +165,113 @@ const WorkshopCard = ({ workshop, index }) => {
   );
 };
 
+// Helper functions
+const formatDate = (dateString) => {
+  if (!dateString) return 'Not specified';
+  return new Date(dateString).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+};
+
+const getStatusStyles = (status) => {
+  switch (status?.toLowerCase()) {
+    case 'upcoming':
+      return 'bg-indigo-500/20 text-indigo-300 border-indigo-500/20';
+    case 'ongoing':
+      return 'bg-green-500/20 text-green-300 border-green-500/20';
+    case 'completed':
+      return 'bg-gray-500/20 text-gray-300 border-gray-500/20';
+    case 'cancelled':
+      return 'bg-red-500/20 text-red-300 border-red-500/20';
+    default:
+      return 'bg-slate-500/20 text-slate-300 border-slate-500/20';
+  }
+};
+
 const Workshops = () => {
   const { deptId } = useParams();
+  const [searchQuery, setSearchQuery] = useState('');
   const [headerRef, isHeaderVisible] = useScrollAnimation();
+  console.log('deptID',deptId);
+  // Fetch workshops using React Query
+  const { data: workshopsData, isLoading, error } = useQuery({
+    queryKey: ['workshops', deptId],
+    queryFn: () => deptId ? workshopService.getWorkshopsByDepartment(deptId) : workshopService.getAll(),
+    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
+    cacheTime: 30 * 60 * 1000, // Keep data in cache for 30 minutes
+  });
 
-  const workshops = [
-    {
-      id: 1,
-      department: deptId,
-      title: "Advanced Web Developments",
-      category: "Development",
-      date: "2025-02-15",
-      time: "10:00 AM - 4:00 PM",
-      duration: "6 Hours",
-      description: "Master modern web Build scalable applications with industry best practices.",
-      image: "	https://images.pexels.com/photos/1714208/pexels-photo-1714208.jpeg?auto=compress&cs=tinysrgb&w=800",
-      registrationDeadline: "2025-02-10",
-    },
-    {
-      id: 2,
-      department: deptId,
-      title: "AI & Machine Learning in Production",
-      category: "Artificial Intelligence",
-      date: "2025-02-20",
-      time: "9:00 AM - 5:00 PM",
-      duration: "8 Hours",
-      description: "Deep dive into practical ML model deployment, optimization, and real-world applications. Hands-on experience with PyTorch and TensorFlow.",
-      image: "https://images.pexels.com/photos/1181675/pexels-photo-1181675.jpeg?auto=compress&cs=tinysrgb&w=800",
-      registrationDeadline: "2025-02-15",
-    },
-    {
-      id: 3,
-      department: deptId,
-      title: "Cloud Architecture & DevOps Excellence",
-      category: "Infrastructure",
-      date: "2025-03-05",
-      time: "10:00 AM - 3:00 PM",
-      duration: "5 Hours",
-      description: "Master cloud infrastructure design and DevOps practices. Focus on AWS services, CI/CD pipelines, and microservices architecture.",
-      image: "/api/placeholder/400/300",
-      registrationDeadline: "2025-03-01",
-    },
-    {
-      id: 1,
-      department: deptId,
-      title: "Advanced Web Development with Modern Technologies",
-      category: "Development",
-      date: "2025-02-15",
-      time: "10:00 AM - 4:00 PM",
-      duration: "6 Hours",
-      description: "Master modern web development using React, Node.js, and cutting-edge tools. Build scalable applications with industry best practices.",
-      image: "/api/placeholder/400/300",
-      registrationDeadline: "2025-02-10",
-    },
-    {
-      id: 2,
-      department: deptId,
-      title: "AI & Machine Learning in Production",
-      category: "Artificial Intelligence",
-      date: "2025-02-20",
-      time: "9:00 AM - 5:00 PM",
-      duration: "8 Hours",
-      description: "Deep dive into practical ML model deployment, optimization, and real-world applications. Hands-on experience with PyTorch and TensorFlow.",
-      image: "/api/placeholder/400/300",
-      registrationDeadline: "2025-02-15",
-    },
-    {
-      id: 3,
-      department: deptId,
-      title: "Cloud Architecture & DevOps Excellence",
-      category: "Infrastructure",
-      date: "2025-03-05",
-      time: "10:00 AM - 3:00 PM",
-      duration: "5 Hours",
-      description: "Master cloud infrastructure design and DevOps practices. Focus on AWS services, CI/CD pipelines, and microservices architecture.",
-      image: "/api/placeholder/400/300",
-      registrationDeadline: "2025-03-01",
-    },
-    {
-      id: 1,
-      department: deptId,
-      title: "Advanced Web Development with Modern Technologies",
-      category: "Development",
-      date: "2025-02-15",
-      time: "10:00 AM - 4:00 PM",
-      duration: "6 Hours",
-      description: "Master modern web development using React, Node.js, and cutting-edge tools. Build scalable applications with industry best practices.",
-      image: "/api/placeholder/400/300",
-      registrationDeadline: "2025-02-10",
-    },
-    {
-      id: 2,
-      department: deptId,
-      title: "AI & Machine Learning in Production",
-      category: "Artificial Intelligence",
-      date: "2025-02-20",
-      time: "9:00 AM - 5:00 PM",
-      duration: "8 Hours",
-      description: "Deep dive into practical ML model deployment, optimization, and real-world applications. Hands-on experience with PyTorch and TensorFlow.",
-      image: "/api/placeholder/400/300",
-      registrationDeadline: "2025-02-15",
-    },
-    {
-      id: 3,
-      department: deptId,
-      title: "Cloud Architecture & DevOps Excellence",
-      category: "Infrastructure",
-      date: "2025-03-05",
-      time: "10:00 AM - 3:00 PM",
-      duration: "5 Hours",
-      description: "Master cloud infrastructure design and DevOps practices. Focus on AWS services, CI/CD pipelines, and microservices architecture.",
-      image: "/api/placeholder/400/300",
-      registrationDeadline: "2025-03-01",
-    },
-    {
-      id: 1,
-      department: deptId,
-      title: "Advanced Web Development with Modern Technologies",
-      category: "Development",
-      date: "2025-02-15",
-      time: "10:00 AM - 4:00 PM",
-      duration: "6 Hours",
-      description: "Master modern web development using React, Node.js, and cutting-edge tools. Build scalable applications with industry best practices.",
-      image: "/api/placeholder/400/300",
-      registrationDeadline: "2025-02-10",
-    },
-    {
-      id: 2,
-      department: deptId,
-      title: "AI & Machine Learning in Production",
-      category: "Artificial Intelligence",
-      date: "2025-02-20",
-      time: "9:00 AM - 5:00 PM",
-      duration: "8 Hours",
-      description: "Deep dive into practical ML model deployment, optimization, and real-world applications. Hands-on experience with PyTorch and TensorFlow.",
-      image: "/api/placeholder/400/300",
-      registrationDeadline: "2025-02-15",
-    },
-    {
-      id: 3,
-      department: deptId,
-      title: "Cloud Architecture & DevOps Excellence",
-      category: "Infrastructure",
-      date: "2025-03-05",
-      time: "10:00 AM - 3:00 PM",
-      duration: "5 Hours",
-      description: "Master cloud infrastructure design and DevOps practices. Focus on AWS services, CI/CD pipelines, and microservices architecture.",
-      image: "/api/placeholder/400/300",
-      registrationDeadline: "2025-03-01",
-    }
-  ];
+  // Filter workshops based on search query and department
+  const filteredWorkshops = useMemo(() => {
+    if (!workshopsData) return [];
+    
+    return workshopsData.filter(workshop => {
+      return searchQuery.trim() === '' || 
+        workshop.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        workshop.description.toLowerCase().includes(searchQuery.toLowerCase());
+    });
+  }, [workshopsData,deptId,searchQuery]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-500"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-red-500">Failed to load workshops. Please try again later.</div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-      {/* Search Section with fixed position animation */}
+      {/* Search Section */}
       <div className="mb-8">
-  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-    <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white">
-      Technical Workshops
-    </h2>
-    <div className="relative w-full sm:w-auto">
-      <input
-        type="text"
-        placeholder="Search workshops..."
-        className="w-full sm:w-72 px-3 py-2 text-sm rounded-lg 
-                  bg-slate-800 text-white 
-                  placeholder:text-slate-400 
-                  border border-slate-700 
-                  focus:outline-none 
-                  focus:border-indigo-500/30 
-                  focus:ring-1 
-                  focus:ring-indigo-500/20 
-                  transition-colors"
-      />
-    </div>
-  </div>
-</div>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white">
+            Technical Workshops
+          </h2>
+          <div className="relative w-full sm:w-auto">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search workshops..."
+              className="w-full sm:w-72 px-3 py-2 text-sm rounded-lg 
+                        bg-slate-800 text-white 
+                        placeholder:text-slate-400 
+                        border border-slate-700 
+                        focus:outline-none 
+                        focus:border-indigo-500/30 
+                        focus:ring-1 
+                        focus:ring-indigo-500/20 
+                        transition-colors"
+            />
+          </div>
+        </div>
+      </div>
+
       {/* Workshops Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 w-full">
-        {workshops.map((workshop, index) => (
-          <WorkshopCard key={`${workshop.id}-${index}`} workshop={workshop} index={index} />
+        {filteredWorkshops.map((workshop, index) => (
+          <WorkshopCard key={workshop._id} deptId={deptId} workshop={workshop} index={index} />
         ))}
       </div>
+
+      {/* No results message */}
+      {filteredWorkshops.length === 0 && (
+        <div className="text-center py-12">
+          <p className="text-slate-400">No workshops found matching your criteria.</p>
+        </div>
+      )}
     </div>
   );
 };

@@ -199,7 +199,7 @@ const EventCard = ({ event, index }) => {
                 </div>
 
                 {/* Slots Info */}
-                <div className="space-y-0.5 transform-gpu transition-transform duration-300
+                {/* <div className="space-y-0.5 transform-gpu transition-transform duration-300
                              group-hover:-translate-y-0.5">
                   <div className="text-slate-400 text-[10px] uppercase tracking-wider">Slots</div>
                   <div className="flex items-center gap-1">
@@ -209,7 +209,7 @@ const EventCard = ({ event, index }) => {
                       {event.registrationCount}/{event.maxRegistrations || '∞'}
                     </span>
                   </div>
-                </div>
+                </div> */}
 
                 {/* Fee Info */}
                 <div className="space-y-0.5 transform-gpu transition-transform duration-300

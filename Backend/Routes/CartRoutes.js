@@ -1,158 +1,89 @@
-import express from 'express'
-const router=express.Router();
+import express from 'express';
+const router = express.Router();
 import { Student } from '../Models/StudentSchema.js';
-import { validateCartItem } from '../middleware/validation.js';
 
-router.post('/cart/add', async (req, res) => {
-  const { kindeId, item } = req.body;
-  
-  try {
-    // Validate required fields
-    if (!kindeId || !item) {
-      return res.status(400).json({ 
-        error: 'Missing required fields',
-        details: 'Both kindeId and item are required'
-      });
-    }
-
-    // Validate cart item
-    let validatedItem;
-    try {
-      validatedItem = validateCartItem(item);
-    } catch (validationError) {
-      return res.status(400).json({
-        error: 'Invalid item data',
-        details: validationError.message
-      });
-    }
-
-    // Find or create student with complete profile check
-    let student = await Student.findOne({ kindeId });
-    
-    if (!student) {
-      return res.status(404).json({
-        error: 'Profile not found',
-        details: 'Please complete your registration before adding items to cart'
-      });
-    }
-
-    // Check if registration form is complete
-    if (!student.name || !student.email || !student.mobileNumber) {
-      return res.status(400).json({
-        error: 'Incomplete profile',
-        details: 'Please complete your profile before adding items to cart'
-      });
-    }
-
-    // Check if item already exists in cart
-    const itemExists = student.cart?.some(cartItem => 
-      cartItem.eventId?.toString() === validatedItem.eventId.toString()
-    );
-
-    if (itemExists) {
-      return res.status(400).json({
-        error: 'Duplicate item',
-        details: 'This event is already in your cart'
-      });
-    }
-
-    // Add new item to cart with validation
-    student = await Student.findOneAndUpdate(
-      { kindeId },
-      { $push: { cart: validatedItem } },
-      { 
-        new: true,
-        runValidators: true
-      }
-    ).populate('cart.eventId');
-
-    res.json({ 
-      success: true, 
-      cart: student.cart,
-      message: 'Item added to cart successfully'
-    });
-
-  } catch (error) {
-    console.error('Add to cart error:', error);
-    res.status(500).json({ 
-      error: 'Server error',
-      details: error.message 
-    });
-  }
-});
-  
+// Get cart contents
 router.get('/cart/:kindeId', async (req, res) => {
   try {
-    // First find or create the student
-    let student = await Student.findOne({ kindeId: req.params.kindeId });
-    
-    // If student doesn't exist, create one
+    const student = await Student.findOne({ kindeId: req.params.kindeId })
+      .populate({
+        path: 'cart.eventId',
+        populate: {
+          path: 'departments'
+        }
+      })
+      .populate({
+        path: 'workshops.workshopId',
+        populate: {
+          path: 'departments'
+        }
+      });
+
     if (!student) {
-      student = await Student.create({
-        kindeId: req.params.kindeId,
-        cart: [] // Initialize empty cart
+      return res.status(404).json({
+        success: false,
+        error: 'Profile not found'
       });
     }
 
-    // Now we know student exists, get the populated cart data
-    const populatedStudent = await Student.findOne({ kindeId: req.params.kindeId })
-      .populate({
-        path: 'cart.eventId',
-        model: 'Event',
-        populate: {
-          path: 'departments',
-          model: 'Department'
-        }
-      });
-
-    // Transform the data to match frontend structure
-    const transformedCart = populatedStudent.cart.map(cartItem => {
-      if (!cartItem.eventId) return null; // Skip if event doesn't exist
+    // Transform events data
+    const transformedEvents = student.cart.map(cartItem => {
+      if (!cartItem.eventId) return null; // Skip if event reference is invalid
       
-      const event = cartItem.eventId;
-      const department = event.departments[0]; // Assuming first department is primary
-
       return {
-        id: event._id,
-        eventId: event._id, // Include both for compatibility
-        fee: cartItem.price || event.registrationFee,
+        id: cartItem.eventId._id,
+        type: 'event',
+        fee: cartItem.price || cartItem.eventId.registrationFee,
         eventInfo: {
-          id: event._id,
-          title: event.title,
-          tag: event.tag,
-          description: event.details.description,
-          department: {
-            id: department?._id || '',
-            shortName: department?.shortName || '',
-            color: department?.color || 'indigo',
-            name: department?.name || ''
-          }
+          id: cartItem.eventId._id,
+          title: cartItem.eventId.title,
+          description: cartItem.eventId.description,
+          department: cartItem.eventId.departments[0],
+          tag: cartItem.eventId.tag
         },
         schedule: {
-          startTime: event.startTime,
-          duration: event.duration,
-          venue: event.details.venue
+          startTime: cartItem.eventId.startTime,
+          duration: cartItem.eventId.duration
         },
-        registration: {
-          type: event.registrationType,
-          fee: cartItem.price || event.registrationFee,
-          maxTeamSize: event.details.maxTeamSize,
-          totalSlots: event.maxRegistrations,
-          registeredCount: event.registrationCount,
-          isRegistrationOpen: event.status === 'published' && 
-                            new Date() <= new Date(event.registrationEndTime),
-          endTime: event.registrationEndTime
-        },
+        registration: cartItem.eventId.registration,
         media: {
-          bannerDesktop: event.bannerDesktop,
-          bannerMobile: event.bannerMobile
+          bannerDesktop: cartItem.eventId.bannerDesktop,
+          bannerMobile: cartItem.eventId.bannerMobile
         }
       };
-    }).filter(item => item !== null); // Remove any null items
+    }).filter(Boolean); // Remove null entries
+
+    // Transform workshops data
+    const transformedWorkshops = student.workshops.map(workshopItem => {
+      if (!workshopItem.workshopId) return null; // Skip if workshop reference is invalid
+      
+      return {
+        id: workshopItem.workshopId._id,
+        type: 'workshop',
+        title: workshopItem.workshopId.title,
+        description: workshopItem.workshopId.description,
+        departments: workshopItem.workshopId.departments,
+        lecturer: workshopItem.workshopId.lecturer,
+        price: workshopItem.price || workshopItem.workshopId.price,
+        registration: workshopItem.workshopId.registration,
+        schedule: {
+          startTime: workshopItem.workshopId.registration.startTime,
+          duration: workshopItem.workshopId.duration
+        },
+        media: {
+          bannerDesktop: workshopItem.workshopId.bannerDesktop,
+          bannerMobile: workshopItem.workshopId.bannerMobile
+        }
+      };
+    }).filter(Boolean); // Remove null entries
 
     res.json({ 
       success: true,
-      cart: transformedCart 
+      cart: {
+        events: transformedEvents,
+        workshops: transformedWorkshops,
+        activeCombo: student.activeCombo || null
+      }
     });
     
   } catch (error) {
@@ -163,18 +94,169 @@ router.get('/cart/:kindeId', async (req, res) => {
     });
   }
 });
-  
-  router.delete('/cart/:kindeId/:itemId', async (req, res) => {
-    try {
-      const student = await Student.findOneAndUpdate(
-        { kindeId: req.params.kindeId },
-        { $pull: { cart: { eventId: req.params.itemId } } },
-        { new: true }
-      );
-      res.json({ cart: student.cart });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  });
 
-  export default router;
+// Add event to cart
+router.post('/cart/add', async (req, res) => {
+  const { kindeId, item } = req.body;
+  
+  try {
+    if (!kindeId || !item || !item.eventId) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Missing required fields'
+      });
+    }
+
+    let student = await Student.findOne({ kindeId });
+    
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        error: 'Please complete your registration first'
+      });
+    }
+
+    // Check for duplicate
+    const isDuplicate = student.cart.some(e => 
+      e.eventId.toString() === item.eventId.toString()
+    );
+
+    if (isDuplicate) {
+      return res.status(400).json({
+        success: false,
+        error: 'This event is already in your cart'
+      });
+    }
+
+    // Add to cart
+    student = await Student.findOneAndUpdate(
+      { kindeId },
+      { 
+        $push: { 
+          cart: {
+            eventId: item.eventId,
+            price: item.price
+          }
+        }
+      },
+      { new: true }
+    ).populate('cart.eventId');
+
+    res.json({ 
+      success: true,
+      cart: student.cart
+    });
+
+  } catch (error) {
+    console.error('Add to cart error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: error.message 
+    });
+  }
+});
+
+// Add workshop to cart
+router.post('/cart/workshop/add', async (req, res) => {
+  const { kindeId, item } = req.body;
+  
+  try {
+    if (!kindeId || !item || !item.workshopId) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Missing required fields'
+      });
+    }
+
+    let student = await Student.findOne({ kindeId });
+    
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        error: 'Please complete your registration first'
+      });
+    }
+
+    // Check for duplicate
+    const isDuplicate = student.workshops.some(w => 
+      w.workshopId.toString() === item.workshopId.toString()
+    );
+
+    if (isDuplicate) {
+      return res.status(400).json({
+        success: false,
+        error: 'This workshop is already in your cart'
+      });
+    }
+
+    // Add to cart
+    student = await Student.findOneAndUpdate(
+      { kindeId },
+      { 
+        $push: { 
+          workshops: {
+            workshopId: item.workshopId,
+            price: item.price
+          }
+        }
+      },
+      { new: true }
+    ).populate('workshops.workshopId');
+
+    res.json({ 
+      success: true,
+      workshops: student.workshops
+    });
+
+  } catch (error) {
+    console.error('Add workshop error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: error.message 
+    });
+  }
+});
+
+// Remove from cart (works for both events and workshops)
+router.delete('/cart/:kindeId/:itemId', async (req, res) => {
+  try {
+    const { kindeId, itemId } = req.params;
+    const { type } = req.query; // 'event' or 'workshop'
+
+    const updateQuery = type === 'workshop' 
+      ? { $pull: { workshops: { workshopId: itemId } } }
+      : { $pull: { cart: { eventId: itemId } } };
+
+    const student = await Student.findOneAndUpdate(
+      { kindeId },
+      updateQuery,
+      { new: true }
+    )
+    .populate('cart.eventId')
+    .populate('workshops.workshopId');
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        error: 'Profile not found'
+      });
+    }
+
+    res.json({ 
+      success: true,
+      cart: {
+        events: student.cart,
+        workshops: student.workshops,
+        activeCombo: student.activeCombo
+      }
+    });
+  } catch (error) {
+    console.error('Remove from cart error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: error.message 
+    });
+  }
+});
+
+export default router;

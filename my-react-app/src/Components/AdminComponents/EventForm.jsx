@@ -320,6 +320,21 @@ const EventForm = ({ event, onClose }) => {
     return date.toISOString().slice(0, 16); // Format as YYYY-MM-DDThh:mm
   };
 
+  const defaultRound = {
+    roundNumber: 1,
+    name: '',
+    description: '',
+    duration: '',
+    startTime: '',
+    endTime: '',
+    venue: '',
+    sections: [],
+    requirements: [],
+    specialRules: [],
+    qualificationCriteria: '',
+    eliminationType: 'score',
+    status: 'upcoming'
+  };
   // Define default values
   const defaultValues = {
     title: '',
@@ -330,7 +345,7 @@ const EventForm = ({ event, onClose }) => {
     bannerMobile: '',
     bannerDesktop: '',
     status: 'draft',
-    registrationType: 'individual',
+    registrationType: 'team', // Changed default to team for TechSquid
     department: '',
     registrationCount: 0,
     maxRegistrations: 100,
@@ -344,29 +359,41 @@ const EventForm = ({ event, onClose }) => {
       venue: '',
       requirements: []
     },
-    rounds: [],
+    rounds: [defaultRound],
     coordinators: []
   };
 
 
   const [formData, setFormData] = useState(() => {
     if (event) {
-      // Ensure department is a string ID, not an object
+      // Format existing event data
       const departmentId = Array.isArray(event.departments) && event.departments[0]?._id 
         ? event.departments[0]._id 
         : event.departments?.[0] || '';
-  
+
       return {
         ...defaultValues,
         ...event,
-        department: departmentId,  // Store just the ID
+        department: departmentId,
         startTime: formatDateForInput(event.startTime),
         registrationEndTime: formatDateForInput(event.registrationEndTime),
         details: {
           ...defaultValues.details,
           ...(event.details || {}),
           eventDate: event.details?.eventDate ? formatDateForInput(event.details.eventDate) : ''
-        }
+        },
+        rounds: event.rounds?.map(round => ({
+          ...defaultRound,
+          ...round,
+          startTime: formatDateForInput(round.startTime),
+          endTime: formatDateForInput(round.endTime),
+          sections: round.sections?.map(section => ({
+            name: section.name || '',
+            description: section.description || '',
+            duration: section.duration || '',
+            requirements: section.requirements || []
+          })) || []
+        })) || [defaultRound]
       };
     }
     return defaultValues;
@@ -392,51 +419,64 @@ const EventForm = ({ event, onClose }) => {
         ? `${baseUrl}/${departmentId}/events/${event._id}`
         : `${baseUrl}/${departmentId}/events`;
 
-         // Create FormData object
-    const formDataToSend = new FormData();
+      // Create FormData object
+      const formDataToSend = new FormData();
 
-    
-    // Add the images if they exist
-    if (formData.bannerDesktopFile) {
-      formDataToSend.append('bannerDesktop', formData.bannerDesktopFile);
-    }
-    if (formData.bannerMobileFile) {
-      formDataToSend.append('bannerMobile', formData.bannerMobileFile);
-    }
-
-        
-    const eventData = {
-      ...formData,
-      departments: [departmentId],
-      registrationFee: parseFloat(formData.registrationFee) || 0,
-      maxRegistrations: parseFloat(formData.maxRegistrations) || null,
-      details: {
-        ...formData.details,
-        maxTeamSize: parseFloat(formData.details.maxTeamSize) || 1,
-        prizeStructure: formData.details.prizeStructure.map(prize => ({
-          ...prize,
-          amount: parseFloat(prize.amount) || 0,
-          position: parseFloat(prize.position) || 0
-        }))
+      // Add the images if they exist
+      if (formData.bannerDesktopFile) {
+        formDataToSend.append('bannerDesktop', formData.bannerDesktopFile);
       }
-    };
+      if (formData.bannerMobileFile) {
+        formDataToSend.append('bannerMobile', formData.bannerMobileFile);
+      }
 
-    // Remove the file objects before stringifying
-    delete eventData.bannerDesktopFile;
-    delete eventData.bannerMobileFile;
+      // Process rounds data
+      const processedRounds = formData.rounds.map(round => ({
+        ...round,
+        sections: round.sections.map(section => ({
+          name: section.name,
+          description: section.description,
+          duration: section.duration,
+          requirements: section.requirements || []
+        })),
+        requirements: round.requirements || [],
+        specialRules: round.specialRules || [],
+        qualificationCriteria: round.qualificationCriteria || ''
+      }));
+            
+      const eventData = {
+        ...formData,
+        departments: [departmentId],
+        registrationFee: parseFloat(formData.registrationFee) || 0,
+        maxRegistrations: parseFloat(formData.maxRegistrations) || null,
+        rounds: processedRounds,
+        details: {
+          ...formData.details,
+          maxTeamSize: parseFloat(formData.details.maxTeamSize) || 1,
+          prizeStructure: formData.details.prizeStructure.map(prize => ({
+            ...prize,
+            amount: parseFloat(prize.amount) || 0,
+            position: parseFloat(prize.position) || 0
+          }))
+        }
+      };
+
+      // Remove the file objects before stringifying
+      delete eventData.bannerDesktopFile;
+      delete eventData.bannerMobileFile;
+      
+      formDataToSend.append('eventData', JSON.stringify(eventData));
     
-    formDataToSend.append('eventData', JSON.stringify(eventData));
-  
-    const response = await fetch(url, {
-      method: event ? 'PUT' : 'POST',
-      body: formDataToSend // Don't set Content-Type header - browser will set it with boundary
-    });
+      const response = await fetch(url, {
+        method: event ? 'PUT' : 'POST',
+        body: formDataToSend 
+      });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to save event');
-    }
-  
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to save event');
+      }
+    
       onClose();
     } catch (error) {
       console.error('Error saving event:', error);
@@ -523,46 +563,54 @@ const EventForm = ({ event, onClose }) => {
   const renderTabContent = () => {
     switch (activeTab) {
       case 'basic':
-        return renderBasicTab();
-
-
-      case 'details':
         return (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input 
-                type="number"
-                label="Prize Money"
-                value={formData.details.prizeMoney}
-                onChange={(e) => setFormData({
-                  ...formData, 
-                  details: {...formData.details, prizeMoney: Number(e.target.value)}
-                })}
+                label="Event Title"
+                value={formData.title}
+                onChange={(e) => setFormData({...formData, title: e.target.value})}
               />
               <Input 
-                type="number"
-                label="Max Team Size"
-                value={formData.details.maxTeamSize}
-                onChange={(e) => setFormData({
-                  ...formData, 
-                  details: {...formData.details, maxTeamSize: Number(e.target.value)}
-                })}
+                label="Tag"
+                value={formData.tag}
+                onChange={(e) => setFormData({...formData, tag: e.target.value})}
               />
               <Input 
-                type="date"
-                label="Event Date"
-                value={formData.details.eventDate}
-                onChange={(e) => setFormData({
-                  ...formData, 
-                  details: {...formData.details, eventDate: e.target.value}
-                })}
+                label="Start Time"
+                type="datetime-local"
+                value={formData.startTime}
+                onChange={(e) => setFormData({...formData, startTime: e.target.value})}
               />
               <Input 
                 label="Duration"
-                value={formData.details.duration}
+                value={formData.duration}
+                onChange={(e) => setFormData({...formData, duration: e.target.value})}
+              />
+              <Select
+                label="Status"
+                value={formData.status}
+                onChange={(e) => setFormData({...formData, status: e.target.value})}
+                options={[
+                  { value: 'draft', label: 'Draft' },
+                  { value: 'published', label: 'Published' },
+                  { value: 'cancelled', label: 'Cancelled' },
+                  { value: 'completed', label: 'Completed' }
+                ]}
+              />
+              <DepartmentSelect
+                selectedDepartment={formData.department}
+                onChange={(e) => setFormData(prev => ({
+                  ...prev,
+                  department: e.target.value
+                }))}
+              />
+              <Input
+                label="Venue"
+                value={formData.details.venue}
                 onChange={(e) => setFormData({
-                  ...formData, 
-                  details: {...formData.details, duration: e.target.value}
+                  ...formData,
+                  details: { ...formData.details, venue: e.target.value }
                 })}
               />
             </div>
@@ -571,105 +619,77 @@ const EventForm = ({ event, onClose }) => {
               value={formData.details.description}
               onChange={(e) => setFormData({
                 ...formData,
-                details: {...formData.details, description: e.target.value}
+                details: { ...formData.details, description: e.target.value }
               })}
             />
           </div>
         );
 
-        case 'registration':
-          return (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input 
-                  type="number"
-                  label="Registration Fee"
-                  value={formData.registrationFee}
-                  onChange={(e) => setFormData({
-                    ...formData, 
-                    registrationFee: Number(e.target.value)
-                  })}
-                />
-                <Input 
-                  type="number"
-                  label="Maximum Registrations"
-                  value={formData.maxRegistrations}
-                  onChange={(e) => setFormData({
-                    ...formData, 
-                    maxRegistrations: Number(e.target.value)
-                  })}
-                />
-                <Input 
-                  label="Registration End Time"
-                  type="datetime-local"
-                  value={formData.registrationEndTime}
-                  onChange={(e) => setFormData({
-                    ...formData, 
-                    registrationEndTime: e.target.value
-                  })}
-                />
-                <Select
-                  label="Registration Type"
-                  value={formData.registrationType}
-                  onChange={(e) => setFormData({...formData, registrationType: e.target.value})}
-                  options={[
-                    { value: 'individual', label: 'Individual' },
-                    { value: 'team', label: 'Team' }
-                  ]}
-                />
-                {formData.registrationType === 'team' && (
-                  <Input 
-                    type="number"
-                    label="Maximum Team Size"
-                    value={formData.details.maxTeamSize}
-                    onChange={(e) => setFormData({
-                      ...formData, 
-                      details: { ...formData.details, maxTeamSize: Number(e.target.value) }
-                    })}
-                  />
-                )}
-              </div>
-            </div>
-          );
-
-          case 'prizes':
-            return (
-              <div className="space-y-6">
-                <PrizeStructureInput
-                  prizes={formData.details.prizeStructure}
-                  onChange={(prizeStructure) => setFormData({
-                    ...formData,
-                    details: { ...formData.details, prizeStructure }
-                  })}
-                />
-              </div>
-            );
-
-      case 'media':
+      case 'registration':
         return (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <ImageUpload
-                  label="Desktop Banner"
-                  value={formData.bannerDesktop} // This will be the preview URL
-                  onChange={(file) => {
-                    setFormData(prev => ({
-                      ...prev,
-                      bannerDesktopFile: file, // Store the actual file for upload
-                      bannerDesktop: file ? URL.createObjectURL(file) : null // For preview
-                    }));
-                  }}
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input 
+                type="number"
+                label="Registration Fee"
+                value={formData.registrationFee}
+                onChange={(e) => setFormData({
+                  ...formData, 
+                  registrationFee: e.target.value
+                })}
+              />
+              <Input 
+                type="number"
+                label="Maximum Registrations"
+                value={formData.maxRegistrations}
+                onChange={(e) => setFormData({
+                  ...formData, 
+                  maxRegistrations: e.target.value
+                })}
+              />
+              <Input 
+                label="Registration End Time"
+                type="datetime-local"
+                value={formData.registrationEndTime}
+                onChange={(e) => setFormData({
+                  ...formData, 
+                  registrationEndTime: e.target.value
+                })}
+              />
+              <Select
+                label="Registration Type"
+                value={formData.registrationType}
+                onChange={(e) => setFormData({...formData, registrationType: e.target.value})}
+                options={[
+                  { value: 'individual', label: 'Individual' },
+                  { value: 'team', label: 'Team' }
+                ]}
+              />
+              {formData.registrationType === 'team' && (
+                <Input 
+                  type="number"
+                  label="Maximum Team Size"
+                  value={formData.details.maxTeamSize}
+                  onChange={(e) => setFormData({
+                    ...formData, 
+                    details: { ...formData.details, maxTeamSize: e.target.value }
+                  })}
                 />
-                <ImageUpload
-                  label="Mobile Banner"
-                  value={formData.bannerMobile} // This will be the preview URL
-                  onChange={(file) => {
-                    setFormData(prev => ({
-                      ...prev,
-                      bannerMobileFile: file, // Store the actual file for upload
-                      bannerMobile: file ? URL.createObjectURL(file) : null // For preview
-                    }));
-                  }}
-                />
+              )}
+            </div>
+          </div>
+        );
+
+      case 'prizes':
+        return (
+          <div className="space-y-6">
+            <PrizeStructureInput
+              prizes={formData.details.prizeStructure}
+              onChange={(prizeStructure) => setFormData({
+                ...formData,
+                details: { ...formData.details, prizeStructure }
+              })}
+            />
           </div>
         );
 
@@ -679,6 +699,34 @@ const EventForm = ({ event, onClose }) => {
             rounds={formData.rounds}
             onChange={(rounds) => setFormData({...formData, rounds})}
           />
+        );
+
+      case 'media':
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <ImageUpload
+              label="Desktop Banner"
+              value={formData.bannerDesktop}
+              onChange={(file) => {
+                setFormData(prev => ({
+                  ...prev,
+                  bannerDesktopFile: file,
+                  bannerDesktop: file ? URL.createObjectURL(file) : null
+                }));
+              }}
+            />
+            <ImageUpload
+              label="Mobile Banner"
+              value={formData.bannerMobile}
+              onChange={(file) => {
+                setFormData(prev => ({
+                  ...prev,
+                  bannerMobileFile: file,
+                  bannerMobile: file ? URL.createObjectURL(file) : null
+                }));
+              }}
+            />
+          </div>
         );
 
       case 'coordinators':
@@ -756,7 +804,6 @@ const EventForm = ({ event, onClose }) => {
       </div>
     </div>
   );
-
 };
 
 export default EventForm;

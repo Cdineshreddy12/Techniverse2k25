@@ -87,6 +87,156 @@ const {user}=useKindeAuth();
     }
   };
 
+  const RenderText = ({ text, className = "text-slate-300" }) => {
+    if (!text) return null;
+    
+    return text.split('\n').map((line, index) => (
+      <p key={index} className={`${className} ${index > 0 ? 'mt-2' : ''}`}>
+        {line.trim()}
+      </p>
+    ));
+  };
+  
+  const RoundSection = ({ section }) => (
+    <div className="mt-4 pl-4 border-l-2 border-slate-700">
+      <h4 className="text-lg font-medium text-white mb-2">{section.name}</h4>
+      <RenderText text={section.description} />
+      
+      {section.duration && (
+        <div className="flex items-center gap-2 text-sm text-slate-400 mt-2">
+          <Clock className="w-4 h-4" />
+          <span>{section.duration}</span>
+        </div>
+      )}
+      
+      {section.requirements?.length > 0 && (
+        <div className="mt-3 space-y-1">
+          <p className="text-sm font-medium text-slate-300">Requirements:</p>
+          <ul className="list-disc list-inside text-sm text-slate-400">
+            {section.requirements.map((req, idx) => (
+              <li key={idx} className="mt-1">
+                <RenderText text={req} className="text-sm text-slate-400 inline" />
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+  
+  const RenderRounds = ({ event }) => {
+    if (!event?.rounds?.length) return null;
+    
+    return (
+      <div className="bg-slate-800 rounded-xl p-6 sm:p-8 border border-slate-700 mb-12" data-scroll>
+        <h2 className="text-2xl font-bold text-white mb-6">Event Rounds</h2>
+        <div className="space-y-8">
+          {event.rounds.map((round, index) => (
+            <div key={index} className="relative pl-8">
+              {/* Connection Line */}
+              {index !== event.rounds.length - 1 && (
+                <div className="absolute left-3.5 top-8 bottom-0 w-px bg-slate-700" />
+              )}
+              
+              {/* Round Number Badge */}
+              <div className="absolute left-0 top-1.5 w-7 h-7 rounded-full bg-slate-700 
+                           flex items-center justify-center text-sm font-medium text-white">
+                {round.number}
+              </div>
+  
+              {/* Round Content */}
+              <div className="bg-slate-900/50 rounded-lg p-6 border border-slate-700">
+                {/* Round Header */}
+                <div className="flex flex-wrap items-start gap-3 mb-4">
+                  <h3 className="text-xl font-bold text-white">{round.name}</h3>
+                  <span className={`px-2 py-0.5 text-xs font-medium rounded-full border
+                                ${round.status === 'upcoming' ? 'bg-blue-500/20 text-blue-400 border-blue-500/20' :
+                                  round.status === 'ongoing' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/20' :
+                                  'bg-purple-500/20 text-purple-400 border-purple-500/20'}`}>
+                    {round.status.charAt(0).toUpperCase() + round.status.slice(1)}
+                  </span>
+                  <span className="text-sm text-slate-400">
+                    Duration: {round.duration}
+                  </span>
+                </div>
+  
+                {/* Round Schedule */}
+                <div className="flex items-center gap-3 mb-4 text-sm text-slate-400">
+                  <Calendar className="w-4 h-4" />
+                  <span>{formatDate(round.startTime)} - {formatDate(round.endTime)}</span>
+                </div>
+  
+                {/* Description */}
+                {round.description && (
+                  <div className="mb-4">
+                    <RenderText text={round.description} />
+                  </div>
+                )}
+  
+                {/* Venue */}
+                {round.venue && (
+                  <div className="flex items-center gap-2 text-sm text-slate-400 mb-4">
+                    <MapPin className="w-4 h-4" />
+                    <span>{round.venue}</span>
+                  </div>
+                )}
+  
+                {/* Special Rules */}
+                {round.specialRules?.length > 0 && (
+                  <div className="mb-4">
+                    <h4 className="text-sm font-medium text-slate-300 mb-2">Special Rules:</h4>
+                    <ul className="list-disc list-inside text-sm text-slate-400 space-y-1">
+                      {round.specialRules.map((rule, idx) => (
+                        <li key={idx} className="mt-1">
+                          <RenderText text={rule} className="text-sm text-slate-400 inline" />
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+  
+                {/* Qualification Criteria */}
+                {round.qualificationCriteria && (
+                  <div className="mb-4">
+                    <h4 className="text-sm font-medium text-slate-300 mb-2">Qualification Criteria:</h4>
+                    <RenderText 
+                      text={round.qualificationCriteria} 
+                      className="text-sm text-slate-400" 
+                    />
+                  </div>
+                )}
+  
+                {/* Requirements */}
+                {round.requirements?.length > 0 && (
+                  <div className="mb-4">
+                    <h4 className="text-sm font-medium text-slate-300 mb-2">Requirements:</h4>
+                    <ul className="list-disc list-inside text-sm text-slate-400 space-y-1">
+                      {round.requirements.map((req, idx) => (
+                        <li key={idx} className="mt-1">
+                          <RenderText text={req} className="text-sm text-slate-400 inline" />
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+  
+                {/* Sections */}
+                {round.sections?.length > 0 && (
+                  <div className="mt-6">
+                    <h4 className="text-lg font-medium text-white mb-4">Round Sections</h4>
+                    {round.sections.map((section, idx) => (
+                      <RoundSection key={idx} section={section} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       day: 'numeric',
@@ -197,7 +347,7 @@ const {user}=useKindeAuth();
             <p className="text-xl font-bold text-white">₹{event.prizes.totalPrizeMoney.toLocaleString()}</p>
           </div>
 
-          <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+          {/* <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
             <div className="flex items-center justify-between mb-4">
               <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 p-2.5">
                 <Users className="w-full h-full text-white" />
@@ -212,7 +362,7 @@ const {user}=useKindeAuth();
                 `Teams (max ${event.registration.maxTeamSize} members)` : 
                 'Individual'}
             </p>
-          </div>
+          </div> */}
 
           <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
             <div className="flex items-center justify-between mb-4">
@@ -267,69 +417,7 @@ const {user}=useKindeAuth();
         )}
       </div>
 
-      {event.rounds.length > 0 && (
-  <div className="bg-slate-800 rounded-xl p-6 sm:p-8 border border-slate-700 mb-12" data-scroll>
-    <h2 className="text-2xl font-bold text-white mb-6">Event Rounds</h2>
-    <div className="space-y-6">
-      {event.rounds.map((round, index) => (
-        <div key={index} className="relative pl-8 pb-6 last:pb-0">
-          {/* Connection Line */}
-          {index !== event.rounds.length - 1 && (
-            <div className="absolute left-3.5 top-8 bottom-0 w-px bg-slate-700" />
-          )}
-          
-          {/* Round Number Badge */}
-          <div className="absolute left-0 top-1.5 w-7 h-7 rounded-full bg-slate-700 
-                       flex items-center justify-center text-sm font-medium text-white">
-            {round.number}
-          </div>
-
-          {/* Round Content */}
-          <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-700">
-            <div className="flex items-center gap-3 mb-2">
-              {/* Status Badge */}
-              <span className={`px-2 py-0.5 text-xs font-medium rounded-full
-                            ${round.status === 'upcoming' ? 'bg-blue-500/20 text-blue-400 border-blue-500/20' :
-                              round.status === 'ongoing' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/20' :
-                              'bg-purple-500/20 text-purple-400 border-purple-500/20'} 
-                            border`}>
-                {round.status.charAt(0).toUpperCase() + round.status.slice(1)}
-              </span>
-              
-              {/* Time */}
-              <span className="text-sm text-slate-400">
-                {formatDate(round.startTime)} - {formatDate(round.endTime)}
-              </span>
-            </div>
-
-            {/* Description */}
-            <p className="text-white mb-2">{round.description}</p>
-
-            {/* Venue */}
-            {round.venue && (
-              <div className="flex items-center gap-2 text-sm text-slate-400">
-                <MapPin className="w-4 h-4" />
-                <span>{round.venue}</span>
-              </div>
-            )}
-
-            {/* Requirements */}
-            {round.requirements && round.requirements.length > 0 && (
-              <div className="mt-3 space-y-1">
-                <p className="text-sm font-medium text-slate-300">Requirements:</p>
-                <ul className="list-disc list-inside text-sm text-slate-400">
-                  {round.requirements.map((req, idx) => (
-                    <li key={idx}>{req}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-        </div>
-      ))}
-    </div>
-  </div>
-)}
+      {event.rounds?.length > 0 && <RenderRounds  event={event} />}
 
 {/* Coordinators Section */}
 {event.coordinators.length > 0 && (
@@ -389,63 +477,68 @@ const {user}=useKindeAuth();
           </div>
 
           <button
-              onClick={async () => {
-                if (!event.registration.isRegistrationOpen) return;
-                
-                if (!user?.id) {
-                  toast.error('Please login to add items to cart');
-                  return;
-                }
-              
-                try {
-                  setAddingToCart(true);
-                  
-                  console.log('Event data:', event); // Debug log
-                  
-                  // Check for existing item in Redux store
-                  const existingItem = store.getState().cart.items.find(item => item.id === event._id);
-                  if (existingItem) {
-                    toast.error('Event already in cart!');
-                    return;
-                  }
-              
-                  // Update backend first
-                 // Just pass the whole event object
-                const backendResponse = await addToBackendCart(user.id);
-              
-                                
-                if (backendResponse.success) {
-                  // Prepare cart item for Redux with correct ID
-                  const cartItem = {
-                    id: event.eventInfo.id,
-                    fee: event.registration.fee,
-                    eventInfo: {
-                      ...event.eventInfo,
-                      department: {
-                        id: departmentId,
-                        shortName: event.eventInfo.department.shortName,
-                        color: event.eventInfo.department.color
+              // Replace the current onClick handler with this
+                  onClick={async () => {
+                    if (!event.registration.isRegistrationOpen) return;
+                    
+                    if (!user?.id) {
+                      toast.error('Please login to add items to cart');
+                      return;
+                    }
+
+                    try {
+                      setAddingToCart(true);
+                      
+                      console.log('Event data:', event);
+                      
+                      // Check for existing item in Redux store
+                      const existingItem = store.getState().cart.items.find(item => 
+                        item.eventInfo?.id === event.eventInfo.id
+                      );
+                      
+                      if (existingItem) {
+                        toast.error('Event already in cart!');
+                        return;
                       }
-                    },
-                    schedule: event.schedule,
-                    registration: event.registration,
-                    media: event.media
-                  };
-                    // If backend succeeds, update Redux
-                    dispatch(addToCart(cartItem));
-                    setShowSuccess(true);
-                    toast.success('Added to cart successfully!');
-                    setTimeout(() => setShowSuccess(false), 2000);
-                  }
-                  
-              
-                } catch (error) {
-                  console.error('Error adding to cart:', error);
-                  toast.error(error.message || 'Failed to add to cart. Please try again.');
-                } finally {
-                  setAddingToCart(false);
-                }
-              }}
+
+                      // Add to backend first
+                      const backendResponse = await addToBackendCart(user.id);
+                      
+                      if (backendResponse.success) {
+                        // Prepare cart item with correct structure
+                        const cartItem = {
+                          type: 'event', // Add this
+                          item: {        // Wrap the item data
+                            id: event.eventInfo.id,
+                            fee: event.registration.fee,
+                            eventInfo: {
+                              ...event.eventInfo,
+                              department: {
+                                id: departmentId,
+                                shortName: event.eventInfo.department.shortName,
+                                color: event.eventInfo.department.color
+                              }
+                            },
+                            schedule: event.schedule,
+                            registration: event.registration,
+                            media: event.media
+                          }
+                        };
+
+                        // Dispatch with correct structure
+                        dispatch(addToCart(cartItem));
+                        setShowSuccess(true);
+                        toast.success('Added to cart successfully!');
+                        setTimeout(() => setShowSuccess(false), 2000);
+                      }
+
+                    } catch (error) {
+                      console.error('Error adding to cart:', error);
+                      toast.error(error.message || 'Failed to add to cart. Please try again.');
+                    } finally {
+                      setAddingToCart(false);
+                    }
+                  }}
               disabled={!event.registration.isRegistrationOpen || addingToCart}
               className={`flex items-center gap-2 px-6 py-3 rounded-lg text-white font-medium
                           transition-all duration-300

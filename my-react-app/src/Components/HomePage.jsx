@@ -6,8 +6,9 @@ import {
   Globe, MonitorIcon, Command, Network, Radio, Laptop, Scan, Hexagon,
   CircuitBoard, ShieldCheck, Zap, Binary,Monitor,Layers
 } from 'lucide-react';
+import { memo } from 'react';
 import CyberTimer from './CyberTimer';
-import { ComboPackage } from './ComboPackage.jsx';
+import { usePackage } from './utils/PackageContext.jsx';
 
 import Timeline from './Timeline.jsx';
 
@@ -159,6 +160,136 @@ const TechniVerseTitle = () => {
   );
 };
 
+const packages = [
+  {
+    id: 1,
+    name: "RGUKT Exclusive",
+    subtitle: "Welcome, proud members of RGUKT University",
+    icon: Zap,
+    options: [
+      {
+        name: "All Events",
+        price: 199,
+        features: [
+          "Access to All Technical Events",
+          "Access to All Non-Technical Events",
+          "Tech Fest ID Card",
+          "Certificate of Participation",
+          "Event Schedule Booklet"
+        ]
+      },
+      {
+        name: "All Events + Workshop",
+        price: 299,
+        features: [
+          "All Events Package Benefits",
+          "1 Workshop Registration",
+          "Workshop Certificate",
+          "Workshop Materials"
+        ]
+      }
+    ],
+    cardGradient: "from-blue-900/30 via-slate-900 to-blue-900/30"
+  },
+  {
+    id: 2,
+    name: "Guest Institution",
+    subtitle: "Welcome, bright minds from partner institutions",
+    icon: Users,
+    options: [
+      {
+        name: "All Events",
+        price: 499,
+        features: [
+          "Access to All Technical Events",
+          "Access to All Non-Technical Events",
+          "Tech Fest ID Card",
+          "Certificate of Participation",
+          "Event Schedule Booklet"
+        ]
+      },
+      {
+        name: "All Events + Workshop",
+        price: 599,
+        features: [
+          "All Events Package Benefits",
+          "1 Workshop Registration",
+          "Workshop Certificate",
+          "Workshop Materials"
+        ]
+      }
+    ],
+    cardGradient: "from-purple-900/30 via-slate-900 to-purple-900/30"
+  }
+];
+
+const ComboPackage = memo(() => {
+  const { userPackage, loading: packageLoading } = usePackage();
+  const { user } = useKindeAuth();
+  const isHostInstitution = user?.email?.toLowerCase().startsWith('s');
+
+  // Filter packages based on institution
+  const filteredPackages = packages.filter(pkg => {
+    if (isHostInstitution) {
+      return pkg.id === 1; // Show RGUKT Exclusive package
+    }
+    return pkg.id === 2; // Show Guest Institution package
+  });
+
+  return (
+    <>
+      <div className="text-center mb-12">
+        <h2 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 mb-4">
+          Event Packages
+        </h2>
+        <div className="flex items-center justify-center gap-2 text-gray-400">
+          <Sparkles className="w-5 h-5 text-yellow-400 animate-pulse" />
+          <span>Join us for an incredible tech journey</span>
+          <Sparkles className="w-5 h-5 text-yellow-400 animate-pulse" />
+        </div>
+      </div>
+ 
+      <div className="grid grid-cols-1 gap-6 p-4">
+        {filteredPackages.map(pkg => (
+          <div 
+            key={pkg.id}
+            className={`relative rounded-2xl transition-all duration-300
+              bg-gradient-to-br ${pkg.cardGradient} p-6`}
+          >
+            <div className="flex flex-col gap-6">
+              <div className="text-center">
+                <pkg.icon className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                <h3 className="text-2xl font-bold mb-2">{pkg.name}</h3>
+                <p className="text-gray-400">{pkg.subtitle}</p>
+              </div>
+ 
+              {pkg.options.map((option, idx) => (
+                <div key={idx} className="bg-slate-800/50 rounded-lg p-4 transition-all duration-300 hover:bg-slate-800/70">
+                  <div className="text-center mb-4">
+                    <h4 className="text-xl font-bold mb-2">{option.name}</h4>
+                    <p className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400">
+                      ₹{option.price}
+                    </p>
+                  </div>
+ 
+                  <div className="space-y-3">
+                    {option.features.map((feature, fidx) => (
+                      <div key={fidx} className="flex items-center gap-2">
+                        <Star className="w-4 h-4 text-blue-400 flex-shrink-0" />
+                        <span className="text-gray-300 text-sm">{feature}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+});
+
 const HomePage = () => {
   const [selectedPackage, setSelectedPackage] = useState(null);
   const [isVisible, setIsVisible] = useState(false);
@@ -290,10 +421,7 @@ const HomePage = () => {
           <div className="relative max-w-7xl mx-auto px-4">
 
              <section className="py-8 md:py-16">
-                <ComboPackage 
-                  isSelected={selectedPackage} 
-                  onSelect={handlePackageSelect} 
-                />
+                <ComboPackage />
               </section>
 
 

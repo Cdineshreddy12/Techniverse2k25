@@ -12,6 +12,73 @@ const prizeStructureSchema = new mongoose.Schema({
   description: String
 });
 
+const roundSectionSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  description: {
+    type: String,
+    trim: true
+  },
+  duration: String,
+  requirements: [{
+    type: String,
+    trim: true
+  }]
+});
+
+const roundSchema = new mongoose.Schema({
+  roundNumber: {
+    type: Number,
+    required: true,
+    min: 1
+  },
+  name: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  description: {
+    type: String,
+    trim: true
+  },
+  duration: {
+    type: String,
+    required: true
+  },
+  startTime: Date,
+  endTime: Date,
+  venue: {
+    type: String,
+    trim: true
+  },
+  sections: [roundSectionSchema],
+  requirements: [{
+    type: String,
+    trim: true
+  }],
+  eliminationType: {
+    type: String,
+    enum: ['score', 'time', 'completion'],
+    default: 'score'
+  },
+  qualificationCriteria: {
+    type: String,
+    trim: true
+  },
+  specialRules: [{
+    type: String,
+    trim: true
+  }],
+  status: {
+    type: String,
+    enum: ['upcoming', 'ongoing', 'completed'],
+    default: 'upcoming'
+  }
+});
+
 const eventSchema = new mongoose.Schema({
   tag: String,
   title: {
@@ -66,8 +133,6 @@ const eventSchema = new mongoose.Schema({
       default: 1,
       min: 1
     },
-    eventDate: Date,
-    duration: String,
     description: {
       type: String,
       trim: true
@@ -81,32 +146,7 @@ const eventSchema = new mongoose.Schema({
       trim: true
     }]
   },
-  rounds: [{
-    roundNumber: {
-      type: Number,
-      required: true,
-      min: 1
-    },
-    description: {
-      type: String,
-      trim: true
-    },
-    startTime: Date,
-    endTime: Date,
-    venue: {
-      type: String,
-      trim: true
-    },
-    requirements: [{
-      type: String,
-      trim: true
-    }],
-    status: {
-      type: String,
-      enum: ['upcoming', 'ongoing', 'completed'],
-      default: 'upcoming'
-    }
-  }],
+  rounds: [roundSchema],
   coordinators: [{
     name: {
       type: String,
@@ -127,6 +167,18 @@ const eventSchema = new mongoose.Schema({
     role: {
       type: String,
       trim: true
+    },
+    studentId: {
+      type: String,
+      trim: true
+    },
+    department: {
+      type: String,
+      trim: true
+    },
+    class: {
+      type: String,
+      trim: true
     }
   }],
   status: {
@@ -137,7 +189,7 @@ const eventSchema = new mongoose.Schema({
   registrationType: {
     type: String,
     enum: ['individual', 'team'],
-    default: 'individual'
+    default: 'team'
   }
 }, {
   timestamps: true,
@@ -145,48 +197,48 @@ const eventSchema = new mongoose.Schema({
   toObject: { virtuals: true }
 });
 
-// Indexes
-eventSchema.index({ departments: 1 });
-eventSchema.index({ 'details.eventDate': 1 });
-eventSchema.index({ status: 1 });
-eventSchema.index({ registrationEndTime: 1 });
-eventSchema.index({ registrationFee: 1 });
-eventSchema.index({ registrationType: 1 });
+  // Indexes
+  eventSchema.index({ departments: 1 });
+  eventSchema.index({ 'details.eventDate': 1 });
+  eventSchema.index({ status: 1 });
+  eventSchema.index({ registrationEndTime: 1 });
+  eventSchema.index({ registrationFee: 1 });
+  eventSchema.index({ registrationType: 1 });
 
-// Virtual for remaining slots
-eventSchema.virtual('remainingSlots').get(function() {
-  if (!this.maxRegistrations) return null;
-  return Math.max(0, this.maxRegistrations - this.registrationCount);
-});
+  // Virtual for remaining slots
+  eventSchema.virtual('remainingSlots').get(function() {
+    if (!this.maxRegistrations) return null;
+    return Math.max(0, this.maxRegistrations - this.registrationCount);
+  });
 
-// Virtual for registration status
-eventSchema.virtual('registrationStatus').get(function() {
-  const now = new Date();
-  if (this.status !== 'published') return 'closed';
-  if (now < this.startTime) return 'upcoming';
-  if (now > this.registrationEndTime) return 'closed';
-  if (this.maxRegistrations && this.registrationCount >= this.maxRegistrations) return 'full';
-  return 'open';
-});
+  // Virtual for registration status
+  eventSchema.virtual('registrationStatus').get(function() {
+    const now = new Date();
+    if (this.status !== 'published') return 'closed';
+    if (now < this.startTime) return 'upcoming';
+    if (now > this.registrationEndTime) return 'closed';
+    if (this.maxRegistrations && this.registrationCount >= this.maxRegistrations) return 'full';
+    return 'open';
+  });
 
-// Pre-save middleware to ensure valid dates
-eventSchema.pre('save', function(next) {
-  if (this.registrationEndTime > this.startTime) {
-    const err = new Error('Registration end time must be before event start time');
-    next(err);
-    return;
-  }
-  next();
-});
+  // Pre-save middleware to ensure valid dates
+  eventSchema.pre('save', function(next) {
+    if (this.registrationEndTime > this.startTime) {
+      const err = new Error('Registration end time must be before event start time');
+      next(err);
+      return;
+    }
+    next();
+  });
 
-// Method to check if registration is allowed
-eventSchema.methods.canRegister = function() {
-  const now = new Date();
-  return (
-    this.status === 'published' &&
-    now <= this.registrationEndTime &&
-    (!this.maxRegistrations || this.registrationCount < this.maxRegistrations)
-  );
-};
+  // Method to check if registration is allowed
+  eventSchema.methods.canRegister = function() {
+    const now = new Date();
+    return (
+      this.status === 'published' &&
+      now <= this.registrationEndTime &&
+      (!this.maxRegistrations || this.registrationCount < this.maxRegistrations)
+    );
+  };
 
-export default mongoose.model('Event', eventSchema);
+  export default mongoose.model('Event', eventSchema);

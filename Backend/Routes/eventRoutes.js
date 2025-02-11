@@ -361,6 +361,25 @@ router.get('/departments/:departmentId/events/:eventId', async (req, res) => {
         isRegistrationOpen: now <= new Date(event.registrationEndTime) && 
           event.registrationCount < event.maxRegistrations
       },
+      rounds: event.rounds.map(round => ({
+        number: round.roundNumber,
+        name: round.name,
+        description: round.description,
+        duration: round.duration,
+        startTime: round.startTime,
+        endTime: round.endTime,
+        venue: round.venue,
+        sections: round.sections.map(section => ({
+          name: section.name,
+          description: section.description,
+          duration: section.duration,
+          requirements: section.requirements
+        })),
+        requirements: round.requirements,
+        specialRules: round.specialRules,
+        qualificationCriteria: round.qualificationCriteria,
+        status: round.status
+      })),
       prizes: {
         totalPrizeMoney: event.details.totalPrizeMoney,
         structure: event.details.prizeStructure.map(prize => ({
@@ -369,30 +388,18 @@ router.get('/departments/:departmentId/events/:eventId', async (req, res) => {
           description: prize.description
         }))
       },
-      rounds: event.rounds.map(round => ({
-        number: round.roundNumber,
-        description: round.description,
-        startTime: round.startTime,
-        endTime: round.endTime,
-        venue: round.venue,
-        requirements: round.requirements,
-        status: round.status
-      })),
       coordinators: event.coordinators.map(coord => ({
         name: coord.name,
         email: coord.email,
         phone: coord.phone,
-        photo: coord.photo
+        photo: coord.photo,
+        studentId: coord.studentId,
+        department: coord.department,
+        class: coord.class
       })),
       media: {
         bannerDesktop: event.bannerDesktop || null,
         bannerMobile: event.bannerMobile || null
-      },
-      status: {
-        isActive: now >= new Date(event.startTime) && now <= new Date(event.registrationEndTime),
-        isUpcoming: now < new Date(event.startTime),
-        registrationProgress: event.maxRegistrations ? 
-          (event.registrationCount / event.maxRegistrations) * 100 : null
       }
     };
 
@@ -410,8 +417,9 @@ router.get('/departments/:departmentId/events/:eventId', async (req, res) => {
   }
 });
 
+
 // Create new event
-router.post('/departments/:departmentId/events',uploadImages, async (req, res) => {
+router.post('/departments/:departmentId/events', uploadImages, async (req, res) => {
   try {
     const { departmentId } = req.params;
     const department = await Department.findById(departmentId);
@@ -427,7 +435,6 @@ router.post('/departments/:departmentId/events',uploadImages, async (req, res) =
     let bannerDesktopUrl = null;
     let bannerMobileUrl = null;
 
-    
     if (req.files) {
       if (req.files.bannerDesktop) {
         bannerDesktopUrl = await uploadToCloudinary(
@@ -443,10 +450,21 @@ router.post('/departments/:departmentId/events',uploadImages, async (req, res) =
       }
     }
 
-     // Parse the rest of the form data
-     const eventData = JSON.parse(req.body.eventData);
+    // Parse the event data
+    const eventData = JSON.parse(req.body.eventData);
 
-    // Parse numeric values
+    // Process rounds data with sections
+    const processedRounds = eventData.rounds.map(round => ({
+      ...round,
+      sections: round.sections.map(section => ({
+        ...section,
+        requirements: Array.isArray(section.requirements) ? section.requirements : []
+      })),
+      requirements: Array.isArray(round.requirements) ? round.requirements : [],
+      specialRules: Array.isArray(round.specialRules) ? round.specialRules : []
+    }));
+
+    // Create new event
     const event = new Event({
       ...eventData,
       departments: [departmentId],
@@ -455,6 +473,7 @@ router.post('/departments/:departmentId/events',uploadImages, async (req, res) =
       registrationCount: 0,
       registrationFee: parseFloat(eventData.registrationFee) || 0,
       maxRegistrations: parseFloat(eventData.maxRegistrations) || null,
+      rounds: processedRounds,
       details: {
         ...eventData.details,
         maxTeamSize: parseFloat(eventData.details?.maxTeamSize) || 1,
@@ -497,21 +516,20 @@ router.put('/departments/:departmentId/events/:eventId', uploadImages, async (re
   try {
     const { departmentId, eventId } = req.params;
 
-        // Get existing event
-        const existingEvent = await Event.findOne({ 
-          _id: eventId, 
-          departments: departmentId 
-        });
-    
-        if (!existingEvent) {
-          return res.status(404).json({
-            success: false,
-            error: 'Event not found'
-          });
-        }
+    // Get existing event
+    const existingEvent = await Event.findOne({ 
+      _id: eventId, 
+      departments: departmentId 
+    });
 
-        
-        // Upload new images if provided
+    if (!existingEvent) {
+      return res.status(404).json({
+        success: false,
+        error: 'Event not found'
+      });
+    }
+
+    // Handle image uploads
     let bannerDesktopUrl = existingEvent.bannerDesktop;
     let bannerMobileUrl = existingEvent.bannerMobile;
 
@@ -540,16 +558,28 @@ router.put('/departments/:departmentId/events/:eventId', uploadImages, async (re
       }
     }
 
-     // Parse the rest of the form data
-     const eventData = JSON.parse(req.body.eventData);
+    // Parse event data
+    const eventData = JSON.parse(req.body.eventData);
 
-     // Update event with new data and image URLs
+    // Process rounds data with sections
+    const processedRounds = eventData.rounds.map(round => ({
+      ...round,
+      sections: round.sections.map(section => ({
+        ...section,
+        requirements: Array.isArray(section.requirements) ? section.requirements : []
+      })),
+      requirements: Array.isArray(round.requirements) ? round.requirements : [],
+      specialRules: Array.isArray(round.specialRules) ? round.specialRules : []
+    }));
+
+    // Update event
     const updatedEvent = await Event.findOneAndUpdate(
       { _id: eventId, departments: departmentId },
       {
         ...eventData,
         bannerDesktop: bannerDesktopUrl,
         bannerMobile: bannerMobileUrl,
+        rounds: processedRounds,
         details: {
           ...eventData.details,
           maxTeamSize: parseFloat(eventData.details?.maxTeamSize) || 1,
@@ -563,13 +593,7 @@ router.put('/departments/:departmentId/events/:eventId', uploadImages, async (re
       { new: true, runValidators: true }
     ).populate('departments', 'name shortName');
 
-    const event = await Event.findOneAndUpdate(
-      { _id: eventId, departments: departmentId },
-      { $set:updatedEvent },
-      { new: true, runValidators: true }
-    ).populate('departments', 'name shortName');
-
-    if (!event) {
+    if (!updatedEvent) {
       return res.status(404).json({
         success: false,
         error: 'Event not found'
@@ -581,7 +605,7 @@ router.put('/departments/:departmentId/events/:eventId', uploadImages, async (re
 
     res.json({
       success: true,
-      event
+      event: updatedEvent
     });
   } catch (error) {
     console.error('Update event error:', error);
@@ -597,7 +621,37 @@ router.delete('/departments/:departmentId/events/:eventId', async (req, res) => 
   try {
     const { departmentId, eventId } = req.params;
 
-    const department = await Department.findById(departmentId);
+    // Handle the "All Departments" case
+    let department;
+    if (departmentId === 'All Departments') {
+      // Find the event first
+      const event = await Event.findById(eventId);
+      if (!event) {
+        return res.status(404).json({
+          success: false,
+          error: 'Event not found'
+        });
+      }
+
+      // Update all departments that reference this event
+      const departments = await Department.find({ events: eventId });
+      await Promise.all(departments.map(async (dept) => {
+        dept.events.pull(eventId);
+        await dept.save();
+        await updateDepartmentStats(dept._id);
+      }));
+
+      // Delete the event
+      await event.deleteOne();
+
+      return res.json({
+        success: true,
+        message: 'Event deleted successfully from all departments'
+      });
+    }
+
+    // Regular single department case
+    department = await Department.findById(departmentId);
     const event = await Event.findOne({ 
       _id: eventId, 
       departments: departmentId 

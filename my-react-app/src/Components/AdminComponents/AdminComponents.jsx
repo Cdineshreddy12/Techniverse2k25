@@ -28,14 +28,6 @@ const AdminDashboard = () => {
         { name: "Workshops" ,icon: <Users size={20} />, path: "/adminDashboard/workshops" },
         { name: "Schedule", icon: <Calendar size={20} />, path: "/adminDashboard/schedule" }
       ]
-    },
-    {
-      group: "System",
-      items: [
-        { name: "Notifications", icon: <Bell size={20} />, path: "/adminDashboard/notifications" },
-        { name: "Validations", icon: <BadgeCheck size={20} />, path: "/adminDashboard/validations" },
-        { name: "Settings", icon: <Settings size={20} />, path: "/adminDashboard/settings" }
-      ]
     }
   ];
 
