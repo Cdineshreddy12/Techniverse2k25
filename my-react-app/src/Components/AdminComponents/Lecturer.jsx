@@ -3,6 +3,7 @@ import React from 'react';
 import {ImageUpload} from './RoundForm';
 import { useState } from 'react';
 import SpecificationsList from './Specifications';
+import {Plus,GripVertical,X} from 'lucide-react'
 const Input = ({ label, type = "text", value, onChange, placeholder }) => (
   <div className="space-y-2">
     <label className="block text-sm font-medium text-gray-400">{label}</label>
@@ -18,47 +19,141 @@ const Input = ({ label, type = "text", value, onChange, placeholder }) => (
   </div>
 );
 
-const LecturerForm = ({ lecturer, onChange }) => {
-  const updateSpecifications = (specs) => {
-    onChange({ ...lecturer, specifications: specs });
+const LecturerForm = ({ lecturers = [], onChange }) => {
+  const addLecturer = () => {
+    onChange([
+      ...lecturers,
+      {
+        name: '',
+        title: '',
+        specifications: [],
+        photo: '',
+        role: '',
+        order: lecturers.length
+      }
+    ]);
+  };
+
+  const removeLecturer = (index) => {
+    const newLecturers = lecturers.filter((_, i) => i !== index);
+    onChange(newLecturers.map((l, i) => ({ ...l, order: i })));
+  };
+
+  const updateLecturer = (index, field, value) => {
+    const newLecturers = lecturers.map((lecturer, i) => 
+      i === index ? { ...lecturer, [field]: value } : lecturer
+    );
+    onChange(newLecturers);
+  };
+
+  const updateSpecifications = (index, specs) => {
+    updateLecturer(index, 'specifications', specs);
+  };
+
+  const moveLecturer = (fromIndex, toIndex) => {
+    if (toIndex < 0 || toIndex >= lecturers.length) return;
+    
+    const newLecturers = [...lecturers];
+    const [removed] = newLecturers.splice(fromIndex, 1);
+    newLecturers.splice(toIndex, 0, removed);
+    
+    onChange(newLecturers.map((l, i) => ({ ...l, order: i })));
   };
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Input
-          label="Name"
-          value={lecturer.name}
-          onChange={(e) => onChange({ ...lecturer, name: e.target.value })}
-        />
-        <Input
-          label="Title"
-          value={lecturer.title}
-          onChange={(e) => onChange({ ...lecturer, title: e.target.value })}
-        />
-      </div>
+    <div className="space-y-6">
+      {lecturers.map((lecturer, index) => (
+        <div 
+          key={index}
+          className="p-4 bg-slate-700/30 rounded-lg border border-slate-600 space-y-4"
+        >
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="cursor-grab active:cursor-grabbing p-1 hover:bg-slate-600 rounded"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  const startY = e.pageY;
+                  const handleMouseMove = (moveEvent) => {
+                    const currentY = moveEvent.pageY;
+                    const diff = Math.round((currentY - startY) / 50);
+                    if (diff !== 0) {
+                      moveLecturer(index, index + Math.sign(diff));
+                    }
+                  };
+                  const handleMouseUp = () => {
+                    document.removeEventListener('mousemove', handleMouseMove);
+                    document.removeEventListener('mouseup', handleMouseUp);
+                  };
+                  document.addEventListener('mousemove', handleMouseMove);
+                  document.addEventListener('mouseup', handleMouseUp);
+                }}
+              >
+                <GripVertical className="w-4 h-4 text-slate-400" />
+              </button>
+              <span className="text-sm font-medium text-white">Lecturer {index + 1}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => removeLecturer(index)}
+              className="p-1 hover:bg-slate-600 rounded text-slate-400 hover:text-white"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
 
-      <ImageUpload
-        label="Lecturer Photo"
-        value={lecturer.photo || ''}
-        onChange={(value) => onChange({
-          ...lecturer,
-          photo: value
-        })}
-      />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-4">
+              <Input
+                label="Name"
+                value={lecturer.name}
+                onChange={(e) => updateLecturer(index, 'name', e.target.value)}
+              />
+              <Input
+                label="Title/Position"
+                value={lecturer.title}
+                onChange={(e) => updateLecturer(index, 'title', e.target.value)}
+              />
+              <Input
+                label="Role in Workshop"
+                value={lecturer.role}
+                onChange={(e) => updateLecturer(index, 'role', e.target.value)}
+                placeholder="e.g., Introduction, Demo, etc."
+              />
+            </div>
+            <div className="space-y-4">
+              <ImageUpload
+                label="Photo"
+                value={lecturer.photo || ''}
+                onChange={(value) => updateLecturer(index, 'photo', value)}
+              />
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2">
+                  Specifications/Experience
+                </label>
+                <SpecificationsList
+                  items={lecturer.specifications}
+                  onChange={(specs) => updateSpecifications(index, specs)}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
 
-      <div>
-        <label className="block text-sm font-medium text-gray-400 mb-2">
-          Specifications/Experience
-        </label>
-        <SpecificationsList
-          items={lecturer.specifications}
-          onChange={updateSpecifications}
-        />
-      </div>
+      <button
+        type="button"
+        onClick={addLecturer}
+        className="w-full py-3 border-2 border-dashed border-slate-600 rounded-lg
+          text-slate-400 hover:text-white hover:border-sky-500 transition-colors"
+      >
+        <Plus className="w-5 h-5 mx-auto" />
+      </button>
     </div>
   );
 };
+
 
 // ScheduleForm.jsx
 const ScheduleForm = ({ schedule, onChange }) => {

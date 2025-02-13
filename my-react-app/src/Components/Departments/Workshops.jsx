@@ -39,39 +39,28 @@ const WorkshopCard = ({ workshop, index,deptId }) => {
   const [cardRef, isVisible] = useScrollAnimation();
   const isEven = index % 2 === 0;
     // Extract department ID from the workshop's departments array
-    const departmentId = workshop.departments[0]?._id;
-  console.log('deptID',departmentId )
+    const departmentId = workshop.departments?.[0]?._id;
+  console.log('deptID in workshop card',departmentId )
+
+  if (!workshop || !departmentId) return null;
   return (
-    <div 
-      ref={cardRef}
-      className="relative h-full w-[100%] overflow-hidden"
-    >
-      {/* Animation wrapper */}
-      <div className={`absolute inset-0 transition-all duration-500 ease-out
-                    ${isVisible ? 'translate-x-0 opacity-100' : 
-                      isEven ? 'translate-x-full opacity-0' : '-translate-x-full opacity-0'}`}>
+    <div ref={cardRef} className="relative h-full w-full overflow-hidden">
+      <div className={`transition-all duration-500 ease-out ${
+        isVisible ? 'translate-x-0 opacity-100' : 
+        isEven ? 'translate-x-full opacity-0' : '-translate-x-full opacity-0'
+      }`}>
         <Link 
-          to={`/departments/${departmentId }/workshops/${workshop._id}`}
+          to={`/departments/${departmentId}/workshops/${workshop._id}`}
           className="block group relative w-full h-full"
         >
-          {/* Mobile-visible, desktop-hover glow effect */}
-          <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-500/5 via-indigo-500/5 to-cyan-500/5 
-                        rounded-xl opacity-50 blur-[1px] transition-all duration-300
-                        md:opacity-0 md:group-hover:opacity-0" />
-          
           <div className="relative h-full bg-slate-900/95 rounded-xl overflow-hidden border 
-                        border-slate-800/50 transition-all duration-300
-                        md:hover:scale-[1.01] md:hover:border-slate-700/50">
-            {/* Gradient line */}
-            <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-purple-500/30 via-indigo-500/30 to-cyan-500/30
-                          opacity-100 md:opacity-30 md:group-hover:opacity-100" />
-            
-            {/* Content container */}
+                         border-slate-800/50 transition-all duration-300
+                         hover:scale-105 hover:border-slate-700/50">
             <div className="flex flex-col h-full">
               {/* Image Section */}
               <div className="w-full h-48 relative">
                 <img
-                  src={workshop.bannerDesktop || workshop.bannerMobile}
+                  src={workshop.bannerDesktop || workshop.bannerMobile || "/api/placeholder/400/300"}
                   alt={workshop.title}
                   className="w-full h-full object-cover"
                 />
@@ -80,86 +69,57 @@ const WorkshopCard = ({ workshop, index,deptId }) => {
                 {/* Status Badge */}
                 <div className="absolute top-4 left-4">
                   <span className={`px-2.5 py-1 rounded-md text-xs font-medium 
-                               border backdrop-blur-sm
-                               ${getStatusStyles(workshop.status)}`}>
+                                  border backdrop-blur-sm ${getStatusStyles(workshop.status)}`}>
                     {workshop.status}
                   </span>
                 </div>
                 
-                {/* Duration */}
+                {/* Price Badge */}
                 <span className="absolute top-4 right-4 px-2.5 py-1 bg-slate-900/80 backdrop-blur-sm 
-                             rounded-md text-xs text-slate-300 border border-slate-700/30">
-                  {workshop.schedule?.length * 2 || 0} Hours
+                               rounded-md text-xs text-green-400 border border-green-500/30">
+                  ₹{workshop.price}
                 </span>
               </div>
 
-              <div className="p-4 sm:p-5 space-y-3 flex-grow">
-                {/* Title */}
-                <h3 className="text-lg font-semibold text-white">
+              {/* Content Section */}
+              <div className="p-4 space-y-3 flex-grow">
+                <h3 className="text-lg font-semibold text-white line-clamp-2">
                   {workshop.title}
                 </h3>
 
-                {/* Description with fixed height */}
-                <div className="h-12">
-                  <p className="text-slate-300 text-sm line-clamp-2 leading-relaxed">
-                    {workshop.description}
-                  </p>
-                </div>
+                <p className="text-slate-300 text-sm line-clamp-2">
+                  {workshop.description}
+                </p>
 
-                {/* Time and Date */}
+                {/* Details Section */}
                 <div className="flex items-center justify-between pt-3 border-t border-slate-800">
-                  <div className="flex items-center gap-1.5 text-xs text-slate-300">
-                    <svg className="w-4 h-4 text-indigo-400/70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} 
-                            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    <span>{formatDate(workshop.registrationEndTime)}</span>
+                  <div className="text-xs text-slate-300">
+                    {workshop.departments?.map(dept => (
+                      <span key={dept._id} className="mr-2">
+                        {dept.name}
+                      </span>
+                    ))}
                   </div>
-                  <div className="flex items-center gap-1.5 text-xs text-slate-300">
-                    <svg className="w-4 h-4 text-indigo-400/70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} 
-                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span>{workshop.registrations} Registrations</span>
+                  <div className="text-xs text-slate-300">
+                    {formatDate(workshop.registrationEndTime)}
                   </div>
                 </div>
               </div>
 
-              {/* Register button */}
-              <div className="h-16 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900
-                           flex items-center justify-center transition-all duration-300 
-                           opacity-100 md:opacity-80 md:group-hover:opacity-100">
-                <span className="text-indigo-300 text-xs font-medium flex items-center gap-1.5">
-                  Register Now
-                  <svg className="w-3.5 h-3.5 transform translate-x-0 transition-transform group-hover:translate-x-0.5" 
-                       fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                  </svg>
-                </span>
+              {/* Footer */}
+              <div className="p-4 bg-slate-800/50">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-slate-300">
+                    {workshop.registration?.registeredCount || 0} Registered
+                  </span>
+                  <span className="text-sm text-indigo-400">
+                    View Details →
+                  </span>
+                </div>
               </div>
             </div>
           </div>
         </Link>
-      </div>
-      
-      {/* Placeholder to maintain layout */}
-      <div className="invisible">
-        <div className="h-full bg-transparent rounded-xl border border-transparent">
-          <div className="h-48" />
-          <div className="p-4 sm:p-5 space-y-3">
-            <h3 className="text-lg">Title placeholder</h3>
-            <div className="h-12">
-              <p className="text-sm">Description placeholder</p>
-            </div>
-            <div className="pt-3 border-t">
-              <div className="flex justify-between">
-                <span>Date</span>
-                <span>Time</span>
-              </div>
-            </div>
-          </div>
-          <div className="h-10" />
-        </div>
       </div>
     </div>
   );
@@ -192,28 +152,39 @@ const getStatusStyles = (status) => {
 };
 
 const Workshops = () => {
-  const { deptId } = useParams();
+  const { departmentId } = useParams();
   const [searchQuery, setSearchQuery] = useState('');
   const [headerRef, isHeaderVisible] = useScrollAnimation();
-  console.log('deptID',deptId);
-  // Fetch workshops using React Query
+
+  const [page, setPage] = useState(1);
+  const limit = 10;
+
+
+  console.log('deptID', departmentId);
+   // Updated query with proper options
   const { data: workshopsData, isLoading, error } = useQuery({
-    queryKey: ['workshops', deptId],
-    queryFn: () => deptId ? workshopService.getWorkshopsByDepartment(deptId) : workshopService.getAll(),
-    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
-    cacheTime: 30 * 60 * 1000, // Keep data in cache for 30 minutes
+    queryKey: ['workshops', departmentId, page, searchQuery],
+    queryFn: () => workshopService.getWorkshopsByDepartment(departmentId, {
+      page,
+      limit,
+      search: searchQuery
+    }),
+    staleTime: 5 * 60 * 1000,
+    cacheTime: 30 * 60 * 1000,
   });
 
-  // Filter workshops based on search query and department
+  // Filter workshops based on search query
   const filteredWorkshops = useMemo(() => {
-    if (!workshopsData) return [];
-    
-    return workshopsData.filter(workshop => {
-      return searchQuery.trim() === '' || 
-        workshop.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        workshop.description.toLowerCase().includes(searchQuery.toLowerCase());
-    });
-  }, [workshopsData,deptId,searchQuery]);
+    if (!workshopsData?.workshops) return [];
+    return workshopsData.workshops;
+  }, [workshopsData]);
+
+  // Add pagination handling
+  const totalPages = workshopsData?.pagination?.pages || 1;
+
+  const handlePageChange = (newPage) => {
+    setPage(newPage);
+  };
 
   if (isLoading) {
     return (
@@ -232,44 +203,66 @@ const Workshops = () => {
   }
 
   return (
-    <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-      {/* Search Section */}
+    <div className="container mx-auto px-4 py-8">
+      {/* Header Section */}
       <div className="mb-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white">
+          <h2 className="text-2xl font-bold text-white">
             Technical Workshops
           </h2>
-          <div className="relative w-full sm:w-auto">
+          <div className="relative">
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setPage(1); // Reset to first page on new search
+              }}
               placeholder="Search workshops..."
-              className="w-full sm:w-72 px-3 py-2 text-sm rounded-lg 
-                        bg-slate-800 text-white 
-                        placeholder:text-slate-400 
-                        border border-slate-700 
-                        focus:outline-none 
-                        focus:border-indigo-500/30 
-                        focus:ring-1 
-                        focus:ring-indigo-500/20 
-                        transition-colors"
+              className="w-full sm:w-72 px-4 py-2 rounded-lg 
+                       bg-slate-800 text-white 
+                       border border-slate-700 
+                       focus:outline-none focus:border-indigo-500
+                       placeholder:text-slate-400"
             />
           </div>
         </div>
       </div>
 
       {/* Workshops Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 w-full">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredWorkshops.map((workshop, index) => (
-          <WorkshopCard key={workshop._id} deptId={deptId} workshop={workshop} index={index} />
+          <WorkshopCard 
+            key={workshop._id} 
+            workshop={workshop} 
+            index={index}
+          />
         ))}
       </div>
 
-      {/* No results message */}
+      {/* Empty State */}
       {filteredWorkshops.length === 0 && (
         <div className="text-center py-12">
           <p className="text-slate-400">No workshops found matching your criteria.</p>
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="mt-8 flex justify-center gap-2">
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+            <button
+              key={pageNum}
+              onClick={() => handlePageChange(pageNum)}
+              className={`px-4 py-2 rounded ${
+                page === pageNum
+                  ? 'bg-indigo-500 text-white'
+                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+              }`}
+            >
+              {pageNum}
+            </button>
+          ))}
         </div>
       )}
     </div>

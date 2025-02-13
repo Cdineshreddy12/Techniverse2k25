@@ -5,7 +5,7 @@ const WORKSHOP_ENDPOINT = 'workshops';
 export const workshopService = {
   async getAll() {
     try {
-      const response = await fetch(API_CONFIG.getUrl(WORKSHOP_ENDPOINT + '/all'));
+      const response = await fetch(API_CONFIG.getUrl(WORKSHOP_ENDPOINT));
       const data = await response.json();
       if (!data.success) throw new Error(data.error);
       return data.workshops;
@@ -64,114 +64,124 @@ export const workshopService = {
     try {
       const formData = new FormData();
       
-      // Ensure all required fields are present and properly formatted
-      const preparedData = {
-        ...workshopData,
-        price: workshopData.price || 0,
-        duration: {
-          total: workshopData.duration?.total || 2,
-          unit: workshopData.duration?.unit || 'hours'
-        },
-        registration: {
-          isOpen: workshopData.registration?.isOpen || false,
-          totalSlots: workshopData.registration?.totalSlots || 30,
-          registeredCount: 0,
-          startTime: workshopData.registration?.startTime || new Date().toISOString(),
-          endTime: workshopData.registration?.endTime || new Date().toISOString()
-        },
-        // Ensure registrationEndTime is set
-        registrationEndTime: workshopData.registration?.endTime || new Date().toISOString()
-      };
-      
-      // Clean up any undefined or null values
-      Object.keys(preparedData).forEach(key => {
-        if (preparedData[key] === undefined || preparedData[key] === null) {
-          delete preparedData[key];
-        }
-      });
-
-      formData.append('workshopData', JSON.stringify(preparedData));
-      
-      // Handle file uploads
+      // Handle banner images
       if (workshopData.bannerDesktop?.file) {
         formData.append('bannerDesktop', workshopData.bannerDesktop.file);
+      } else if (workshopData.bannerDesktop instanceof Blob) {
+        formData.append('bannerDesktop', workshopData.bannerDesktop);
       }
+  
       if (workshopData.bannerMobile?.file) {
         formData.append('bannerMobile', workshopData.bannerMobile.file);
+      } else if (workshopData.bannerMobile instanceof Blob) {
+        formData.append('bannerMobile', workshopData.bannerMobile);
       }
-      if (workshopData.lecturer?.photo?.file) {
-        formData.append('lecturerPhoto', workshopData.lecturer.photo.file);
-      }
-
+  
+      // Handle lecturer photos
+      workshopData.lecturers?.forEach((lecturer, index) => {
+        if (lecturer.photo?.file) {
+          formData.append(`lecturerPhoto_${index}`, lecturer.photo.file);
+        } else if (lecturer.photo instanceof Blob) {
+          formData.append(`lecturerPhoto_${index}`, lecturer.photo);
+        }
+      });
+  
+      // Clean the data before sending
+      const cleanData = {
+        ...workshopData,
+        // Remove blob URLs and file objects
+        bannerDesktop: typeof workshopData.bannerDesktop === 'string' ? workshopData.bannerDesktop : null,
+        bannerMobile: typeof workshopData.bannerMobile === 'string' ? workshopData.bannerMobile : null,
+        lecturers: workshopData.lecturers?.map(lecturer => ({
+          ...lecturer,
+          photo: typeof lecturer.photo === 'string' ? lecturer.photo : null
+        }))
+      };
+  
+      // Append the cleaned workshop data
+      formData.append('workshopData', JSON.stringify(cleanData));
+  
       const response = await fetch(API_CONFIG.getUrl('workshops'), {
         method: 'POST',
         body: formData
       });
-
+  
       const data = await response.json();
-      if (!data.success) throw new Error(data.error);
+      
+      if (!response.ok) {
+        throw {
+          status: response.status,
+          message: data.error || 'Failed to create workshop',
+          details: data
+        };
+      }
+  
       return data;
     } catch (error) {
       console.error('Error creating workshop:', error);
       throw error;
     }
-  },
+  }
+,
 
-  async updateWorkshop(workshopId, workshopData) {
-    try {
-      const formData = new FormData();
-      
-      // Handle both URL string and file object formats for images
-      const preparedData = {
-        ...workshopData,
-        bannerDesktop: workshopData.bannerDesktop?.url || workshopData.bannerDesktop,
-        bannerMobile: workshopData.bannerMobile?.url || workshopData.bannerMobile,
-        lecturer: {
-          ...workshopData.lecturer,
-          photo: workshopData.lecturer?.photo?.url || workshopData.lecturer?.photo
-        },
-        price: parseFloat(workshopData.price) || 0,
-        duration: {
-          total: parseInt(workshopData.duration?.total) || 1,
-          unit: workshopData.duration?.unit || 'hours'
-        },
-        registration: {
-          isOpen: Boolean(workshopData.registration?.isOpen),
-          totalSlots: parseInt(workshopData.registration?.totalSlots) || 30,
-          registeredCount: workshopData.registration?.registeredCount || 0,
-          startTime: workshopData.registration?.startTime,
-          endTime: workshopData.registration?.endTime
-        },
-        registrationEndTime: workshopData.registration?.endTime
-      };
-      console.log('prepared data',preparedData);
-      formData.append('workshopData', JSON.stringify(preparedData));
-      
-      // Handle file uploads correctly
-      if (workshopData.bannerDesktop?.file) {
-        formData.append('bannerDesktop', workshopData.bannerDesktop.file);
-      }
-      if (workshopData.bannerMobile?.file) {
-        formData.append('bannerMobile', workshopData.bannerMobile.file);
-      }
-      if (workshopData.lecturer?.photo?.file) {
-        formData.append('lecturerPhoto', workshopData.lecturer.photo.file);
-      }
-   
-      
-      const response = await fetch(API_CONFIG.getUrl(`workshops/${workshopId}`), {
-        method: 'PUT',
-        body: formData
-      });
-  
-      const data = await response.json();
-      if (!data.success) throw new Error(data.error);
-      return data;
-    } catch (error) {
-      console.error('Error updating workshop:', error);
-      throw error;
+async updateWorkshop(workshopId, workshopData) {
+  try {
+    const formData = new FormData();
+    
+    // Handle banner images
+    if (workshopData.bannerDesktop?.file) {
+      formData.append('bannerDesktop', workshopData.bannerDesktop.file);
     }
-  },
+    if (workshopData.bannerMobile?.file) {
+      formData.append('bannerMobile', workshopData.bannerMobile.file);
+    }
+    
+    // Handle lecturer photos
+    workshopData.lecturers?.forEach((lecturer, index) => {
+      if (lecturer.photo?.file) {
+        formData.append(`lecturerPhoto_${index}`, lecturer.photo.file);
+      }
+    });
+
+    // Clean data for JSON
+    const cleanData = {
+      ...workshopData,
+      bannerDesktop: workshopData.bannerDesktop?.url || workshopData.bannerDesktop || null,
+      bannerMobile: workshopData.bannerMobile?.url || workshopData.bannerMobile || null,
+      lecturers: workshopData.lecturers?.map(lecturer => ({
+        name: lecturer.name,
+        title: lecturer.title,
+        role: lecturer.role,
+        photo: lecturer.photo?.url || lecturer.photo || null, // Handle both string and object formats
+        specifications: lecturer.specifications || [],
+        order: lecturer.order || 0
+      }))
+    };
+
+    // Append cleaned data as JSON
+    formData.append('workshopData', JSON.stringify(cleanData));
+
+    const response = await fetch(API_CONFIG.getUrl(`workshops/${workshopId}`), {
+      method: 'PUT',
+      body: formData
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw {
+        status: response.status,
+        message: errorData.error || 'Failed to update workshop',
+        details: errorData
+      };
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error updating workshop:', error);
+    throw error;
+  }
+},
   // New method for updating workshop duration
   async updateDuration(workshopId, duration) {
     try {
@@ -234,7 +244,8 @@ export const workshopService = {
         ...(search && { search })
       });
 
-      const url = API_CONFIG.getUrl(`${WORKSHOP_ENDPOINT}/departments/${deptId}/workshops?${queryParams}`);
+      // Updated URL structure to match server routes
+      const url = API_CONFIG.getUrl(`departments/${deptId}/workshops?${queryParams}`);
       const response = await fetch(url);
       const data = await response.json();
       if (!data.success) throw new Error(data.error);

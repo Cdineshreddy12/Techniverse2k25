@@ -56,7 +56,7 @@ const DepartmentLayout = () => {
   }
 
   return (
-    <div className="min-h-screen pt-24 px-4 bg-gradient-to-br from-slate-950 via-indigo-950 to-black">
+    <div className="min-h-screen pt-24  bg-gradient-to-br from-slate-950 via-indigo-950 to-black">
       <div className="max-w-7xl mx-auto relative">
 
       <div className="mb-4 hidden md:block md:mb-0 md:absolute md:left-0 md:top-0 z-50">

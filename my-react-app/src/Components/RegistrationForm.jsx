@@ -1,13 +1,32 @@
-import React, { useState,useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useKindeAuth } from '@kinde-oss/kinde-auth-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate,useLocation } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
-import { createApiClient } from '../config/kindeAPI';
+import { useApi } from '../config/useApi';
+import { useAuth } from '../contexts/AuthContext';
 const RegistrationForm = () => {
-  const { user, isAuthenticated } = useKindeAuth();
-  const [registrationChecked, setRegistrationChecked] = useState(false);
+
+  const { user, isAdmin, isRegistered, isAuthenticated, checkRegistration } = useAuth();
+  console.log('Auth State:', { isAuthenticated, user });
   const navigate = useNavigate();
-  const api = createApiClient();
+  const location = useLocation();
+  const api = useApi();
+  console.log('API Client State:', { api });
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+  const [initialCheckDone, setInitialCheckDone] = useState(false);
+  useEffect(() => {
+    if (user?.name) {
+      setFormData(prev => ({
+        ...prev,
+        name: user.name
+      }));
+    }
+  }, [user?.name]);
+
+
   const [formData, setFormData] = useState({
     name: user?.name || '',
     collegeId: '',
@@ -15,87 +34,83 @@ const RegistrationForm = () => {
     collegeName: '',
     mobileNumber: ''
   });
-  
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const isStudentEmail = user?.email?.toLowerCase().startsWith('s');
+  const isStudentEmail = useMemo(() => {
+    const isStudent = Boolean(user?.email?.toLowerCase().startsWith('s'));
+    console.log('Student Email Check:', { email: user?.email, isStudent });
+    return isStudent;
+  }, [user?.email]);
 
-    // Single check for registration status
-    useEffect(() => {
-      let mounted = true;
-  
-      const checkRegistration = async () => {
-        if (!isAuthenticated || !user?.id || registrationChecked) {
-          setIsLoading(false);
+  // Handle admin and registration status
+  useEffect(() => {
+    let isMounted = true;
+
+    const initializeRegistration = async () => {
+      if (!isAuthenticated || !user?.id || initialCheckDone) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        // Handle admin case
+        if (isAdmin) {
+          navigate('/adminDashboard');
           return;
         }
-  
-        try {
-          const data = await api.getUser(user.id);
-  
-          if (!mounted) return;
-  
-          if (data.success && data.user) {
-            toast.success('Already registered!');
-            navigate('/cart');
-          } else if (data.needsRegistration) {
+
+        // Check registration status only once
+        const data = await api.getUser(user.id);
+        
+        if (isMounted) {
+          if (data.success && data.user && !data.needsRegistration) {
+            const returnPath = location.state?.from?.pathname || '/cart';
+            navigate(returnPath);
+          } else {
             setIsLoading(false);
           }
-        } catch (error) {
-          console.error('Failed to check registration:', error);
-          if (mounted) {
-            setIsLoading(false);
-            // Only show error toast if it's not an auth error
-            if (error.message !== 'Authentication failed') {
-              toast.error('Failed to verify registration status');
-            }
-          }
-        } finally {
-          if (mounted) {
-            setRegistrationChecked(true);
-            setIsLoading(false);
-          }
+          setInitialCheckDone(true);
         }
-      };
-  
-      checkRegistration();
-  
-      return () => {
-        mounted = false;
-      };
-    }, [isAuthenticated, user?.id, registrationChecked]);
-
- 
-    
-  // Debounced form validation
-  const debouncedValidateForm = React.useCallback(
-    debounce(() => {
-      if (!formData.name?.trim()) return false;
-      if (!formData.mobileNumber?.match(/^[6-9]\d{9}$/)) return false;
-      
-      if (isStudentEmail) {
-        if (!formData.collegeId?.trim()) return false;
-        if (!formData.branch) return false;
-      } else {
-        if (!formData.collegeName?.trim()) return false;
+      } catch (error) {
+        console.error('Registration check failed:', error);
+        if (isMounted) {
+          setError(error.message);
+          setIsLoading(false);
+          setInitialCheckDone(true);
+        }
       }
-      
-      return true;
-    }, 300),
-    [formData, isStudentEmail]
-  );
+    };
 
-   const handleSubmit = async (e) => {
+    initializeRegistration();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isAuthenticated, user?.id, isAdmin, api, navigate, location.state, initialCheckDone]);
+
+
+  // Form validation
+  const isFormValid = useMemo(() => {
+    const validation = {
+      mobileValid: /^[6-9]\d{9}$/.test(formData.mobileNumber),
+      nameValid: formData.name?.trim().length > 0,
+      collegeIdValid: isStudentEmail ? Boolean(formData.collegeId?.trim()) : true,
+      branchValid: isStudentEmail ? Boolean(formData.branch?.trim()) : true,
+      collegeNameValid: !isStudentEmail ? Boolean(formData.collegeName?.trim()) : true
+    };
+
+    return Object.values(validation).every(Boolean);
+  }, [formData, isStudentEmail]);
+
+
+  // Handle form submission
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (isSubmitting) return;
     
     setIsSubmitting(true);
+    setError(null);
     
     try {
-      if (!formData.name || !user?.email || !formData.mobileNumber) {
-        throw new Error('Please fill in all required fields');
-      }
-  
       const registrationData = {
         kindeId: user.id,
         name: formData.name,
@@ -112,42 +127,35 @@ const RegistrationForm = () => {
             }
         )
       };
-  
-      await api.registerUser(registrationData);
-      toast.success('Registration completed successfully!');
-      navigate('/cart');
+
+      const response = await api.registerUser(registrationData);
+      
+      if (response.success) {
+        await checkRegistration(true); // Force registration check
+        toast.success('Registration successful!');
+        navigate('/cart');
+      } else {
+        throw new Error(response.error || 'Registration failed');
+      }
     } catch (error) {
       console.error('Registration error:', error);
-      toast.error(error.message || 'Failed to register. Please try again.');
+      setError(error.message || 'Registration failed. Please try again.');
+      toast.error(error.message || 'Registration failed. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-    // Form validation
-    const validateForm = () => {
-      if (!formData.name?.trim()) return false;
-      if (!formData.mobileNumber?.match(/^[6-9]\d{9}$/)) return false;
-      
-      if (isStudentEmail) {
-        if (!formData.collegeId?.trim()) return false;
-        if (!formData.branch) return false;
-      } else {
-        if (!formData.collegeName?.trim()) return false;
-      }
-      
-      return true;
-    };
-
-
-    if (isLoading) {
-      return <div className="min-h-screen bg-slate-900 pt-24 flex items-center justify-center">
+  if (isLoading) {
+    console.log('Showing loading state');
+    return (
+      <div className="min-h-screen bg-slate-900 pt-24 flex items-center justify-center">
         <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-      </div>;
-    }
+      </div>
+    );
+  }
 
 
-  // Rest of your component remains the same
   return (
     <div className="min-h-screen bg-slate-900 pt-24 pb-12 px-4">
       <div className="max-w-md mx-auto">
@@ -158,7 +166,7 @@ const RegistrationForm = () => {
           </h1>
           <p className="text-gray-400 text-lg">Complete Your Registration</p>
         </div>
-
+  
         {/* Form Card */}
         <div className="bg-slate-800 rounded-2xl shadow-xl p-8 backdrop-blur-lg border border-slate-700">
           {/* User Info Display */}
@@ -166,25 +174,27 @@ const RegistrationForm = () => {
             <p className="text-gray-400 text-sm">Logged in as:</p>
             <p className="text-white font-medium truncate">{user?.email}</p>
           </div>
-
+  
           <form onSubmit={handleSubmit} className="space-y-6">
-            {isStudentEmail ? (
-              <>
-                <div className="space-y-4">
-                <div>
-                    <label className="block text-gray-300 text-sm font-medium mb-2">
-                        Full Name
-                    </label>
-                    <input
-                        type="text"
-                        value={formData.name}
-                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        className="w-full bg-slate-900 text-white rounded-lg px-4 py-3 border border-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all duration-200"
-                        required
-                        placeholder="Enter your full name"
-                    />
-                </div>
-
+            {/* Common Fields */}
+            <div className="space-y-4">
+              <div>
+                <label className="block text-gray-300 text-sm font-medium mb-2">
+                  Full Name
+                </label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full bg-slate-900 text-white rounded-lg px-4 py-3 border border-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all duration-200"
+                  required
+                  placeholder="Enter your full name"
+                />
+              </div>
+  
+              {/* Conditional Fields */}
+              {isStudentEmail ? (
+                <>
                   <div>
                     <label className="block text-gray-300 text-sm font-medium mb-2">
                       College ID Number
@@ -192,21 +202,20 @@ const RegistrationForm = () => {
                     <input
                       type="text"
                       value={formData.collegeId}
-                      onChange={(e) => setFormData({...formData, collegeId: e.target.value})}
+                      onChange={(e) => setFormData(prev => ({ ...prev, collegeId: e.target.value }))}
                       className="w-full bg-slate-900 text-white rounded-lg px-4 py-3 border border-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all duration-200"
                       required
                       placeholder="Enter your college ID"
                     />
                   </div>
-
-
+  
                   <div>
                     <label className="block text-gray-300 text-sm font-medium mb-2">
                       Branch
                     </label>
                     <select
                       value={formData.branch}
-                      onChange={(e) => setFormData({...formData, branch: e.target.value})}
+                      onChange={(e) => setFormData(prev => ({ ...prev, branch: e.target.value }))}
                       className="w-full bg-slate-900 text-white rounded-lg px-4 py-3 border border-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all duration-200"
                       required
                     >
@@ -217,91 +226,58 @@ const RegistrationForm = () => {
                       <option value="CIVIL" className="bg-slate-800">Civil</option>
                     </select>
                   </div>
-
-                  <div>
-                    <label className="block text-gray-300 text-sm font-medium mb-2">
-                      Mobile Number
-                    </label>
-                    <input
-                      type="tel"
-                      value={formData.mobileNumber}
-                      onChange={(e) => setFormData({ ...formData, mobileNumber: e.target.value })}
-                      className="w-full bg-slate-900 text-white rounded-lg px-4 py-3 border border-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all duration-200"
-                      required
-                      placeholder="Enter your mobile number"
-                      pattern="[0-9]{10}"
-                      title="Please enter a valid 10-digit mobile number"
-                    />
-                  </div>
-
-                </div>
-              </>
-            ) : (
-
+                </>
+              ) : (
                 <div>
-                       <div>
-                            <label className="block text-gray-300 text-sm font-medium mb-2">
-                                Full Name
-                            </label>
-                            <input
-                                type="text"
-                                value={formData.name}
-                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                className="w-full bg-slate-900 text-white rounded-lg px-4 py-3 border border-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all duration-200"
-                                required
-                                placeholder="Enter your full name"
-                            />
-                            </div>
-
-                        <div>
-                            <label className="block text-gray-300 text-sm font-medium mb-2">
-                            College Name
-                            </label>
-                            <input
-                            type="text"
-                            value={formData.collegeName}
-                            onChange={(e) => setFormData({...formData, collegeName: e.target.value})}
-                            className="w-full bg-slate-900 text-white rounded-lg px-4 py-3 border border-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all duration-200"
-                            required
-                            placeholder="Enter your college name"
-                            />
-                        </div>
-
-                        <div>
-                        <label className="block text-gray-300 text-sm font-medium mb-2">
-                          Mobile Number
-                        </label>
-                        <input
-                          type="tel"
-                          value={formData.mobileNumber}
-                          onChange={(e) => setFormData({ ...formData, mobileNumber: e.target.value })}
-                          className="w-full bg-slate-900 text-white rounded-lg px-4 py-3 border border-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all duration-200"
-                          required
-                          placeholder="Enter your mobile number"
-                          pattern="[0-9]{10}"
-                          title="Please enter a valid 10-digit mobile number"
-                        />
-                      </div>
+                  <label className="block text-gray-300 text-sm font-medium mb-2">
+                    College Name
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.collegeName}
+                    onChange={(e) => setFormData(prev => ({ ...prev, collegeName: e.target.value }))}
+                    className="w-full bg-slate-900 text-white rounded-lg px-4 py-3 border border-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all duration-200"
+                    required
+                    placeholder="Enter your college name"
+                  />
                 </div>
-            )}
-
-              <button 
-                      type="submit"
-                      disabled={isSubmitting || !validateForm()}
-                      className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-medium py-3 px-4 rounded-lg transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-                    >
-                      {isSubmitting ? (
-                        <div className="flex items-center justify-center">
-                          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                          Processing...
-                        </div>
-                      ) : (
-                        'Complete Registration'
-                      )}
-                    </button>
-
+              )}
+  
+              {/* Mobile Number Field */}
+              <div>
+                <label className="block text-gray-300 text-sm font-medium mb-2">
+                  Mobile Number
+                </label>
+                <input
+                  type="tel"
+                  value={formData.mobileNumber}
+                  onChange={(e) => setFormData(prev => ({ ...prev, mobileNumber: e.target.value }))}
+                  className="w-full bg-slate-900 text-white rounded-lg px-4 py-3 border border-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all duration-200"
+                  required
+                  placeholder="Enter your mobile number"
+                  pattern="[0-9]{10}"
+                  title="Please enter a valid 10-digit mobile number"
+                />
+              </div>
+            </div>
+  
+            {/* Submit Button */}
+            <button 
+              type="submit"
+              disabled={isSubmitting || !isFormValid}
+              className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-medium py-3 px-4 rounded-lg transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+            >
+              {isSubmitting ? (
+                <div className="flex items-center justify-center">
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                  Processing...
+                </div>
+              ) : (
+                'Complete Registration'
+              )}
+            </button>
           </form>
-
+  
           {/* Bottom Info */}
           <div className="mt-6 text-center text-sm text-gray-400">
             <p>Need help? Contact support@techniverse.com</p>
@@ -310,6 +286,6 @@ const RegistrationForm = () => {
       </div>
     </div>
   );
-};
-
-export default RegistrationForm;
+  }
+  
+  export default React.memo(RegistrationForm);

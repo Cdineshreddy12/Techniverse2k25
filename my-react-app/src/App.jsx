@@ -15,6 +15,9 @@ import UnauthorizedPage from './Components/unAuthorisedPage.jsx';
 import NewsDetail from './Components/NewsDetail.jsx';
 import NewsList from './Components/NewsList.jsx';
 import { createApiClient } from './config/kindeAPI.js';
+import { AuthProvider } from '../src/contexts/AuthContext.jsx';
+import { useAuth } from '../src/contexts/AuthContext.jsx';
+import PaymentVerify from './Components/paymentVerify.jsx';
 // Lazy load components based on route priority
 const TechniverseHome = lazy(() => import("./Components/HomePage"));
 const AboutPage = lazy(() => import("./Components/About"));
@@ -85,12 +88,9 @@ const MainContent = React.memo(() => (
 
 // Enhanced error boundary
 class ErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false };
-  }
+  state = { hasError: false };
 
-  static getDerivedStateFromError(error) {
+  static getDerivedStateFromError() {
     return { hasError: true };
   }
 
@@ -101,14 +101,80 @@ class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="p-4 text-center">
-          <h2 className="text-red-500">Something went wrong. Please refresh the page.</h2>
+        <div className="flex items-center justify-center min-h-screen bg-slate-900">
+          <div className="text-center p-8 bg-slate-800 rounded-lg shadow-xl">
+            <h2 className="text-xl text-red-400 mb-4">Something went wrong</h2>
+            <button 
+              className="px-4 py-2 bg-slate-700 text-white rounded hover:bg-slate-600 transition-colors"
+              onClick={() => window.location.reload()}
+            >
+              Refresh Page
+            </button>
+          </div>
         </div>
       );
     }
     return this.props.children;
   }
 }
+
+
+const ProtectedRoute = React.memo(({ children, requireRegistration = false }) => {
+  const { isAuthenticated, isLoading: kindeLoading } = useKindeAuth();
+  const { 
+    isRegistered, 
+    isLoading: authLoading, 
+    registrationChecked,
+    isAdmin 
+  } = useAuth();
+  const location = useLocation();
+
+  const isLoading = kindeLoading || authLoading;
+
+  if (isLoading) {
+    return <LoadingSpinner />;
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/" state={{ from: location }} replace />;
+  }
+
+  // Skip registration check for admins
+  if (isAdmin) {
+    return children;
+  }
+
+  // Only check registration if explicitly required
+  if (requireRegistration && !isRegistered && registrationChecked) {
+    return <Navigate to="/register" state={{ from: location }} replace />;
+  }
+
+  return children;
+});
+
+const AdminRoute = React.memo(({ children }) => {
+  const { isAuthenticated, isLoading: kindeLoading } = useKindeAuth();
+  const { isAdmin, isLoading: authLoading } = useAuth();
+  const location = useLocation();
+
+  const isLoading = kindeLoading || authLoading;
+
+  if (isLoading) {
+    return <LoadingSpinner />;
+  }
+
+  if (!isAuthenticated) {
+    toast.error('Please login to continue');
+    return <Navigate to="/" state={{ from: location }} replace />;
+  }
+
+  if (!isAdmin) {
+    toast.error('Access denied. Admin privileges required.');
+    return <Navigate to="/unauthorized" replace />;
+  }
+
+  return children;
+});
 
 // Optimized protected routes
 const RegisteredRoute = React.memo(({ children }) => {
@@ -192,35 +258,20 @@ console.log("VITE_KINDE_REDIRECT_URL:", import.meta.env.VITE_APP_KINDE_REDIRECT_
 console.log("VITE_APP_KINDE_POST_LOGOUT_URL:", import.meta.env.VITE_APP_KINDE_POST_LOGOUT_URL);
 
 
-const ProtectedRoute = React.memo(({ children }) => {
-  const { isAuthenticated, isLoading } = useKindeAuth();
-  const location = useLocation();
 
-  React.useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      toast.error(location.pathname === '/cart' 
-        ? 'Please login first to access your cart'
-        : 'Please login first to access this page'
-      );
-    }
-  }, [isAuthenticated, isLoading, location.pathname]);
 
-  if (isLoading) return <LoadingSpinner />;
-  return isAuthenticated ? children : <Navigate to="/" />;
-});
+// const RequireRole = React.memo(({ children, allowedRoles }) => {
+//   const { isLoading, isAuthenticated, user } = useKindeAuth();
 
-const RequireRole = React.memo(({ children, allowedRoles }) => {
-  const { isLoading, isAuthenticated, user } = useKindeAuth();
+//   if (isLoading) return <LoadingSpinner />;
+//   if (!isAuthenticated) return <Navigate to="/login" replace />;
 
-  if (isLoading) return <LoadingSpinner />;
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
+//   const userRoles = user?.roles || [];
+//   const hasRequiredRole = allowedRoles.some(role => userRoles.includes(role));
 
-  const userRoles = user?.roles || [];
-  const hasRequiredRole = allowedRoles.some(role => userRoles.includes(role));
-
-  if (!hasRequiredRole) return <Navigate to="/unauthorized" replace />;
-  return children;
-});
+//   if (!hasRequiredRole) return <Navigate to="/unauthorized" replace />;
+//   return children;
+// });
 
 // Create QueryClient instance
 const queryClient = new QueryClient({
@@ -234,20 +285,23 @@ const queryClient = new QueryClient({
 
 function App() {
 
-  const { isAuthenticated, login } = useKindeAuth();
+  const { isAuthenticated, login: kindeLogin } = useKindeAuth()
 
     // Check for cached auth on mount
     useEffect(() => {
       const checkAuth = async () => {
-        const cachedToken = localStorage.getItem('kinde_auth_token');
-        if (cachedToken && !isAuthenticated) {
-          await login();
+        try {
+          const cachedToken = localStorage.getItem('kinde_auth_token');
+          if (cachedToken && !isAuthenticated && kindeLogin) {
+            await kindeLogin();
+          }
+        } catch (error) {
+          console.error('Auth check failed:', error);
         }
       };
       
       checkAuth();
-    }, []);
-
+    }, [isAuthenticated, kindeLogin]);
   // Prefetch critical components
   React.useEffect(() => {
     const prefetchComponents = async () => {
@@ -270,6 +324,7 @@ function App() {
           redirectUri={import.meta.env.VITE_APP_KINDE_REDIRECT_URL}
           logoutUri={import.meta.env.VITE_APP_KINDE_POST_LOGOUT_URL}
         >
+        <AuthProvider>
           <PackageProvider>
             <ErrorBoundary>
               <div className="bg-slate-950 min-h-screen">
@@ -301,23 +356,47 @@ function App() {
                     <Route path="/sponsors" element={<SponsorScroll/>} />
                     <Route path="/teams" element={<TeamShowcase/>} />
                     <Route path="/news/:newsId" element={<NewsDetail />} />
-                    <Route path="/payment/success" element={<PaymentSuccess />} />
-                    <Route path="/payment/failure" element={<PaymentFailure/>} />
+                 
+                    <Route 
+                        path="/payment/verify" 
+                        element={
+                          <Suspense fallback={<LoadingSpinner />}>
+                            <PaymentVerify />
+                          </Suspense>
+                        } 
+                      />
+                      <Route 
+                        path="/payment/success" 
+                        element={
+                          <Suspense fallback={<LoadingSpinner />}>
+                            <PaymentSuccess />
+                          </Suspense>
+                        } 
+                      />
+                      <Route 
+                        path="/payment/failure" 
+                        element={
+                          <Suspense fallback={<LoadingSpinner />}>
+                            <PaymentFailure />
+                          </Suspense>
+                        } 
+                      />
+
                     {/* Protected Routes */}
                     <Route path="/register" element={
-                      <ProtectedRoute>
+                     <ProtectedRoute requireRegistration={false}>
                         <RegistrationForm />
                       </ProtectedRoute>
                     } />
                     <Route path="/profile" element={
-                      <RegisteredRoute>
-                        <UserProfile />
-                      </RegisteredRoute>
+                        <ProtectedRoute requireRegistration={true}>
+                               <UserProfile />
+                        </ProtectedRoute>
                     } />
                     <Route path="/cart" element={
-                 
-                        <CartComponent />
-                    
+                        <ProtectedRoute requireRegistration={true}>
+                             <CartComponent />
+                        </ProtectedRoute>
                     } />
                     <Route path="/administration" element={<AdministrationPage />} />
                     <Route path="/payment" element={
@@ -366,12 +445,16 @@ function App() {
                     {/* Admin Routes */}
                     <Route path="/adminDashboard" element={
                       <Suspense fallback={<LoadingSpinner />}>
-                        <AdminDashboard />
+                        <AdminRoute>
+                             <AdminDashboard />
+                        </AdminRoute>
                       </Suspense>
                     }>
                       <Route path="departments" element={
                         <Suspense fallback={<LoadingSpinner />}>
-                          <DepartmentForm />
+                          <ProtectedRoute requireRegistration={false}>
+                                <DepartmentForm />
+                          </ProtectedRoute>
                         </Suspense>
                       } />
                       <Route path="events" element={
@@ -395,6 +478,7 @@ function App() {
               </div>
             </ErrorBoundary>
           </PackageProvider>
+          </AuthProvider>
         </KindeProvider>
       </Provider>
     </QueryClientProvider>

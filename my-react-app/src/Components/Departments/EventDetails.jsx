@@ -128,7 +128,7 @@ const {user}=useKindeAuth();
     if (!event?.rounds?.length) return null;
     
     return (
-      <div className="bg-slate-800 rounded-xl p-6 sm:p-8 border border-slate-700 mb-12" data-scroll>
+      <div className="bg-slate-800 rounded-xl py-6 sm:py-8 border border-slate-700 mb-12" data-scroll>
         <h2 className="text-2xl font-bold text-white mb-6">Event Rounds</h2>
         <div className="space-y-8">
           {event.rounds.map((round, index) => (

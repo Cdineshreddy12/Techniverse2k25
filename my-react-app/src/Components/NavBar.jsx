@@ -23,41 +23,38 @@ const Navbar = ({ onScrollToSection }) => {
   const [userData, setUserData] = useState(null);
   const api = createApiClient();
   const navigate = useNavigate();
-
+  const userDataFetchRef = useRef(false);
    // Add this useEffect for fetching user data
    useEffect(() => {
     const fetchUserData = async () => {
-        if (isAuthenticated && user?.id) {
-            try {
-                const data = await api.getUser(user.id);
-                
-                // Check if registration is needed
-                if (data.needsRegistration) {
-                    console.log('Registration needed, redirecting...');
-                    navigate('/register');
-                    return;
-                }
-                
-                // Only set user data if it's a success response
-                if (data.success && data.user) {
-                    setUserData(data.user);
-                }
-            } catch (error) {
-                console.error('Failed to fetch user data:', error);
-                
-                if (error.message === 'Authentication failed') {
-                    console.log('Authentication failed, retrying login...');
-                    return;
-                }
-                
-                // For other errors, redirect to registration
-                navigate('/register');
-            }
+      if (isAuthenticated && user?.id && !userDataFetchRef.current) {
+        userDataFetchRef.current = true;
+        try {
+          const data = await api.getUser(user.id);
+          
+          if (data.needsRegistration) {
+            navigate('/register');
+            return;
+          }
+          
+          if (data.success && data.user) {
+            setUserData(data.user);
+          }
+        } catch (error) {
+          console.error('Failed to fetch user data:', error);
+          if (error.message === 'Authentication failed') {
+            return;
+          }
+          navigate('/register');
+        } finally {
+          userDataFetchRef.current = false;
         }
+      }
     };
 
     fetchUserData();
-}, [isAuthenticated, user?.id]);
+  }, [isAuthenticated, user?.id]);
+
 
   useEffect(() => {
     const handleScroll = () => {
@@ -132,6 +129,7 @@ const Navbar = ({ onScrollToSection }) => {
       ) : (
         <button 
           onClick={() => {
+          
             login();
             setIsOpen(false);
           }}

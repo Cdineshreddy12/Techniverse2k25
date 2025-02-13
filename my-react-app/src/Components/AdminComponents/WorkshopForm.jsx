@@ -19,10 +19,16 @@ const WorkshopForm = ({ workshop, onClose, onSubmit }) => {
         ...workshop,
         bannerDesktop: workshop.bannerDesktop ? { url: workshop.bannerDesktop } : '',
         bannerMobile: workshop.bannerMobile ? { url: workshop.bannerMobile } : '',
-        lecturer: {
+        // Convert single lecturer to lecturers array if needed
+        lecturers: workshop.lecturers ? workshop.lecturers.map(lecturer => ({
+          ...lecturer,
+          photo: lecturer.photo ? { url: lecturer.photo } : ''
+        })) : workshop.lecturer ? [{
           ...workshop.lecturer,
-          photo: workshop.lecturer?.photo ? { url: workshop.lecturer.photo } : ''
-        },
+          photo: workshop.lecturer.photo ? { url: workshop.lecturer.photo } : '',
+          role: workshop.lecturer.role || 'Main Lecturer',
+          order: 0
+        }] : [],
         departments: workshop.departments || [],
         price: workshop.price || 0,
         duration: workshop.duration || { total: 2, unit: 'hours' },
@@ -43,12 +49,7 @@ const WorkshopForm = ({ workshop, onClose, onSubmit }) => {
       bannerDesktop: '',
       description: '',
       departments: [],
-      lecturer: {
-        name: '',
-        title: '',
-        specifications: [],
-        photo: ''
-      },
+      lecturers: [], // Initialize empty lecturers array
       schedule: [],
       prerequisites: [],
       outcomes: [],
@@ -67,7 +68,7 @@ const WorkshopForm = ({ workshop, onClose, onSubmit }) => {
       registrationEndTime: oneWeekFromNow.toISOString()
     };
   };
-  
+
   const [activeTab, setActiveTab] = useState('basic');
   const [formData, setFormData] = useState(() => getInitialFormData(workshop));
 
@@ -92,7 +93,26 @@ const WorkshopForm = ({ workshop, onClose, onSubmit }) => {
   const handleSubmit = (e) => {
     e.preventDefault();
     
-    // Ensure price is a number and all required fields are set
+    // Validate lecturers first
+    if (!formData.lecturers || formData.lecturers.length === 0) {
+      alert('Please add at least one lecturer');
+      setActiveTab('lecturer');
+      return;
+    }
+  
+    // Validate lecturer fields
+    const lecturerValidation = formData.lecturers.every((lecturer, index) => {
+      if (!lecturer.name || !lecturer.title || !lecturer.role) {
+        alert(`Please fill in all required fields for Lecturer ${index + 1} (Name, Title, and Role)`);
+        setActiveTab('lecturer');
+        return false;
+      }
+      return true;
+    });
+  
+    if (!lecturerValidation) return;
+  
+    // Prepare the data with validated lecturers
     const preparedData = {
       ...formData,
       price: parseFloat(formData.price) || 0,
@@ -107,25 +127,22 @@ const WorkshopForm = ({ workshop, onClose, onSubmit }) => {
         startTime: formData.registration.startTime || new Date().toISOString(),
         endTime: formData.registration.endTime || new Date().toISOString()
       },
-      // Set registrationEndTime based on registration end time
-      registrationEndTime: formData.registration.endTime || new Date().toISOString()
+      registrationEndTime: formData.registration.endTime || new Date().toISOString(),
+      // Clean up lecturer photos and ensure they are in the correct format
+      lecturers: formData.lecturers.map(lecturer => ({
+        ...lecturer,
+        photo: lecturer.photo?.file ? lecturer.photo : { url: lecturer.photo },
+        specifications: lecturer.specifications || []
+      }))
     };
   
-    // Validate required fields before submission
+    // Validate other required fields
     const requiredFields = ['title', 'description', 'departments'];
     const missingFields = requiredFields.filter(field => !preparedData[field]);
   
     if (missingFields.length > 0) {
       alert(`Please fill in all required fields: ${missingFields.join(', ')}`);
-      return;
-    }
-  
-    // Validate registration dates
-    const startTime = new Date(preparedData.registration.startTime);
-    const endTime = new Date(preparedData.registration.endTime);
-    
-    if (endTime <= startTime) {
-      alert('Registration end time must be after start time');
+      setActiveTab('basic');
       return;
     }
   
@@ -330,12 +347,27 @@ const WorkshopForm = ({ workshop, onClose, onSubmit }) => {
         );
 
       case 'lecturer':
-        return (
+      return (
+        <div className="space-y-6">
+          <div className="flex justify-between items-center">
+            <h3 className="text-lg font-medium text-white">Workshop Lecturers</h3>
+            <span className="text-sm text-gray-400">
+              {formData.lecturers?.length || 0} Lecturer(s)
+            </span>
+          </div>
+          
           <LecturerForm
-            lecturer={formData.lecturer}
-            onChange={(lecturer) => setFormData({...formData, lecturer})}
+            lecturers={formData.lecturers || []}
+            onChange={(lecturers) => setFormData({...formData, lecturers})}
           />
-        );
+          
+          {formData.lecturers?.length === 0 && (
+            <p className="text-amber-500 text-sm">
+              Please add at least one lecturer for the workshop
+            </p>
+          )}
+        </div>
+      );
 
       case 'schedule':
         return (

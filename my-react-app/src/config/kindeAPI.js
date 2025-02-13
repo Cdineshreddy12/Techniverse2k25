@@ -1,116 +1,180 @@
-import { useKindeAuth } from '@kinde-oss/kinde-auth-react';
-import API_CONFIG from './api.js';
+// src/config/kindeAPI.js
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
 
-const TOKEN_KEY = 'kinde_auth_token';
+export const createApiClient = (auth) => {
+  const getAuthToken = async () => {
+    console.log('Getting auth token, auth state:', { 
+      isAuthenticated: auth?.isAuthenticated,
+      hasGetToken: Boolean(auth?.getToken)
+    });
 
-export const createApiClient = () => {
-  const { getToken } = useKindeAuth();
-  
-  // Cache token in localStorage
-  const cacheToken = (token) => {
-    if (token) {
-      localStorage.setItem(TOKEN_KEY, token);
+    try {
+      if (!auth?.isAuthenticated) {
+        console.log('Not authenticated, returning null token');
+        return null;
+      }
+
+      const token = await auth.getToken?.();
+      console.log('Token retrieval result:', { hasToken: Boolean(token) });
+
+      if (!token) {
+        console.warn('No token available, user might need to log in again');
+        return null;
+      }
+
+      return token;
+    } catch (error) {
+      console.error('Error getting auth token:', error);
+      return null;
     }
   };
 
-  // Get cached token
-  const getCachedToken = () => {
-    return localStorage.getItem(TOKEN_KEY);
-  };
-
   const makeAuthenticatedRequest = async (endpoint, options = {}) => {
+    console.log('Making authenticated request to:', endpoint);
+    console.log('Request options:', options);
+
     try {
-      // Try to use cached token first
-      let token = getCachedToken();
-      
-      // If no cached token, get a new one
+      if (!auth?.isAuthenticated) {
+        console.log('Not authenticated, returning early');
+        return {
+          success: false,
+          error: 'Not authenticated',
+          needsAuthentication: true
+        };
+      }
+
+      const token = await getAuthToken();
       if (!token) {
-        token = await getToken();
-        if (token) {
-          cacheToken(token);
-        }
+        console.log('No token available, returning auth required');
+        return {
+          success: false,
+          error: 'Authentication required',
+          needsAuthentication: true
+        };
       }
 
-      if (!token) {
-        throw new Error('No authentication token available');
-      }
-
-      const url = API_CONFIG.getUrl(endpoint);
+      const url = `${BASE_URL}/${endpoint}`;
+      console.log('Making fetch request to:', url);
       
-      const response = await fetch(url, {
-        ...options,
-        headers: {
-          ...options.headers,
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      try {
+        const response = await fetch(url, {
+          ...options,
+          headers: {
+            ...options.headers,
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
 
-      // If token expired or invalid, get a new one and retry
-      if (response.status === 401) {
-        const newToken = await getToken(true);
-        if (newToken) {
-          cacheToken(newToken);
-          
-          const retryResponse = await fetch(url, {
-            ...options,
-            headers: {
-              ...options.headers,
-              'Authorization': `Bearer ${newToken}`,
-              'Content-Type': 'application/json',
-            },
-          });
-          return retryResponse;
+        console.log('Raw response:', response);
+
+        let data;
+        try {
+          data = await response.json();
+          console.log('Parsed response data:', data);
+        } catch (parseError) {
+          console.error('Error parsing response:', parseError);
+          data = null;
         }
-      }
 
-      return response;
+        if (!response.ok) {
+          // Handle 404 specifically as needing registration
+          if (response.status === 404) {
+            console.log('User not found, needs registration');
+            return {
+              success: false,
+              needsRegistration: true,
+              error: 'User not found'
+            };
+          }
+
+          if (response.status === 401) {
+            console.log('Authentication failed response');
+            return {
+              success: false,
+              error: 'Authentication failed',
+              needsAuthentication: true
+            };
+          }
+
+          return {
+            success: false,
+            error: data?.error || 'Request failed',
+            statusCode: response.status
+          };
+        }
+
+        return {
+          success: true,
+          ...data
+        };
+      } catch (fetchError) {
+        console.error('Fetch error:', fetchError);
+        // Check if it's a network error
+        if (!window.navigator.onLine) {
+          return {
+            success: false,
+            error: 'Network error - Please check your internet connection'
+          };
+        }
+        throw fetchError;
+      }
     } catch (error) {
-      console.error('API request error:', error);
-      throw error;
+      console.error('API request failed:', error);
+      return {
+        success: false,
+        error: error.message || 'Request failed'
+      };
     }
   };
 
   return {
-      getUser: async (kindeId) => {
-          const response = await makeAuthenticatedRequest(`user/${kindeId}`);
-          
-          if (response.status === 401) {
-              throw new Error('Authentication failed');
-          }
-
-          const data = await response.json();
-          
-          // Handle 202 status explicitly
-          if (response.status === 202) {
-              return {
-                  needsRegistration: true,
-                  user: data.user
-              };
-          }
-
-          // Handle success response
-          if (response.ok) {
-              return data;
-          }
-
-          // Handle other errors
-          throw new Error(data.error || 'Failed to fetch user');
-      },
+    getUser: async (kindeId) => {
+      console.log('getUser called with kindeId:', kindeId);
       
-      registerUser: async (userData) => {
-          const response = await makeAuthenticatedRequest('register', {
-              method: 'POST',
-              body: JSON.stringify(userData)
-          });
-
-          const data = await response.json();
-
-          if (!response.ok) {
-              throw new Error(data.details || data.error || 'Registration failed');
-          }
-
-          return data;
+      if (!kindeId || !auth?.isAuthenticated) {
+        console.log('Invalid user request:', { kindeId, isAuthenticated: auth?.isAuthenticated });
+        return { 
+          success: false,
+          needsRegistration: true, 
+          user: null 
+        };
       }
+      
+      const response = await makeAuthenticatedRequest(`users/${kindeId}`);
+      console.log('getUser response:', response);
+      
+      if (response.statusCode === 404 || (response.error && response.error.includes('not found'))) {
+        console.log('User needs registration based on response');
+        return {
+          success: false,
+          needsRegistration: true,
+          user: null
+        };
+      }
+      
+      return response;
+    },
+
+    registerUser: async (userData) => {
+      console.log('registerUser called with:', userData);
+      
+      if (!auth?.isAuthenticated) {
+        console.log('Not authenticated for registration');
+        return {
+          success: false,
+          error: 'Authentication required',
+          needsAuthentication: true
+        };
+      }
+
+      const response = await makeAuthenticatedRequest('users/register', {
+        method: 'POST',
+        body: JSON.stringify(userData)
+      });
+      
+      console.log('Registration response:', response);
+      return response;
+    }
   };
 };
