@@ -256,7 +256,7 @@ console.log("VITE_KINDE_CLIENT_ID:", import.meta.env.VITE_APP_KINDE_CLIENT_ID);
 console.log("VITE_KINDE_ISSUER_URL:", import.meta.env.VITE_APP_KINDE_ISSUER_URL);
 console.log("VITE_KINDE_REDIRECT_URL:", import.meta.env.VITE_APP_KINDE_REDIRECT_URL);
 console.log("VITE_APP_KINDE_POST_LOGOUT_URL:", import.meta.env.VITE_APP_KINDE_POST_LOGOUT_URL);
-
+console.log("VITE_APP_API_BASE_URL:", import.meta.env.VITE_APP_API_BASE_URL);
 
 
 
