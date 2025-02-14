@@ -75,18 +75,21 @@ const uploadQRCodeToCloudinary = async (qrCodeDataUrl, transactionId) => {
 };
 
 
-const verifySenderEmail = async () => {
+const verifyEmailAddress = async (emailAddress) => {
   try {
     const command = new VerifyEmailIdentityCommand({
-      EmailAddress: 'reddycdinesh41@gmail.com'
+      EmailAddress: emailAddress
     });
     
     const response = await sesClient.send(command);
-    console.log('Verification email sent to sender address:', response);
+    console.log(`Verification email sent to: ${emailAddress}`, response);
+    return response;
   } catch (error) {
-    console.error('Email verification error:', error);
+    console.error(`Email verification error for ${emailAddress}:`, error);
+    throw error;
   }
 };
+
 
 
 
@@ -102,13 +105,13 @@ app.use(compression()); // Compress responses
 app.use(morgan('dev')); // Request logging
 app.use(cors({
   origin: true,
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 app.use(express.json({ limit: '10mb' })); // Parse JSON bodies
-app.use(express.urlencoded({ extended: true, limit: '10mb' })); // Parse URL-encoded bodies
+app.use(express.urlencoded({ extended: true }));
 
-// Static files serving
-app.use('/uploads', express.static('uploads'));
 
 // Health check route
 app.get('/api/health', (req, res) => {
@@ -128,28 +131,26 @@ app.use('/api',cartRoutes);
 app.use('/api',comboRoutes);
 app.use('/api',PaymentRoutes);
 app.use('/api',workshopRoutes);
-// Send confirmation email
-// Verify recipient email
-const verifyRecipientEmail = async (recipientEmail) => {
-  try {
-    const command = new VerifyEmailIdentityCommand({
-      EmailAddress: recipientEmail
-    });
-    
-    const response = await sesClient.send(command);
-    console.log(`Verification email sent to recipient: ${recipientEmail}`, response);
-  } catch (error) {
-    console.error('Recipient verification error:', error);
-  }
-};
+
 
 
 export const sendConfirmationEmail = async (email, qrCode, registrationDetails) => {
   try {
     const qrCodeUrl = await uploadQRCodeToCloudinary(qrCode, registrationDetails.transactionId);
-    
+    const senderEmail = 'reddycdinesh41@gmail.com'; 
+    // Try to verify both emails
+    await Promise.all([
+      verifyEmailAddress(senderEmail),
+      verifyEmailAddress(email)
+    ]);
+// Log verification status
+console.log('Email verification requests sent for:', {
+  sender: senderEmail,
+  recipient: email
+});
+
     const command = new SendEmailCommand({
-      Source: 'reddycdinesh41@gmail.com',
+      Source: senderEmail,
       Destination: {
         ToAddresses: [email]
       },
@@ -316,90 +317,7 @@ export const sendConfirmationEmail = async (email, qrCode, registrationDetails) 
   }
 };
 
-app.post('/api/payment-callback', async (req, res) => {
-  try {
-    const { transactionId, paymentStatus } = req.body;
-    console.log('Processing payment callback:', { transactionId, paymentStatus });
 
-    // Find registration and populate student data
-    const registration = await Registration.findOne({ transactionId })
-      .populate('student');
-      
-    if (!registration) {
-      throw new Error('Registration not found');
-    }
-
-    registration.paymentStatus = paymentStatus;
-    registration.updatedAt = new Date();
-
-    if (paymentStatus === 'completed') {
-      console.log('Payment successful, generating QR code...');
-      
-      // Generate QR code with student and registration data
-      const qrCode = await generateQRCode({
-        userId: registration.student.kindeId,
-        studentId: registration.student._id,
-        registrationId: registration._id,
-        selectedEvents: registration.selectedEvents,
-        selectedWorkshops: registration.selectedWorkshops
-      });
-
-      registration.qrCode = qrCode;
-      await registration.save();
-
-      // Send confirmation email
-      await sendConfirmationEmail(
-        registration.student.email,
-        qrCode,
-        {
-          name: registration.student.name,
-          combo: registration.combo,
-          amount: registration.amount,
-          transactionId: registration.transactionId
-        }
-      );
-    }
-
-    res.json({ 
-      success: true,
-      message: 'Payment processed successfully'
-    });
-
-  } catch (error) {
-    console.error('Payment Callback Error:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Payment callback processing failed: ' + error.message 
-    });
-  }
-});
-
-// Utility function to get registration details
-app.get('/api/registration/:registrationId', async (req, res) => {
-  try {
-    const registration = await Registration.findById(req.params.registrationId)
-      .populate('student');
-      
-    if (!registration) {
-      return res.status(404).json({
-        success: false,
-        error: 'Registration not found'
-      });
-    }
-
-    res.json({
-      success: true,
-      registration
-    });
-
-  } catch (error) {
-    console.error('Registration Fetch Error:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Failed to fetch registration details: ' + error.message 
-    });
-  }
-});
 
 app.get('/health', async (req, res) => {
   try {
@@ -424,99 +342,6 @@ app.get('/health', async (req, res) => {
 
 
 
-app.post('/api/initiate-payment', async (req, res) => {
-  try {
-    const {
-      kindeId,  // User's Kinde ID from authentication
-      combo,
-      selectedEvents,
-      selectedWorkshops
-    } = req.body;
-
-    console.log('Received payment initiation request:', {
-      kindeId,
-      combo,
-      eventCount: selectedEvents?.length,
-      workshopCount: selectedWorkshops?.length
-    });
-
-    // Find the student using kindeId
-    const student = await Student.findOne({ kindeId });
-    if (!student) {
-      return res.status(404).json({
-        success: false,
-        error: 'Student not found. Please complete registration first.'
-      });
-    }
-
-    // Generate unique transaction ID
-    const merchantTransactionId = 'TXN' + Date.now() + Math.random().toString(36).slice(2, 8).toUpperCase();
-
-    // Format events and workshops for registration
-    const formattedEvents = selectedEvents.map(event => ({
-      eventId: event.id,
-      eventName: event.name,
-      status: 'pending'
-    }));
-
-    const formattedWorkshops = selectedWorkshops.map(workshop => ({
-      workshopId: workshop.id,
-      workshopName: workshop.name,
-      status: 'pending'
-    }));
-
-    // Create new registration
-    const registration = new Registration({
-      student: student._id,  // Link to student document
-      combo: {
-        id: combo.id,
-        name: combo.name,
-        price: combo.price,
-        description: combo.description
-      },
-      selectedEvents: formattedEvents,
-      selectedWorkshops: formattedWorkshops,
-      paymentStatus: 'pending',
-      transactionId: merchantTransactionId,
-      amount: combo.price,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    });
-
-    console.log('Created registration object:', registration);
-
-    // Save the registration
-    const savedRegistration = await registration.save();
-
-    // Add registration to student's registrations array
-    student.registrations.push(savedRegistration._id);
-    await student.save();
-
-    console.log('Registration saved and linked to student:', {
-      studentId: student._id,
-      registrationId: savedRegistration._id
-    });
-
-    // Return success response
-    res.json({
-      success: true,
-      transactionId: merchantTransactionId,
-      message: 'Registration initiated successfully',
-      registrationId: savedRegistration._id
-    });
-
-  } catch (error) {
-    console.error('Payment Initiation Error:', {
-      error: error.message,
-      stack: error.stack
-    });
-    
-    res.status(500).json({ 
-      success: false, 
-      error: 'Payment initiation failed: ' + error.message 
-    });
-  }
-});
 
 // Error handling middleware
 app.use(errorHandler);

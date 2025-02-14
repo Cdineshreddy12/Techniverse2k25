@@ -4,339 +4,450 @@ import { Juspay } from 'expresscheckout-nodejs';
 import { Student } from '../Models/StudentSchema.js';
 import { Registration } from '../Models/RegistrationSchema.js';
 import Event from '../Models/eventModel.js';
-import dotenv from 'dotenv'
+import Workshop from '../Models/workShopModel.js';
 import PaymentSecurityService from '../PaymentSecurity.js';
+import dotenv from 'dotenv';
+import { generateQRCode } from './QRRoutes.js';
+import { sendConfirmationEmail } from '../index.js';
 dotenv.config();
-const paymentSecurity = new PaymentSecurityService(process.env.HDFC_RESPONSE_KEY);
+
 const router = express.Router();
+const paymentSecurity = new PaymentSecurityService(process.env.HDFC_RESPONSE_KEY);
 
-console.log('Merchant ID:', process.env.HDFC_MERCHANT_ID);
-console.log('API Key:', process.env.HDFC_API_KEY);
-
-const SANDBOX_BASE_URL = "https://smartgateway.hdfcbank.com";
 // Initialize Juspay
 const juspay = new Juspay({
-  merchantId:process.env.HDFC_MERCHANT_ID ,
+  merchantId: process.env.HDFC_MERCHANT_ID,
   apiKey: process.env.HDFC_API_KEY,
-  baseUrl: SANDBOX_BASE_URL 
-});
-
-// Test endpoint to verify Juspay initialization
-router.get('/payment/test', (req,res) => {
-  try {
-      res.json({
-          success: true,
-          message: 'Payment gateway initialized successfully',
-          environment: process.env.NODE_ENV,
-          merchantId: juspay.merchantId
-      });
-  } catch (error) {
-      res.status(500).json({
-          success: false,
-          error: error.message
-      });
-  }
+  baseUrl: process.env.NODE_ENV === 'production' 
+    ? "https://smartgateway.hdfcbank.com"
+    : "https://smartgatewayuat.hdfcbank.com"
 });
 
 
+  // Create return URL using the request object
+  const returnUrl = `${process.env.BASE_URL}/api/payment/handleResponse`;
+
+// Payment initiation
 router.post('/payment/initiate', async (req, res) => {
-  try {
-      const { amount, cartItems, kindeId } = req.body;
-
-      // Validate student exists and get their MongoDB _id
+    try {
+      const { amount, cartItems, combo, kindeId } = req.body;
+  
       const student = await Student.findOne({ kindeId });
       if (!student) {
-          return res.status(404).json({
-              success: false,
-              error: 'Student not found'
-          });
+        throw new Error('Student not found');
       }
-
-      // Create registration records using student._id instead of kindeId
-      const registrations = await Promise.all(cartItems.map(async item => {
-          // Check if event exists and has slots
-          const event = await Event.findById(item.eventInfo.id);
-          if (!event) {
-              throw new Error(`Event ${item.eventInfo.title} not found`);
+  
+      // Create registration
+      const registration = await Registration.create({
+        student: student._id,
+        kindeId,
+        selectedEvents: (cartItems || []).map(item => ({
+          eventId: item.id,
+          eventName: item.title || '',
+          status: 'pending',
+          registrationType: 'individual',
+          maxTeamSize: 1
+        })),
+        amount: combo.price,
+        paymentStatus: 'pending',
+        paymentInitiatedAt: new Date(),
+        paymentDetails: {
+          customerDetails: {
+            name: student.name,
+            email: student.email,
+            phone: student.mobileNumber
+          },
+          merchantParams: {
+            comboId: combo.id,
+            comboName: combo.name,
+            features: combo.features
           }
-          
-          if (event.registrationCount >= event.maxRegistrations) {
-              throw new Error(`Event ${item.eventInfo.title} is full`);
-          }
-
-          return Registration.create({
-              student: student._id, // Use MongoDB _id instead of kindeId
-              selectedEvents: [{
-                  eventId: item.eventInfo.id,
-                  eventName: item.eventInfo.title,
-                  status: 'pending',
-                  registrationType: event.registrationType,
-                  maxTeamSize: event.details.maxTeamSize || 1
-              }],
-              amount: item.registration.fee,
-              paymentStatus: 'pending',
-              kindeId: kindeId // Store kindeId as a separate field if needed
-          });
-      }));
-
+        }
+      });
+  
       const orderId = `order_${Date.now()}_${kindeId}`;
-
-      // Create Juspay session
+      await Registration.findByIdAndUpdate(registration._id, {
+        'paymentDetails.orderId': orderId
+      });
+  
+      // Create session with proper status handling
       const sessionResponse = await juspay.orderSession.create({
-          order_id: orderId,
-          amount: amount,
-          payment_page_client_id: process.env.HDFC_PAYMENT_PAGE_CLIENT_ID,
-          customer_id: kindeId,
-          action: 'paymentPage',
-          return_url: `${process.env.FRONTEND_URL}/payment/success`,
-          webhook_url: `${process.env.BASE_URL}/api/payment/webhook`,
-          currency: 'INR',
-          customer_email: student.email,
-          customer_phone: student.mobileNumber,
-          customer_name: student.name,
-          merchant_params: {
-              registration_ids: registrations.map(reg => reg._id).join('_'),
-              student_id: student._id.toString()
-          }
+        order_id: orderId,
+        amount: amount ,
+        payment_page_client_id: process.env.HDFC_PAYMENT_PAGE_CLIENT_ID,
+        customer_id: kindeId,
+        action: 'paymentPage',
+        return_url: returnUrl,
+        webhook_url: `${process.env.BASE_URL}/api/payment/webhook`,
+        currency: 'INR',
+        customer_email: student.email,
+        customer_phone: student.mobileNumber,
+        customer_name: student.name,
+        merchant_params: {
+          registration_id: registration._id.toString(),
+          student_id: student._id.toString(),
+          combo_id: combo.id
+        }
       });
-
-      // Remove undefined fields
-      Object.keys(sessionResponse).forEach(key => 
-          sessionResponse[key] === undefined && delete sessionResponse[key]
-      );
-
+  
+      console.log('Payment session created:', {
+        orderId,
+        return_url: `${process.env.FRONTEND_URL}/api/payment/success`,
+        webhook_url: `${process.env.BASE_URL}/api/payment/webhook`
+      });
+  
       res.json({
-          success: true,
-          sessionData: sessionResponse
+        success: true,
+        sessionData: sessionResponse
       });
-
-  } catch (error) {
+  
+    } catch (error) {
       console.error('Payment initiation failed:', error);
       res.status(500).json({
-          success: false,
-          error: error.message
+        success: false,
+        error: error.message
       });
-  }
-});
-
-
-// 2. Payment Callback (Client-side redirect)
-router.post('/payment/callback', async (req, res) => {
-    try {
-        const orderId = req.body.order_id;
-        if (!orderId) {
-            throw new Error('Order ID not found');
-        }
-
-        const statusResponse = await juspay.order.status(orderId);
-
-        // Redirect based on status
-        switch (statusResponse.status) {
-            case "CHARGED":
-                res.redirect('/payment/success');
-                break;
-            case "PENDING":
-            case "PENDING_VBV":
-                res.redirect('/payment/pending');
-                break;
-            default:
-                res.redirect('/payment/failure');
-        }
-
-    } catch (error) {
-        console.error('Payment callback failed:', error);
-        res.redirect('/payment/error');
     }
-});
+  });
 
 
-// Update the webhook route
-router.post('/payment/webhook', async (req, res) => {
-    let session;
+  // Handle payment response
+  router.all('/payment/handleResponse', async (req, res) => {
     try {
-        // 1. Verify signature
-        if (!paymentSecurity.verifySignature(req.body)) {
-            return res.status(400).json({
-                success: false,
-                error: 'Invalid signature'
-            });
+        const orderId = req.body.order_id || req.query.order_id;
+        console.log('Payment response received:', { orderId, body: req.body });
+
+        if (!orderId) {
+            throw new Error('order_id not present or cannot be empty');
         }
 
-        // 2. Get registration from order ID
+        // Get payment status from Juspay
+        const statusResponse = await juspay.order.status(orderId);
+        const orderStatus = statusResponse.status;
+
+        // Find registration and populate student data
         const registration = await Registration.findOne({
-            'paymentDetails.orderId': req.body.order_id
-        });
+            'paymentDetails.orderId': orderId
+        }).populate('student');
 
         if (!registration) {
             throw new Error('Registration not found');
         }
 
-        // 3. Validate payment response
-        await paymentSecurity.validatePaymentResponse(req.body, registration);
+        let redirectUrl;
 
-        // 4. Start transaction session
-        session = await mongoose.startSession();
-        session.startTransaction();
+        switch (orderStatus) {
+            case "CHARGED":
+                try {
+                    // Update registration
+                    registration.paymentStatus = 'completed';
+                    registration.paymentCompletedAt = new Date();
+                    
+                    // Generate QR code
+                    const qrCodeDataUrl = await generateQRCode({
+                        userId: registration.student.kindeId,
+                        selectedEvents: registration.selectedEvents,
+                        selectedWorkshops: registration.selectedWorkshops || []
+                    });
+                    
+                    // Store QR code data properly
+                    registration.qrCode = {
+                        dataUrl: qrCodeDataUrl,
+                        generatedAt: new Date(),
+                        metadata: {
+                            events: registration.selectedEvents.map(e => e.eventId.toString()),
+                            workshops: (registration.selectedWorkshops || []).map(w => w.workshopId.toString())
+                        }
+                    };
 
-        // 5. Transform and update payment details
-        const webhookData = paymentSecurity.transformWebhookData(req.body);
-        await registration.handleWebhook(webhookData);
-
-        // 6. Process successful payment
-        if (webhookData.status === 'CHARGED') {
-            // Update event registrations
-            for (const event of registration.selectedEvents) {
-                await Event.findByIdAndUpdate(
-                    event.eventId,
-                    { $inc: { registrationCount: 1 } },
-                    { session }
-                );
-            }
-
-            // Update student registrations
-            await Student.findOneAndUpdate(
-                { kindeId: registration.kindeId },
-                { 
-                    $addToSet: { registrations: registration._id },
-                    // Clear cart after successful payment
-                    $set: { 
-                        cart: [],
-                        workshops: []
+                    // Update event statuses
+                    for (const event of registration.selectedEvents) {
+                        event.status = 'confirmed';
+                        await Event.findByIdAndUpdate(event.eventId, {
+                            $inc: { registrationCount: 1 }
+                        });
                     }
-                },
-                { session }
-            );
 
-            // Set payment completion timestamp
-            registration.paymentCompletedAt = new Date();
-            await registration.save({ session });
+                    // Update workshop statuses if any
+                    if (registration.selectedWorkshops) {
+                        for (const workshop of registration.selectedWorkshops) {
+                            workshop.status = 'confirmed';
+                            await Workshop.findByIdAndUpdate(workshop.workshopId, {
+                                $inc: { registrationCount: 1 }
+                            });
+                        }
+                    }
+
+                    await registration.save();
+
+                    // Update student record
+                    await Student.findByIdAndUpdate(registration.student._id, {
+                        $addToSet: { registrations: registration._id },
+                        $set: { cart: [] }
+                    });
+
+                    // Send confirmation email
+                    await sendConfirmationEmail(
+                        registration.student.email,
+                        registration.qrCode.dataUrl,
+                        {
+                            name: registration.student.name,
+                            combo: registration.paymentDetails.merchantParams || {},
+                            amount: registration.amount,
+                            transactionId: orderId
+                        }
+                    );
+
+                    redirectUrl = `${process.env.FRONTEND_URL}/payment/success?order_id=${orderId}`;
+                } catch (error) {
+                    console.error('Post-payment processing error:', error);
+                    redirectUrl = `${process.env.FRONTEND_URL}/payment/success?order_id=${orderId}&email_error=true`;
+                }
+                break;
+
+            case "PENDING":
+            case "PENDING_VBV":
+                redirectUrl = `${process.env.FRONTEND_URL}/payment/pending?order_id=${orderId}`;
+                break;
+
+            default:
+                redirectUrl = `${process.env.FRONTEND_URL}/payment/failure?order_id=${orderId}`;
+                break;
         }
 
-        // 7. Commit transaction
-        await session.commitTransaction();
-
-        // 8. Send response
-        res.json({
-            success: true,
-            message: 'Payment processed successfully',
-            status: webhookData.status
-        });
+        res.redirect(redirectUrl);
 
     } catch (error) {
-        // Rollback transaction if exists
-        if (session) {
-            await session.abortTransaction();
-        }
-
-        console.error('Webhook processing failed:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    } finally {
-        if (session) {
-            session.endSession();
-        }
+        console.error('Payment response handling failed:', error);
+        res.redirect(`${process.env.FRONTEND_URL}/payment/failure`);
     }
 });
 
-// 4. Check Payment Status
-router.get('/payment/status/:orderId', async (req, res) => {
+
+  // Add this new route to handle payment verification
+// In your payment routes
+router.all('/payment/verify', async (req, res) => {
     try {
-        const statusResponse = await juspay.order.status(req.params.orderId);
-        res.json({
-            success: true,
-            status: statusResponse
-        });
+      // Get parameters from either query or body
+      const orderId = req.query.order_id || req.body.order_id;
+      const status = req.query.status || req.body.status;
+      const signature = req.query.signature || req.body.signature;
+  
+      console.log('Payment verification received:', { orderId, status });
+  
+      if (status === 'CHARGED') {
+        // Get order status from Juspay
+        const statusResponse = await juspay.order.status(orderId);
+        
+        if (statusResponse.status === 'CHARGED') {
+          // Find and update registration
+          const registration = await Registration.findOne({
+            'paymentDetails.orderId': orderId
+          });
+  
+          if (registration) {
+            // Update registration status
+            registration.paymentStatus = 'completed';
+            registration.paymentCompletedAt = new Date();
+            
+            // Update event statuses
+            for (const event of registration.selectedEvents) {
+              event.status = 'confirmed';
+              await Event.findByIdAndUpdate(event.eventId, {
+                $inc: { registrationCount: 1 }
+              });
+            }
+  
+            await registration.save();
+  
+            // Update student record
+            await Student.findByIdAndUpdate(registration.student, {
+              $addToSet: { registrations: registration._id },
+              $set: { cart: [] }
+            });
+          }
+        }
+  
+        // Redirect to success page with parameters
+        res.redirect(`${process.env.FRONTEND_URL}/payment/success?order_id=${orderId}&status=${status}&signature=${signature}`);
+      } else {
+        // Redirect to failure page with error information
+        res.redirect(`${process.env.FRONTEND_URL}/payment/failure?order_id=${orderId}&status=${status}`);
+      }
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
+      console.error('Payment verification error:', error);
+      res.redirect(`${process.env.FRONTEND_URL}/payment/failure`);
     }
+  });
+  
+
+
+// Webhook handler with proper event handling
+router.post('/payment/webhook', express.json(), async (req, res) => {
+  try {
+      console.log('Webhook received:', req.body);
+
+      const event = req.body;
+      let orderId;
+      let status;
+
+      if (event.event_name === 'TXN_CHARGED' || event.event_name === 'ORDER_SUCCEEDED') {
+          orderId = event.content.order?.order_id || event.content.txn?.order_id;
+          status = 'CHARGED';
+
+          const registration = await Registration.findOne({
+              'paymentDetails.orderId': orderId
+          }).populate('student');
+
+          if (registration && !registration.qrCode?.dataUrl) {
+              try {
+                  // Generate QR code
+                  const qrCodeDataUrl = await generateQRCode({
+                      userId: registration.student.kindeId,
+                      selectedEvents: registration.selectedEvents,
+                      selectedWorkshops: registration.selectedWorkshops || []
+                  });
+
+                  // Store QR code data properly
+                  registration.qrCode = {
+                      dataUrl: qrCodeDataUrl,
+                      generatedAt: new Date(),
+                      metadata: {
+                          events: registration.selectedEvents.map(e => e.eventId.toString()),
+                          workshops: (registration.selectedWorkshops || []).map(w => w.workshopId.toString())
+                      }
+                  };
+
+                  registration.paymentStatus = 'completed';
+                  registration.paymentCompletedAt = new Date();
+
+                  // Update event and workshop statuses
+                  for (const event of registration.selectedEvents) {
+                      event.status = 'confirmed';
+                  }
+                  if (registration.selectedWorkshops) {
+                      for (const workshop of registration.selectedWorkshops) {
+                          workshop.status = 'confirmed';
+                      }
+                  }
+
+                  await registration.save();
+
+                  // Send confirmation email if not already sent
+                  if (!registration.emailNotification?.confirmationSent) {
+                      await sendConfirmationEmail(
+                          registration.student.email,
+                          registration.qrCode.dataUrl,
+                          {
+                              name: registration.student.name,
+                              combo: registration.paymentDetails.merchantParams || {},
+                              amount: registration.amount,
+                              transactionId: orderId
+                          }
+                      );
+                  }
+              } catch (error) {
+                  console.error('Webhook QR/Email processing error:', error);
+              }
+          }
+      }
+
+      res.status(200).json({
+          success: true,
+          message: 'Webhook processed successfully'
+      });
+
+  } catch (error) {
+      console.error('Webhook processing error:', error);
+      res.status(200).json({
+          success: false,
+          error: error.message
+      });
+  }
 });
 
-// 5. Verify Payment
+
+// Add payment verification endpoint
+// In your payment routes file
 router.post('/payment/verify', async (req, res) => {
     try {
-        const { orderId, transactionId } = req.body;
-        const statusResponse = await juspay.order.status(orderId);
-
-        if (statusResponse.txn_id !== transactionId) {
-            throw new Error('Transaction ID mismatch');
-        }
-
-        res.json({
-            success: true,
-            verified: statusResponse.status === "CHARGED"
+      const { orderId, status, signature } = req.body;
+  
+      // Get Juspay status
+      const statusResponse = await juspay.order.status(orderId);
+  
+      if (statusResponse.status === 'CHARGED') {
+        // Find registration
+        const registration = await Registration.findOne({
+          'paymentDetails.orderId': orderId
         });
-
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-// 6. Get Registration Details
-router.get('/payment/registration/:registrationId', async (req, res) => {
-    try {
-        const registration = await Registration.findById(req.params.registrationId)
-            .populate('selectedEvents.eventId')
-            .populate('student', 'name email mobileNumber');
-
-        if (!registration) {
-            return res.status(404).json({
-                success: false,
-                error: 'Registration not found'
+  
+        if (registration) {
+          // Update registration status
+          registration.paymentStatus = 'completed';
+          registration.paymentCompletedAt = new Date();
+          
+          // Update event statuses
+          for (const event of registration.selectedEvents) {
+            event.status = 'confirmed';
+            await Event.findByIdAndUpdate(event.eventId, {
+              $inc: { registrationCount: 1 }
             });
+          }
+  
+          await registration.save();
+  
+          // Update student record
+          await Student.findByIdAndUpdate(registration.student, {
+            $addToSet: { registrations: registration._id },
+            $set: { cart: [] }
+          });
         }
-
+  
         res.json({
-            success: true,
-            registration
+          success: true,
+          message: 'Payment verified successfully'
         });
-
+      } else {
+        throw new Error('Payment not successful');
+      }
+  
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
+      console.error('Payment verification failed:', error);
+      res.status(400).json({
+        success: false,
+        error: error.message
+      });
     }
-});
+  });
+  
 
-// 7. Cancel Payment
-router.post('/payment/cancel/:orderId', async (req, res) => {
+
+  router.get('/payment/status/:orderId', async (req, res) => {
     try {
-        const statusResponse = await juspay.order.status(req.params.orderId);
-        
-        if (statusResponse.status === "PENDING" || statusResponse.status === "PENDING_VBV") {
-            // Cancel Juspay order if possible
-            // Note: Add your cancellation logic here based on HDFC's documentation
-
-            // Update registrations
-            const registrationIds = statusResponse.merchant_params.registration_ids.split('_');
-            await Registration.updateMany(
-                { _id: { $in: registrationIds } },
-                { 
-                    paymentStatus: 'cancelled',
-                    updatedAt: new Date()
-                }
-            );
-        }
-
-        res.json({
-            success: true,
-            message: 'Payment cancelled successfully'
-        });
-
+      const { orderId } = req.params;
+  
+      const registration = await Registration.findOne({
+        'paymentDetails.orderId': orderId
+      });
+  
+      if (!registration) {
+        throw new Error('Registration not found');
+      }
+  
+      res.json({
+        success: true,
+        status: registration.paymentStatus,
+        registrationId: registration._id
+      });
+  
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
+      console.error('Payment status check failed:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
     }
-});
+  });
 
 export default router;

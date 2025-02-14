@@ -1,63 +1,51 @@
-import React, { useState } from 'react';
-import {
-  User,
-  Mail,
-  Calendar,
-  Shield,
-  Globe,
-  Clock,
-  Users,
-  Bookmark,
-  Trophy,
-  Ticket,
-  Award,
-  BookCheck,
-  QrCode,
-  School
-} from 'lucide-react';
+import React, { useState, useEffect } from 'react';
 import { useKindeAuth } from '@kinde-oss/kinde-auth-react';
-
-const PaymentBadge = ({ payment }) => {
-  const getBadgeStyle = (status) => {
-    const styles = {
-      paid: 'bg-green-500/20 text-green-400',
-      unpaid: 'bg-red-500/20 text-red-400',
-      pending: 'bg-yellow-500/20 text-yellow-400'
-    };
-    return styles[status] || styles.pending;
-  };
-
-  return (
-    <div className={`px-3 py-1 rounded-full text-xs flex items-center ${getBadgeStyle(payment.status)}`}>
-      <span className="mr-1">•</span>
-      {payment.status === 'paid' ? 
-        `Paid on ${new Date(payment.paidOn).toLocaleDateString()}` : 
-        payment.status.charAt(0).toUpperCase() + payment.status.slice(1)
-      }
-    </div>
-  );
-};
+import { useLocation } from 'react-router-dom';
+import { useApi } from '../config/useApi';
+import { toast } from 'react-hot-toast';
+import {
+  User, Mail, Calendar, Shield, Globe, Clock, Users,
+  Bookmark, Trophy, Ticket, Award, BookCheck, QrCode, School
+} from 'lucide-react';
 
 const EventCard = ({ event }) => {
+  if (!event) return null;
+
+  // Format status text
+  const getStatusText = (status) => {
+    if (!status) return 'Pending';
+    return status.charAt(0).toUpperCase() + status.slice(1);
+  };
+
+  // Get status style
+  const getStatusStyle = (status) => {
+    switch (status?.toLowerCase()) {
+      case 'confirmed':
+        return 'bg-green-500/20 text-green-400';
+      case 'pending':
+        return 'bg-yellow-500/20 text-yellow-400';
+      case 'completed':
+        return 'bg-blue-500/20 text-blue-400';
+      default:
+        return 'bg-slate-500/20 text-slate-400';
+    }
+  };
+
   return (
     <div className="bg-slate-700/50 rounded-lg p-4 hover:bg-slate-700/70 transition-colors">
       <div className="flex justify-between items-start mb-2">
         <div>
-          <h3 className="text-white font-medium">{event.title}</h3>
+          <h3 className="text-white font-medium">
+            {event.eventName || event.workshopName || 'Untitled Event'}
+          </h3>
           <p className="text-sky-400 text-sm">
-            {event.type}
+            {event.type || 'Event'}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <span className={`px-2 py-1 rounded-full text-xs ${
-            event.status === 'confirmed' ? 'bg-green-500/20 text-green-400' :
-            event.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' :
-            event.status === 'completed' ? 'bg-blue-500/20 text-blue-400' :
-            'bg-slate-500/20 text-slate-400'
-          }`}>
-            {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
+          <span className={`px-2 py-1 rounded-full text-xs ${getStatusStyle(event.status)}`}>
+            {getStatusText(event.status)}
           </span>
-          {event.payment && <PaymentBadge payment={event.payment} />}
         </div>
       </div>
       
@@ -66,54 +54,37 @@ const EventCard = ({ event }) => {
       )}
 
       <div className="space-y-2">
-        <div className="flex items-center text-gray-400 text-sm">
-          <Calendar className="w-4 h-4 mr-2" />
-          {new Date(event.date).toLocaleDateString('en-US', {
-            day: 'numeric',
-            month: 'short',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-          })}
-        </div>
-        <div className="flex items-center text-gray-400 text-sm">
-          <Globe className="w-4 h-4 mr-2" />
-          {event.location}
-        </div>
+        {(event.eventDate || event.workshopDate) && (
+          <div className="flex items-center text-gray-400 text-sm">
+            <Calendar className="w-4 h-4 mr-2" />
+            {new Date(event.eventDate || event.workshopDate).toLocaleDateString('en-US', {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            })}
+          </div>
+        )}
+
+        {event.venue && (
+          <div className="flex items-center text-gray-400 text-sm">
+            <Globe className="w-4 h-4 mr-2" />
+            {event.venue}
+          </div>
+        )}
+
         {event.instructor && (
           <div className="flex items-center text-gray-400 text-sm">
             <User className="w-4 h-4 mr-2" />
             Instructor: {event.instructor}
           </div>
         )}
-        {event.coordinator && (
-          <div className="flex items-center text-gray-400 text-sm">
-            <User className="w-4 h-4 mr-2" />
-            Coordinator: {event.coordinator}
-          </div>
-        )}
+
         {event.duration && (
           <div className="flex items-center text-gray-400 text-sm">
             <Clock className="w-4 h-4 mr-2" />
             Duration: {event.duration}
-          </div>
-        )}
-        {event.payment?.teamSize && (
-          <div className="flex items-center text-gray-400 text-sm">
-            <Users className="w-4 h-4 mr-2" />
-            Team Size: {event.payment.teamSize}
-          </div>
-        )}
-        {event.result && (
-          <div className="flex items-center text-emerald-400 text-sm font-medium">
-            <Trophy className="w-4 h-4 mr-2" />
-            {event.result} {event.prize && `- ${event.prize}`}
-          </div>
-        )}
-        {event.certificate && (
-          <div className="flex items-center text-sky-400 text-sm">
-            <Award className="w-4 h-4 mr-2" />
-            Certificate Available
           </div>
         )}
       </div>
@@ -122,11 +93,11 @@ const EventCard = ({ event }) => {
         <div className="mt-3 pt-3 border-t border-slate-600/30">
           <div className="flex justify-between items-center">
             <span className="text-gray-400 text-sm">Registration Fee:</span>
-            <span className="text-white font-medium">₹{event.payment.amount}</span>
+            <span className="text-white font-medium">₹{event.payment.amount || 0}</span>
           </div>
-          {event.payment.method && (
+          {event.payment.paidOn && (
             <div className="text-xs text-gray-400 mt-1">
-              Payment Method: {event.payment.method.toUpperCase()}
+              Paid on: {new Date(event.payment.paidOn).toLocaleDateString()}
             </div>
           )}
         </div>
@@ -137,212 +108,59 @@ const EventCard = ({ event }) => {
 
 
 const UserProfile = () => {
-  const { isLoading, isAuthenticated, user } = useKindeAuth();
+  const { isLoading: authLoading, isAuthenticated, user } = useKindeAuth();
   const [activeTab, setActiveTab] = useState('upcoming');
+  const [isLoading, setIsLoading] = useState(true);
+  const [registrationData, setRegistrationData] = useState(null);
+  const [error, setError] = useState(null);
+  const location = useLocation();
+  const api = useApi();
 
- // Sample data for TechniVerse user profile
-const sampleRegistrations = {
-  upcoming: [
-    {
-      id: 1,
-      type: 'Technical',
-      title: 'Code Quest 2025',
-      date: '2025-02-15T10:00:00',
-      location: 'CSE Lab Complex',
-      status: 'confirmed',
-      payment: {
-        amount: 300,
-        status: 'paid',
-        method: 'upi',
-        teamSize: '2-3 members',
-        paidOn: '2025-01-20'
-      },
-      description: 'Competitive programming challenge with multiple rounds',
-      coordinator: 'Dr. Sarah Johnson'
-    },
-    {
-      id: 2,
-      type: 'workshop',
-      title: 'AI/ML with Python',
-      date: '2025-02-18T09:00:00',
-      location: 'Tech Hub - Room 201',
-      status: 'confirmed',
-      payment: {
-        amount: 500,
-        status: 'paid',
-        method: 'card',
-        paidOn: '2025-01-22'
-      },
-      instructor: 'Prof. Alex Kumar',
-      duration: '6 hours',
-      description: 'Hands-on workshop on machine learning fundamentals'
-    },
-    {
-      id: 3,
-      type: 'Cultural',
-      title: 'Tech Beats',
-      date: '2025-02-20T17:00:00',
-      location: 'Main Auditorium',
-      status: 'pending',
-      payment: {
-        amount: 400,
-        status: 'pending',
-        teamSize: '4-6 members'
-      },
-      description: 'Music competition with a tech twist'
-    }
-  ],
-  past: [
-    {
-      id: 4,
-      type: 'Technical',
-      title: 'Hack Horizon',
-      date: '2024-12-15T09:00:00',
-      location: 'Innovation Center',
-      status: 'completed',
-      payment: {
-        amount: 600,
-        status: 'paid',
-        method: 'upi',
-        teamSize: '3-4 members',
-        paidOn: '2024-12-01'
-      },
-      result: 'Second Place',
-      prize: '₹5000'
-    },
-    {
-      id: 5,
-      type: 'workshop',
-      title: 'Web3 Development',
-      date: '2024-12-20T14:00:00',
-      location: 'Virtual',
-      status: 'completed',
-      payment: {
-        amount: 450,
-        status: 'paid',
-        method: 'card',
-        paidOn: '2024-12-10'
-      },
-      instructor: 'Rahul Sharma',
-      duration: '4 hours',
-      certificate: true
-    }
-  ]
-};
+  // Extract orderId from URL if present
+  const searchParams = new URLSearchParams(location.search);
+  const orderId = searchParams.get('order_id');
 
-const userDetails = {
-  // Personal & College Info
-  collegeId: "20CS235",
-  branch: "Computer Science",
-  collegeName: "Government Engineering College",
-  semester: 6,
-  
-  // Tech Fest Details
-  techPassId: "TV2025-CS235",
-  passType: "Premium",
-  registeredOn: "2025-01-10",
-  
-  // Registration Stats
-  eventsRegistered: 3,
-  workshopsRegistered: 2,
-  eventsCompleted: 2,
-  certificatesEarned: 1,
-  
-  // Achievements
-  loyaltyPoints: 750,
-  achievements: [
-    {
-      title: "Second Place",
-      event: "Hack Horizon",
-      date: "2024-12-15",
-      points: 300
-    },
-    {
-      title: "Early Bird Registration",
-      event: "Tech Pass Purchase",
-      date: "2025-01-10",
-      points: 150
-    }
-  ],
-  
-  // Payment History
-  totalSpent: 2250,
-  paymentHistory: [
-    {
-      id: "PAY001",
-      event: "Code Quest 2025",
-      amount: 300,
-      date: "2025-01-20",
-      method: "UPI"
-    },
-    {
-      id: "PAY002",
-      event: "AI/ML Workshop",
-      amount: 500,
-      date: "2025-01-22",
-      method: "Card"
-    }
-  ],
-  
-  // Preferences
-  notifications: {
-    email: true,
-    whatsapp: true,
-    updates: true
-  },
-  
-  // Team Info
-  teams: [
-    {
-      eventId: 1,
-      eventName: "Code Quest 2025",
-      teamName: "Byte Busters",
-      members: ["John Doe", "Jane Smith", "Alex Johnson"],
-      role: "Team Leader"
-    },
-    {
-      eventId: 3,
-      eventName: "Tech Beats",
-      teamName: "Digital Harmony",
-      members: ["John Doe", "Sarah Wilson", "Mike Brown", "Lisa Anderson"],
-      role: "Member"
-    }
-  ]
-};
+  // Fetch registration data
+  useEffect(() => {
+    const fetchRegistrationData = async () => {
+      if (!api?.isAuthenticated || !api?.user?.id) {
+        setIsLoading(false);
+        return;
+      }
 
-// Sample QR Code Data
-const techPassQR = {
-  id: "TV2025-CS235",
-  validFrom: "2025-01-10",
-  validUntil: "2025-02-25",
-  access: ["All Events", "Premium Workshops", "Food Court Discount"],
-  scanCount: 12,
-  lastScanned: "2025-02-01T15:30:00"
-};
+      try {
+        setIsLoading(true);
+        setError(null);
+        let response;
 
-// Workshop Certificates
-const certificates = [
-  {
-    id: "CERT001",
-    title: "Web3 Development",
-    issueDate: "2024-12-21",
-    instructor: "Rahul Sharma",
-    duration: "4 hours",
-    downloadUrl: "/certificates/web3-dev.pdf"
-  }
-];
+        if (orderId) {
+          console.log('Fetching registration by order ID:', orderId);
+          response = await api.getRegistrationByOrderId(orderId);
+        } else {
+          console.log('Fetching latest registration for user:', api.user.id);
+          response = await api.getLatestRegistration(api.user.id);
+        }
 
-  const TabButton = ({ label, value, active, onClick }) => (
-    <button
-      onClick={() => onClick(value)}
-      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200
-        ${active ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-slate-700/50'}`}
-    >
-      {label}
-    </button>
-  );
+        console.log('Registration response:', response);
 
-  if (isLoading) {
+        if (response?.success) {
+          setRegistrationData(response.registration);
+        } else {
+          throw new Error(response?.error || 'Failed to load registration');
+        }
+      } catch (error) {
+        console.error('Failed to fetch registration:', error);
+        setError(error.message);
+        toast.error(error.message || 'Error loading registration details');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchRegistrationData();
+  }, [api?.isAuthenticated, api?.user?.id, orderId]);
+
+  if (isLoading || api?.isLoading) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="w-12 h-12 border-4 border-indigo-500 rounded-full animate-spin border-t-transparent"></div>
@@ -350,11 +168,85 @@ const certificates = [
     );
   }
 
+  if (!api?.isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-white text-xl mb-4">Please log in to view your profile</h2>
+          <button
+            onClick={() => api?.login?.()}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+          >
+            Log In
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+
+  // Loading state
+  if (authLoading || isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-indigo-500 rounded-full animate-spin border-t-transparent"></div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-slate-900 pt-24 pb-12 px-4 text-center">
+        <div className="text-red-400 mb-4">Error: {error}</div>
+        <button 
+          onClick={() => window.location.reload()}
+          className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  const getUpcomingEvents = () => {
+    if (!registrationData) return [];
+    const now = new Date();
+    return [
+      ...(registrationData.selectedEvents || []).map(event => ({
+        id: event.eventId,
+        type: 'Event',
+        title: event.eventName,
+        status: event.status,
+        payment: {
+          amount: registrationData.amount,
+          status: registrationData.paymentStatus,
+          paidOn: registrationData.paymentCompletedAt
+        }
+      })),
+      ...(registrationData.selectedWorkshops || []).map(workshop => ({
+        id: workshop.workshopId,
+        type: 'Workshop',
+        title: workshop.workshopName,
+        status: workshop.status,
+        payment: {
+          amount: registrationData.amount,
+          status: registrationData.paymentStatus,
+          paidOn: registrationData.paymentCompletedAt
+        }
+      }))
+    ].filter(item => new Date(item.date) > now);
+  };
+
   return (
     <div className="min-h-screen bg-slate-900 pt-24 pb-12 px-4">
       <div className="max-w-6xl mx-auto">
         {/* Profile Header */}
         <div className="relative mb-24">
+          <div className="h-48 bg-gradient-to-r from-indigo-600 via-purple-600 to-sky-600 rounded-2xl"></div>
+          
+          {/* User Info */}
+          <div className="absolute bottom-16 left-8 flex items-end">
           <div className="h-48 bg-gradient-to-r from-indigo-600 via-purple-600 to-sky-600 rounded-2xl"></div>
           
           <div className="absolute -bottom-16 left-8 flex items-end">
@@ -376,71 +268,62 @@ const certificates = [
               </div>
               <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-green-500 rounded-full border-4 border-slate-900"></div>
             </div>
-            <div className="ml-6 mb-4">
-              <h1 className="text-3xl font-bold text-white">{user?.given_name}</h1>
-              <div className="flex items-center gap-4 mt-2">
-                <p className="text-sky-400 flex items-center">
-                  <Mail className="w-4 h-4 mr-2" />
-                  {user?.email}
-                </p>
-                <p className="text-emerald-400 flex items-center">
-                  <School className="w-4 h-4 mr-2" />
-                  {userDetails.branch}
-                </p>
-              </div>
-            </div>
+                <div className="ml-6 mb-4">
+                  <h1 className="text-3xl font-bold text-white">{user?.given_name}</h1>
+                  <div className="flex items-center gap-4 mt-2">
+                    <p className="text-sky-400 flex items-center">
+                      <Mail className="w-4 h-4 mr-2" />
+                      {user?.email}
+                    </p>
+                   </div>
+                </div>
+          </div>
           </div>
 
-          {/* Quick Stats */}
-          <div className="absolute right-8 -bottom-16 flex gap-4">
-            <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-indigo-500/20 rounded-lg">
-                  <Trophy className="w-6 h-6 text-indigo-400" />
-                </div>
-                <div>
-                  <p className="text-gray-400 text-sm">Loyalty Points</p>
-                  <p className="text-white font-bold text-xl">{userDetails.loyaltyPoints}</p>
-                </div>
-              </div>
-            </div>
-            <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-purple-500/20 rounded-lg">
-                  <Ticket className="w-6 h-6 text-purple-400" />
-                </div>
-                <div>
-                  <p className="text-gray-400 text-sm">Tech Pass ID</p>
-                  <p className="text-white font-bold text-lg">{userDetails.techPassId}</p>
+          {/* Tech Pass QR Code */}
+          {registrationData?.qrCode?.dataUrl && (
+              <div className="absolute right-8 -bottom-16">
+                <div className="bg-white p-2 rounded-lg">
+                  <img 
+                    src={registrationData.qrCode.dataUrl} 
+                    alt="Tech Pass QR" 
+                    className="w-32 h-32"
+                  />
                 </div>
               </div>
-            </div>
-          </div>
+            )}
+
         </div>
 
-        {/* College Info Card */}
+        {/* Registration Details */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          {/* Combo Details */}
           <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
             <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
-              <School className="w-5 h-5" />
-              College Details
+              <Ticket className="w-5 h-5" />
+              Package Details
             </h3>
             <div className="space-y-3">
               <div>
-                <p className="text-gray-400 text-sm">College ID</p>
-                <p className="text-white font-medium">{userDetails.collegeId}</p>
+                <p className="text-gray-400 text-sm">Package Name</p>
+                <p className="text-white font-medium">{registrationData?.combo?.name}</p>
               </div>
               <div>
-                <p className="text-gray-400 text-sm">Institution</p>
-                <p className="text-white font-medium">{userDetails.collegeName}</p>
+                <p className="text-gray-400 text-sm">Amount Paid</p>
+                <p className="text-white font-medium">₹{registrationData?.amount}</p>
               </div>
               <div>
-                <p className="text-gray-400 text-sm">Branch</p>
-                <p className="text-white font-medium">{userDetails.branch}</p>
+                <p className="text-gray-400 text-sm">Payment Status</p>
+                <p className={`font-medium ${
+                  registrationData?.paymentStatus === 'completed' ? 'text-green-400' : 'text-yellow-400'
+                }`}>
+                  {registrationData?.paymentStatus}
+                </p>
               </div>
             </div>
           </div>
 
+          {/* Events & Workshops Count */}
           <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
             <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
               <BookCheck className="w-5 h-5" />
@@ -449,76 +332,106 @@ const certificates = [
             <div className="space-y-3">
               <div>
                 <p className="text-gray-400 text-sm">Events Registered</p>
-                <p className="text-white font-medium">{userDetails.eventsRegistered}</p>
+                <p className="text-white font-medium">{registrationData?.selectedEvents?.length || 0}</p>
               </div>
               <div>
                 <p className="text-gray-400 text-sm">Workshops Registered</p>
-                <p className="text-white font-medium">{userDetails.workshopsRegistered}</p>
-              </div>
-              <div className="pt-2">
-                <button className="text-sm bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 rounded-lg transition-colors">
-                  View All Registrations
-                </button>
+                <p className="text-white font-medium">{registrationData?.selectedWorkshops?.length || 0}</p>
               </div>
             </div>
           </div>
 
+          {/* QR Code Info */}
           <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
-            <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
-              <QrCode className="w-5 h-5" />
-              Tech Pass
-            </h3>
-            <div className="space-y-3">
-              <div>
-                <p className="text-gray-400 text-sm">Pass ID</p>
-                <p className="text-white font-medium">{userDetails.techPassId}</p>
-              </div>
-              <div>
-                <p className="text-gray-400 text-sm">Status</p>
-                <p className="text-emerald-400 font-medium">Active</p>
-              </div>
-              <div className="pt-2">
-                <button className="text-sm bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 rounded-lg transition-colors">
-                  View QR Code
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Events & Workshops Section */}
+                        <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
+                          <QrCode className="w-5 h-5" />
+                          Access Pass
+                        </h3>
+                        <div className="space-y-3">
+                          <div>
+                            <p className="text-gray-400 text-sm">Registration ID</p>
+                            <p className="text-white font-medium">{registrationData?._id}</p>
+                          </div>
+                          <div>
+                            <p className="text-gray-400 text-sm">Registered On</p>
+                            <p className="text-white font-medium">
+                              {new Date(registrationData?.createdAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                          {registrationData?.qrCode?.generatedAt && (
+                            <div>
+                              <p className="text-gray-400 text-sm">QR Code Generated</p>
+                              <p className="text-white font-medium">
+                                {new Date(registrationData.qrCode.generatedAt).toLocaleDateString()}
+                              </p>
+                            </div>
+                          )}
+                          {registrationData?.qrCode?.validUntil && (
+                            <div>
+                              <p className="text-gray-400 text-sm">Valid Until</p>
+                              <p className="text-white font-medium">
+                                {new Date(registrationData.qrCode.validUntil).toLocaleDateString()}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                 </div>
+        {/* Events & Workshops List */}
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/50">
-          <div className="p-6 border-b border-slate-700/50">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-white">Your Registrations</h2>
-              <div className="flex gap-2">
-                <TabButton 
-                  label="Upcoming" 
-                  value="upcoming" 
-                  active={activeTab === 'upcoming'} 
-                  onClick={setActiveTab} 
-                />
-                <TabButton 
-                  label="Past" 
-                  value="past" 
-                  active={activeTab === 'past'} 
-                  onClick={setActiveTab} 
-                />
-              </div>
-            </div>
-          </div>
-          
-          <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {sampleRegistrations[activeTab].map(event => (
-                <EventCard key={event.id} event={event} />
-              ))}
-            </div>
-          </div>
+  <div className="p-6">
+    <h2 className="text-xl text-white font-semibold mb-4">Your Registrations</h2>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {registrationData?.selectedEvents?.map((event) => (
+        <EventCard
+          key={event.eventId}
+          event={{
+            type: 'Event',
+            eventName: event.eventName,
+            status: event.status,
+            description: event.description,
+            venue: event.venue,
+            eventDate: event.eventDate,
+            payment: registrationData ? {
+              amount: registrationData.amount,
+              status: registrationData.paymentStatus,
+              paidOn: registrationData.paymentCompletedAt
+            } : null
+          }}
+        />
+      ))}
+      
+      {registrationData?.selectedWorkshops?.map((workshop) => (
+        <EventCard
+          key={workshop.workshopId}
+          event={{
+            type: 'Workshop',
+            eventName: workshop.workshopName,
+            status: workshop.status,
+            description: workshop.description,
+            venue: workshop.venue,
+            eventDate: workshop.workshopDate,
+            instructor: workshop.instructor,
+            payment: registrationData ? {
+              amount: registrationData.amount,
+              status: registrationData.paymentStatus,
+              paidOn: registrationData.paymentCompletedAt
+            } : null
+          }}
+        />
+      ))}
+      
+      {(!registrationData?.selectedEvents?.length && !registrationData?.selectedWorkshops?.length) && (
+        <div className="col-span-2 text-center py-8">
+          <p className="text-gray-400">No registrations found</p>
         </div>
+      )}
+    </div>
+  </div>
+</div>
+
       </div>
     </div>
   );
 };
-
 export default UserProfile;

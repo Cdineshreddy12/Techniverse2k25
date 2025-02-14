@@ -1,16 +1,15 @@
-# Use the official Node.js 20 Alpine image for a lightweight container
+# Use the official Node.js 20 Alpine image
 FROM node:20-alpine
 
 # Set working directory inside the container
 WORKDIR /app
 
-# Copy only package.json and package-lock.json. first (improves build caching)
+# Copy package.json and package-lock.json first (improves caching)
 COPY package*.json ./
 
-# Install dependencies
+# Install dependencies using npm ci for a reliable install
 RUN npm config set registry https://registry.npmjs.org/ && \
-    npm install --legacy-peer-deps && \
-    npm install expresscheckout-nodejs --legacy-peer-deps
+    npm ci --legacy-peer-deps
 
 # Copy the rest of the application files
 COPY . .

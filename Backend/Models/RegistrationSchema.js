@@ -12,8 +12,8 @@ const registrationSchema = new mongoose.Schema({
         type: String,
         required: true
     },
-
-    // Event Details
+    
+    // Selected Items
     selectedEvents: [{
         eventId: {
             type: mongoose.Schema.Types.ObjectId,
@@ -37,6 +37,53 @@ const registrationSchema = new mongoose.Schema({
         }
     }],
 
+    selectedWorkshops: [{
+        workshopId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Workshop',
+            required: true
+        },
+        workshopName: String,
+        status: {
+            type: String,
+            enum: ['pending', 'confirmed', 'cancelled'],
+            default: 'pending'
+        }
+    }],
+
+    // Combo Package Information
+    combo: {
+        id: String,
+        name: String,
+        price: Number,
+        description: String
+    },
+
+    // QR Code and Validation
+    qrCode: {
+        dataUrl: { type: String }, // Store the actual QR code data URL
+        generatedAt: { type: Date },
+        validUntil: { type: Date },
+        metadata: {
+            events: [String],
+            workshops: [String]
+        }
+    },
+    // Email Notification Status
+    emailNotification: {
+        confirmationSent: {
+            type: Boolean,
+            default: false
+        },
+        sentAt: Date,
+        attempts: {
+            type: Number,
+            default: 0
+        },
+        lastAttempt: Date,
+        error: String
+    },
+
     // Payment Information
     amount: {
         type: Number,
@@ -48,12 +95,12 @@ const registrationSchema = new mongoose.Schema({
         default: 'pending'
     },
     paymentDetails: {
-        orderId: String,  // Juspay order_id
-        juspayId: String, // Juspay's internal id (like ordeh_...)
+        orderId: String,
+        juspayId: String,
         transactionId: String,
         paymentMethod: String,
         bankReferenceNumber: String,
-        status: String,  // Raw status from Juspay
+        status: String,
         statusMessage: String,
         paymentLinks: {
             web: String,
@@ -93,68 +140,109 @@ registrationSchema.pre('save', function(next) {
     next();
 });
 
-// Method to update payment status
-registrationSchema.methods.updatePaymentStatus = async function(juspayResponse) {
-    const {
-        status,
-        id: juspayId,
-        order_id: orderId,
-        payment_links,
-        sdk_payload
-    } = juspayResponse;
-
-    this.paymentDetails = {
-        orderId,
-        juspayId,
-        status,
-        paymentLinks: {
-            web: payment_links?.web,
-            expiry: payment_links?.expiry
-        },
-        sdkPayload: {
-            requestId: sdk_payload?.requestId,
-            clientAuthToken: sdk_payload?.payload?.clientAuthToken,
-            clientId: sdk_payload?.payload?.clientId
-        }
-    };
-
-    if (status === 'CHARGED') {
+// Generate QR code and send email on successful payment
+registrationSchema.methods.handleSuccessfulPayment = async function(juspayResponse) {
+    try {
+        // Update payment status
         this.paymentStatus = 'completed';
         this.paymentCompletedAt = new Date();
-        
-        // Update event statuses
+        this.paymentDetails = {
+            ...this.paymentDetails,
+            status: juspayResponse.status,
+            juspayId: juspayResponse.id,
+            orderId: juspayResponse.order_id,
+            transactionId: juspayResponse.txn_id
+        };
+
+        // Update event and workshop statuses
         this.selectedEvents.forEach(event => {
             event.status = 'confirmed';
         });
-    } else if (['PENDING', 'PENDING_VBV'].includes(status)) {
+        this.selectedWorkshops.forEach(workshop => {
+            workshop.status = 'confirmed';
+        });
+
+        // Generate QR code
+        const qrData = await generateQRCode({
+            userId: this.kindeId,
+            selectedEvents: this.selectedEvents,
+            selectedWorkshops: this.selectedWorkshops
+        });
+
+        this.qrCode = {
+            dataUrl: qrData,
+            generatedAt: new Date(),
+            signature: qrData.signature,
+            validUntil: new Date(Date.now() + (365 * 24 * 60 * 60 * 1000)) // Valid for 1 year
+        };
+
+        // Send confirmation email
+        await this.sendConfirmationEmail();
+
+        await this.save();
+        return true;
+    } catch (error) {
+        console.error('Payment completion handling failed:', error);
+        throw error;
+    }
+};
+
+// Send confirmation email with QR code
+registrationSchema.methods.sendConfirmationEmail = async function() {
+    try {
+        const student = await mongoose.model('Student').findById(this.student);
+        if (!student) throw new Error('Student not found');
+
+        // Send email using the imported sendConfirmationEmail function
+        await sendConfirmationEmail(
+            student.email,
+            this.qrCode.dataUrl,
+            {
+                name: student.name,
+                combo: this.combo,
+                amount: this.amount,
+                transactionId: this.paymentDetails.transactionId
+            }
+        );
+
+        // Update email notification status
+        this.emailNotification = {
+            confirmationSent: true,
+            sentAt: new Date(),
+            attempts: this.emailNotification.attempts + 1,
+            lastAttempt: new Date()
+        };
+
+        await this.save();
+        return true;
+    } catch (error) {
+        this.emailNotification.error = error.message;
+        this.emailNotification.lastAttempt = new Date();
+        this.emailNotification.attempts += 1;
+        await this.save();
+        throw error;
+    }
+};
+
+// Method to update payment status
+registrationSchema.methods.updatePaymentStatus = async function(juspayResponse) {
+    if (juspayResponse.status === 'CHARGED') {
+        return this.handleSuccessfulPayment(juspayResponse);
+    }
+
+    // Handle other payment statuses
+    this.paymentDetails = {
+        ...this.paymentDetails,
+        status: juspayResponse.status,
+        juspayId: juspayResponse.id,
+        orderId: juspayResponse.order_id
+    };
+
+    if (['PENDING', 'PENDING_VBV'].includes(juspayResponse.status)) {
         this.paymentStatus = 'pending';
     } else {
         this.paymentStatus = 'failed';
     }
-
-    await this.save();
-};
-
-// Method to handle webhook updates
-registrationSchema.methods.handleWebhook = async function(webhookData) {
-    const {
-        status,
-        txn_id,
-        payment_method,
-        bank_reference,
-        response_code,
-        response_message
-    } = webhookData;
-
-    this.paymentDetails = {
-        ...this.paymentDetails,
-        transactionId: txn_id,
-        paymentMethod: payment_method,
-        bankReferenceNumber: bank_reference,
-        responseCode: response_code,
-        responseMessage: response_message,
-        status
-    };
 
     await this.save();
 };

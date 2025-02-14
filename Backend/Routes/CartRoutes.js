@@ -156,6 +156,68 @@ router.post('/cart/add', async (req, res) => {
   }
 });
 
+
+router.delete('/cart/workshop/:kindeId/:itemId', async (req, res) => {
+  try {
+    const { kindeId, itemId } = req.params;
+
+    const student = await Student.findOneAndUpdate(
+      { kindeId },
+      { 
+        $pull: { 
+          workshops: { workshopId: itemId }
+        } 
+      },
+      { new: true }
+    )
+    .populate('cart.eventId')
+    .populate('workshops.workshopId');
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        error: 'Profile not found'
+      });
+    }
+
+    // Transform the response to match the expected format
+    const transformedEvents = student.cart.map(cartItem => ({
+      id: cartItem.eventId._id,
+      type: 'event',
+      fee: cartItem.price || cartItem.eventId.registrationFee,
+      eventInfo: {
+        id: cartItem.eventId._id,
+        title: cartItem.eventId.title,
+        description: cartItem.eventId.description,
+        department: cartItem.eventId.departments[0]
+      }
+    })).filter(Boolean);
+
+    const transformedWorkshops = student.workshops.map(workshopItem => ({
+      id: workshopItem.workshopId._id,
+      type: 'workshop',
+      title: workshopItem.workshopId.title,
+      price: workshopItem.price || workshopItem.workshopId.price,
+      departments: workshopItem.workshopId.departments
+    })).filter(Boolean);
+
+    res.json({ 
+      success: true,
+      cart: {
+        events: transformedEvents,
+        workshops: transformedWorkshops,
+        activeCombo: student.activeCombo
+      }
+    });
+  } catch (error) {
+    console.error('Remove workshop error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: error.message 
+    });
+  }
+});
+
 // Add workshop to cart
 router.post('/cart/workshop/add', async (req, res) => {
   const { kindeId, item } = req.body;

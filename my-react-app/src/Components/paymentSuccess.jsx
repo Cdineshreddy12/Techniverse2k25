@@ -27,8 +27,8 @@ const PaymentSuccess = () => {
           dispatch(clearCart());
           toast.success('Payment successful!');
           setTimeout(() => {
-            navigate('/dashboard/registrations');
-          }, 2000);
+            navigate('/profile');
+          }, 3000);
         } else {
           throw new Error('Payment verification failed');
         }
@@ -69,7 +69,7 @@ const PaymentSuccess = () => {
           Your registration has been confirmed. You will be redirected to your registrations.
         </p>
         <button
-          onClick={() => navigate('/dashboard/registrations')}
+          onClick={() => navigate('/profile')}
           className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 transition-colors"
         >
           View Registrations

@@ -12,13 +12,15 @@ export const useApi = () => {
       return null;
     }
 
-    // Create API client with auth object
-    const client = createApiClient(auth);
+    const apiClient = createApiClient(auth);
 
     return {
-      ...client,
+      ...apiClient,
       isAuthenticated: auth.isAuthenticated,
-      hasValidToken: Boolean(auth.getToken)
+      isLoading: auth.isLoading,
+      user: auth.user,
+      login: auth.login,
+      logout: auth.logout
     };
   }, [auth]);
 };

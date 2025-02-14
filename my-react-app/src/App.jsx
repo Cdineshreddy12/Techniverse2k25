@@ -78,7 +78,7 @@ const MainContent = React.memo(() => (
         <Suspense fallback={<LoadingSpinner />}>
           <TechniverseHome />
           <AboutPage />
-          <SponsorScroll />
+          {/* <SponsorScroll /> */}
           <Footer />
         </Suspense>
       </div>

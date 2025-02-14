@@ -1,5 +1,30 @@
 import mongoose from 'mongoose';
 
+
+const lecturerSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true
+  },
+  title: {
+    type: String,
+    required: true
+  },
+  photo: {
+    type: String,  // Changed from Object to String to store URL directly
+    required: false
+  },
+  specifications: [String],
+  role: {
+    type: String,
+    required: true
+  },
+  order: {
+    type: Number,
+    default: 0
+  }
+});
+
 const workshopSchema = new mongoose.Schema({
   title: {
     type: String,
@@ -67,18 +92,7 @@ const workshopSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
-  lecturer: {
-    name: {
-      type: String,
-      required: true
-    },
-    title: {
-      type: String,
-      required: true
-    },
-    photo: String,
-    specifications: [String]
-  },
+  lecturers: [lecturerSchema],
   schedule: [{
     id: {
       type: String,
