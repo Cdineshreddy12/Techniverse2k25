@@ -1,4 +1,4 @@
-const BASE_URL = import.meta.env.VITE_APP_BACKEND_URL || window.location.origin;
+const BASE_URL = (import.meta.env.VITE_APP_BACKEND_URL || window.location.origin) + '/api';
 
 export const createApiClient = (auth) => {
   const getAuthToken = async () => {
