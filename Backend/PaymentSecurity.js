@@ -44,7 +44,7 @@ class PaymentSecurityService {
       // Amount validation
       {
         check: () => this.validateAmount(webhookData.amount, registration.amount),
-        message: 'Amount mismatch detected'
+        message: 'Amount mismatch detected..'
       },
       // Order ID validation
       {
