@@ -75,5 +75,5 @@ jobs:
       run: |
         sleep 30
         # Use HTTPS for verification
-        curl -I https://techniverse25.rguktsklm.ac.in || echo "Frontend not responding"
+        curl -I https://techniverse25.rguktsklm.ac.in || echo "Frontend not responding.."
         curl -I https://techniverse25.rguktsklm.ac.in/api || echo "Backend not responding"
