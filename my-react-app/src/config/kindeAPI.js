@@ -11,7 +11,7 @@ export const createApiClient = (auth) => {
       const token = await auth.getToken();
       return token;
     } catch (error) {
-      console.error('Token retrieval error:', error);
+      console.error('Token retrieval error..:', error);
       return null;
     }
   };
