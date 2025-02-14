@@ -1,4 +1,4 @@
-const BASE_URL = import.meta.env.VITE_APP_API_BASE_URL || 'https://www.techniverse25.rguktsklm.ac.in';
+const BASE_URL = import.meta.env.VITE_APP_BACKEND_URL || window.location.origin;
 
 export const createApiClient = (auth) => {
   const getAuthToken = async () => {
