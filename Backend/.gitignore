@@ -82,3 +82,7 @@ coverage/
 *.tmp
 *.temp
 .env.*.temp
+# .gitignore
+*.pem
+privateKey.pem
+public.pem
