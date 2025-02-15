@@ -60,6 +60,7 @@ export const createApiClient = (auth) => {
   };
 
   return {
+    makeAuthenticatedRequest,
     // Get user profile
     getUser: async (kindeId) => {
       console.log('Getting user:', kindeId);

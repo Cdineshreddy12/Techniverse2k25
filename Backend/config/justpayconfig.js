@@ -1,37 +1,99 @@
+// config/juspayConfig.js
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 import { Juspay } from 'expresscheckout-nodejs';
 
-// Base URLs
-const SANDBOX_BASE_URL = "https://smartgatewayuat.hdfcbank.com";
-const PRODUCTION_BASE_URL = "https://smartgateway.hdfcbank.com";
+// Get current directory
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
-// Configuration for different environments
-export const juspayConfig = {
-    // Test credentials
-    test: {
-        merchantId: "YOUR_TEST_MERCHANT_ID",
-        paymentPageClientId: "YOUR_TEST_CLIENT_ID",
-        keyId: "YOUR_TEST_KEY_ID"
-    },
-    // Production credentials
-    production: {
+const validateEnvironmentVariables = () => {
+    const requiredVars = [
+        'HDFC_MERCHANT_ID',
+        'HDFC_API_KEY',
+        'HDFC_KEY_UUID',
+        'HDFC_PAYMENT_PAGE_CLIENT_ID'
+    ];
+
+    const missingVars = requiredVars.filter(varName => !process.env[varName]);
+    
+    if (missingVars.length > 0) {
+        throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
+    }
+
+    // Log environment variables for debugging (excluding sensitive values)
+    console.log('Environment variables validated:', {
         merchantId: process.env.HDFC_MERCHANT_ID,
-        paymentPageClientId: process.env.HDFC_PAYMENT_PAGE_CLIENT_ID,
-        keyId: process.env.HDFC_KEY_ID
+        keyUuid: process.env.HDFC_KEY_UUID,
+        hasApiKey: !!process.env.HDFC_API_KEY,
+        environment: process.env.NODE_ENV || 'development'
+    });
+};
+
+const readPEMFile = (filename) => {
+    try {
+        const filePath = path.join(__dirname, '..', filename);
+        const fileContent = fs.readFileSync(filePath, 'utf8');
+        
+        if (!fileContent.includes('-----BEGIN') || !fileContent.includes('-----END')) {
+            throw new Error(`Invalid PEM format in ${filename}`);
+        }
+        
+        console.log(`Successfully read ${filename}. Length: ${fileContent.length}`);
+        return fileContent;
+    } catch (error) {
+        throw new Error(`Error reading ${filename}: ${error.message}`);
     }
 };
 
-// Initialize Juspay instance
 const initializeJuspay = () => {
-    const config = process.env.NODE_ENV === 'production' 
-        ? juspayConfig.production 
-        : juspayConfig.test;
+    try {
+        // Validate environment variables first
+        validateEnvironmentVariables();
 
-    const juspay = new Juspay({
-        merchantId: config.merchantId,
-        baseUrl: process.env.NODE_ENV === 'production' ? PRODUCTION_BASE_URL : SANDBOX_BASE_URL
-    });
+        // Read PEM files with validation
+        const publicKey = readPEMFile('public.pem');
+        const privateKey = readPEMFile('privateKey.pem');
 
-    return juspay;
+        const baseUrl = process.env.NODE_ENV === 'production'
+            ? "https://smartgateway.hdfcbank.com"
+            : "https://smartgatewayuat.hdfcbank.com";
+
+        // Log configuration (excluding sensitive data)
+        console.log('Initializing Juspay with config:', {
+            merchantId: process.env.HDFC_MERCHANT_ID,
+            baseUrl,
+            environment: process.env.NODE_ENV || 'development',
+            keyId: process.env.HDFC_KEY_UUID,
+            publicKeyLength: publicKey.length,
+            privateKeyLength: privateKey.length
+        });
+
+        // Create Juspay instance with proper configuration
+        const juspay = new Juspay({
+            merchantId: process.env.HDFC_MERCHANT_ID,
+            apiKey: process.env.HDFC_API_KEY,
+            baseUrl,
+            jweAuth: {
+                keyId: process.env.HDFC_KEY_UUID,
+                publicKey,
+                privateKey
+            }
+        });
+
+        console.log('Juspay initialized successfully');
+        return juspay;
+
+    } catch (error) {
+        console.error('Juspay initialization error:', {
+            error: error.message,
+            stack: error.stack,
+            timestamp: new Date().toISOString()
+        });
+        throw error;
+    }
 };
 
 export default initializeJuspay;

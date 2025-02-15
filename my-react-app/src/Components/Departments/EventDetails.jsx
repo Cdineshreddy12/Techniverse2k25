@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Trophy, Users, Calendar, Clock,
   Phone, Tag, Check, ArrowLeft, Loader,
-  IndianRupee, CalendarClock, MapPin,ShoppingCart
+  IndianRupee, CalendarClock, MapPin,ShoppingCart,Info,X, ChevronDown, ChevronUp
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useDispatch } from 'react-redux';
@@ -293,10 +293,73 @@ const {user}=useKindeAuth();
     );
   }
 
+
+  const InstructionsBanner = () => {
+    const [isOpen, setIsOpen] = useState(true);
+    const [isExpanded, setIsExpanded] = useState(false);
+  
+    if (!isOpen) return null;
+  
+    return (
+      <div className="bg-indigo-500/10 border-b border-indigo-500/20">
+        <div className="max-w-7xl mx-auto px-4 py-3">
+          <div className="flex items-start gap-3">
+            <Info className="w-5 h-5 text-indigo-400 flex-shrink-0 mt-0.5" />
+            
+            <div className="flex-1">
+              <div className="text-indigo-300 font-medium mb-1">
+                Important Instructions
+              </div>
+              
+              <div className={`text-sm text-indigo-200/90 space-y-1 overflow-hidden transition-all duration-300
+                           ${isExpanded ? 'max-h-48' : 'max-h-6'}`}>
+                <p>1. Read the event details, rules, and requirements carefully.</p>
+                <p>2. The price shown is the worth of the event (not the actual fee).</p>
+                <p>3. Add the event to cart and proceed to select your package.</p>
+                <p>4. Final event fee will be based on your selected package.</p>
+              </div>
+  
+              <button 
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 mt-1"
+              >
+                {isExpanded ? (
+                  <>
+                    <span>Show less</span>
+                    <ChevronUp className="w-4 h-4" />
+                  </>
+                ) : (
+                  <>
+                    <span>Read more</span>
+                    <ChevronDown className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            </div>
+  
+            <button 
+              onClick={() => setIsOpen(false)}
+              className="text-indigo-400 hover:text-indigo-300 p-1"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  
+
   return (
     <div className="min-h-screen bg-slate-900 relative pb-24">
+
+       <div>
+            <InstructionsBanner />
+       </div>
       {/* Hero Section */}
       <div className="h-[40vh] relative">
+
         <img 
           src={event.media.bannerDesktop || "/api/placeholder/1920/1080"} 
           alt={event.eventInfo.title}
@@ -469,10 +532,10 @@ const {user}=useKindeAuth();
               <span className="hidden sm:inline">Back</span>
             </button>
             <div>
-              <p className="text-white font-semibold text-lg">
+              <p className="text-white line-through font-semibold text-lg">
                 ₹{event.registration.fee.toLocaleString()}
               </p>
-              <p className="text-gray-400 text-sm">Registration Fee</p>
+              <p className="text-gray-400  text-sm">Registration Fee</p>
             </div>
           </div>
 

@@ -21,7 +21,7 @@ const packages = [
       {
         id: 'rgukt-workshop',
         name: "Single Workshop",
-        price: 199,
+        price: 1,
         features: [
           "1 Workshop Registration",
           "Workshop Certificate",
@@ -32,7 +32,7 @@ const packages = [
       {
         id: 'rgukt-all-events',
         name: "All Events",
-        price: 199,
+        price: 1,
         features: [
           "Access to All Technical Events",
           "Access to All Non-Technical Events",
@@ -44,7 +44,7 @@ const packages = [
       {
         id: 'rgukt-combo',
         name: "All Events + Workshop",
-        price: 299,
+        price: 2,
         features: [
           "Access to All Technical Events",
           "Access to All Non-Technical Events",
@@ -66,7 +66,7 @@ const packages = [
       {
         id: 'guest-workshop',
         name: "Single Workshop",
-        price: 499,
+        price: 1,
         features: [
           "1 Workshop Registration",
           "Workshop Certificate",
@@ -77,7 +77,7 @@ const packages = [
       {
         id: 'guest-all-events',
         name: "All Events",
-        price: 499,
+        price: 1,
         features: [
           "Access to All Technical Events",
           "Access to All Non-Technical Events",
@@ -89,7 +89,7 @@ const packages = [
       {
         id: 'guest-combo',
         name: "All Events + Workshop",
-        price: 599,
+        price: 2,
         features: [
           "Access to All Technical Events",
           "Access to All Non-Technical Events",
@@ -113,7 +113,6 @@ const CartComponent = () => {
   const [showComboDetails, setShowComboDetails] = useState(false);
   const navigate = useNavigate();
   const dispatch = useDispatch();
-
   // Redux state with safe defaults
   const items = useSelector(state => state.cart.items || []);
   const workshops = useSelector(state => state.cart.workshops || []);
@@ -448,97 +447,170 @@ if (isCartEmpty && !loading) {
 }
 
 
-  const renderCartItem = (item, type = 'event') => {
-    if (!item) return null;
-  
-    const isWorkshop = type === 'workshop';
-    const title = isWorkshop ? item.title : item.eventInfo?.title;
-    const departmentName = isWorkshop ? 
-      item.departments?.[0]?.name : 
-      item.eventInfo?.department?.name;
-    const fee = isWorkshop ? item.price : item.fee;
-    const startTime = isWorkshop ? 
-      item.registration?.startTime : 
-      item.schedule?.startTime;
-      const itemId = isWorkshop ? item.id : item.eventInfo?.id;
-    // Skip rendering if essential data is missing
-    if (!title || !item.id) return null;
-  
-    return (
-      <div
-      key={itemId}
-      onClick={() => navigate(isWorkshop 
-        ? `/workshops/${itemId}`
-        : `/departments/${item.eventInfo?.department?.id}/events/${itemId}`
-      )}
-      className="group bg-slate-800/50 backdrop-blur-sm rounded-lg md:rounded-xl p-2 md:p-4 border border-slate-700 hover:border-purple-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/10 cursor-pointer"
-    >
-        <div className="flex  gap-2 md:gap-2">
-          {/* Image */}
-          <div className="w-20 h-20 md:w-24 md:h-24 flex-shrink-0 rounded-lg overflow-hidden">
-            <img
-              src={item.media?.bannerDesktop || "/api/placeholder/400/300"}
-              alt={title}
-              className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-300"
-            />
+const CartItem = ({ item, type, onRemove }) => {
+  console.log('wprkshop', item);
+  const isWorkshop = type === 'workshop';
+  const title = isWorkshop ? item.title : item.eventInfo?.title;
+  const departmentName = isWorkshop ? 
+    item.departments?.[0]?.name : 
+    item.eventInfo?.department?.name;
+  const fee = isWorkshop ? item.price : item.fee;
+  const startTime = isWorkshop ? item.registration?.startTime : item.schedule?.startTime;
+  const itemId = isWorkshop ? item.id : item.eventInfo?.id;
+
+  return (
+    <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700 hover:border-purple-500/50">
+      <div className="flex gap-3">
+        {/* Image */}
+        <div className="w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 rounded-lg overflow-hidden">
+          <img
+            src={item.media?.bannerDesktop || "/api/placeholder/400/300"}
+            alt={title}
+            className="w-full h-full object-cover"
+          />
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 min-w-0 flex flex-col justify-between">
+          <div>
+            <h3 className="text-sm font-medium text-white line-clamp-1">
+              {title}
+            </h3>
+            {departmentName && (
+              <p className="text-xs text-gray-400 line-clamp-1 mt-0.5">
+                {departmentName}
+              </p>
+            )}
           </div>
-  
-          {/* Content */}
-          <div className="flex-1 min-w-0">
-            <div className="flex justify-between gap-2">
-              <div className="space-y-1">
-                <h3 className="text-sm md:text-base font-semibold truncate group-hover:text-purple-400 transition-colors">
-                  {title}
-                </h3>
-                {departmentName && (
-                  <p className="text-xs md:text-sm text-gray-400 truncate">
-                    {departmentName}
-                  </p>
-                )}
-  
-                {/* Item Details */}
-                <div className="flex flex-col md:flex-row gap-1 md:gap-4 text-xs md:text-sm">
-                  {startTime && (
-                    <div className="flex items-center gap-1 text-gray-300">
-                      <Calendar size={12} className="md:w-4 md:h-4 text-purple-400" />
-                      <span>{new Date(startTime).toLocaleDateString()}</span>
-                    </div>
-                  )}
-                  {!isWorkshop && item.registration?.type && (
-                    <div className="flex items-center gap-1 text-gray-300">
-                      <Users size={12} className="md:w-4 md:h-4 text-purple-400" />
-                      <span>
-                        {item.registration.type === 'team' 
-                          ? `Team (${item.registration.maxTeamSize} max)` 
-                          : 'Individual'}
-                      </span>
-                    </div>
-                  )}
+
+          <div className="flex items-center justify-between mt-2">
+            <div className="text-xs text-gray-400">
+              {startTime && (
+                <div className="flex items-center gap-1">
+                  <Calendar className="w-3 h-3" />
+                  <span>{new Date(startTime).toLocaleDateString()}</span>
                 </div>
-              </div>
-  
-              {/* Price and Actions */}
-              <div className="flex flex-col items-end justify-between">
-                <p className="text-base md:text-lg font-bold bg-gradient-to-r from-purple-400 to-pink-400 text-transparent bg-clip-text">
-                  ₹{fee || 0}
-                </p>
-                <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeItem(itemId, type);
-                    }}
-                    className="p-1 md:p-1.5 text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-lg transition-all duration-300"
-                  >
-                    <Trash2 size={16} className="md:w-5 md:h-5" />
-                  </button>
-              </div>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold line-through text-purple-800">
+                ₹{fee || 0}
+              </span>
+              <button
+                onClick={() => onRemove(itemId, type)}
+                className="p-1 text-red-400 hover:bg-red-400/10 rounded"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
             </div>
           </div>
         </div>
       </div>
-    );
-  };
+    </div>
+  );
+};
+
+
+// Package Selection Component
+const PackageSelector = ({ packages, selectedCombo, onSelect, onClear, hasWorkshop }) => {
+  return (
+    <div className="space-y-4 px-2 pb-32 sm:px-4">
+      {packages.map((combo) => (
+        <div key={combo.id} 
+             className={`p-4 rounded-lg border-2 transition-all ${
+               selectedCombo?.id === combo.id 
+                 ? 'border-purple-500 bg-purple-500/10' 
+                 : 'border-slate-700'
+             }`}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h4 className="text-base font-semibold text-white">{combo.name}</h4>
+              <p className="text-lg font-bold text-purple-400 mt-1">₹{combo.price}</p>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              {selectedCombo?.id === combo.id && (
+                <button
+                  onClick={() => onClear()}
+                  className="px-3 py-1.5 text-sm rounded bg-red-500/20 text-red-400"
+                >
+                  Clear
+                </button>
+              )}
+              <button
+                onClick={() => onSelect(combo)}
+                disabled={combo.name.toLowerCase().includes('workshop') && !hasWorkshop}
+                className={`px-4 py-1.5 text-sm rounded-lg transition-all ${
+                  selectedCombo?.id === combo.id
+                    ? 'bg-purple-500 text-white'
+                    : combo.name.toLowerCase().includes('workshop') && !hasWorkshop
+                      ? 'bg-slate-600 text-gray-400 cursor-not-allowed'
+                      : 'bg-slate-700 hover:bg-purple-500/50'
+                }`}
+              >
+                {selectedCombo?.id === combo.id ? 'Selected' : 'Select'}
+              </button>
+            </div>
+          </div>
+
+          {/* Features */}
+          <div className="mt-3 text-xs text-gray-400">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {combo.features.map((feature, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <CheckCircle className="w-3 h-3 text-purple-400" />
+                  <span>{feature}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
   
+const BottomNav = ({ selectedCombo, onPayment }) => {
+  return (
+    <div className="fixed bottom-0 inset-x-0 bg-slate-800/95 backdrop-blur-md border-t border-slate-700 p-3 sm:p-4">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="w-full sm:w-auto flex items-center justify-between sm:justify-start gap-4">
+            <Link 
+              to="/"
+              className="text-sm px-3 py-1.5 rounded bg-slate-700/50 hover:bg-slate-600/50 border border-slate-600 flex items-center gap-2"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="hidden sm:inline">Continue Shopping</span>
+              <span className="sm:hidden">Back</span>
+            </Link>
+            
+            <div className="text-right sm:text-left">
+              <p className="text-xs text-gray-400">
+                {selectedCombo ? 'Package Selected' : 'Select Package'}
+              </p>
+              <p className="text-sm font-bold text-purple-400">
+                {selectedCombo ? `₹${selectedCombo.price}` : '₹0'}
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={onPayment}
+            disabled={!selectedCombo}
+            className={`w-full sm:w-auto px-6 py-2 rounded text-sm font-medium transition-all ${
+              selectedCombo 
+                ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500' 
+                : 'bg-slate-700 cursor-not-allowed'
+            }`}
+          >
+            {selectedCombo ? 'Proceed to Payment' : 'Select Package'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
   return (
     <div className="min-h-screen mt-16 bg-gradient-to-b from-[#0A0A1B] to-[#1a1a3a] text-white">
@@ -555,178 +627,71 @@ if (isCartEmpty && !loading) {
             </div>
 
             <div className="max-w-7xl mx-auto px-2 md:px-4 pt-4 md:pt-8 pb-32">
-                {/* Trust Badges */}
-                <div className="flex justify-center gap-4 md:gap-8 mb-4 md:mb-8">
-                    <div className="flex items-center gap-1 md:gap-2 text-purple-400">
-                        <Shield size={16} className="md:w-5 md:h-5" />
-                        <span className="text-xs md:text-sm">Secure Payment</span>
-                    </div>
-                    <div className="flex items-center gap-1 md:gap-2 text-purple-400">
-                        <Clock size={16} className="md:w-5 md:h-5" />
-                        <span className="text-xs md:text-sm">Instant Registration</span>
-                    </div>
-                </div>
+    {/* Trust Badges */}
+    <div className="flex justify-center gap-4 md:gap-8 mb-4 md:mb-8">
+        <div className="flex items-center gap-1 md:gap-2 text-purple-400">
+            <Shield size={16} className="md:w-5 md:h-5" />
+            <span className="text-xs md:text-sm">Secure Payment</span>
+        </div>
+        <div className="flex items-center gap-1 md:gap-2 text-purple-400">
+            <Clock size={16} className="md:w-5 md:h-5" />
+            <span className="text-xs md:text-sm">Instant Registration</span>
+        </div>
+    </div>
 
+    {/* Cart Items */}
+    <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 gap-2 md:gap-4">
+        {loading ? (
+            <div className="col-span-full flex justify-center py-12">
+                <div>Loading.....</div>
+            </div>
+        ) : (
+            <>
+                {/* Events */}
+                {items.map(item => (
+                    <CartItem 
+                        key={item.eventInfo?.id}
+                        item={item}
+                        type="event"
+                        onRemove={removeItem}
+                    />
+                ))}
                 
+                {/* Workshops */}
+                {workshops.map(workshop => (
+                    <CartItem 
+                        key={workshop.id}
+                        item={workshop}
+                        type="workshop"
+                        onRemove={removeItem}
+                    />
+                ))}
 
-                {/* Cart Items */}
-                <div className="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 gap-2 md:gap-4">
-                      {loading ? (
-                        <div className="col-span-full flex justify-center py-12">
-                            <div>Loading.....</div>
-                        </div>
-                      ) : (
-                        <>
-                          {/* Debug info */}
-                          {/* {process.env.NODE_ENV === 'development' && (
-                            <div className="col-span-full mb-4 p-4 bg-slate-800 rounded-lg">
-                              <pre className="text-xs text-slate-400">
-                                {JSON.stringify({ items, workshops, activeCombo }, null, 2)}
-                              </pre>
-                            </div>
-                          )} */}
-
-                          {/* Events */}
-                          {items.map(item => (
-                            <div key={item.id}>
-                              {renderCartItem(item, 'event')}
-                            </div>
-                          ))}
-                          
-                          {/* Workshops */}
-                          {workshops.map(item => (
-                            <div key={item.id}>
-                              {renderCartItem(item, 'workshop')}
-                            </div>
-                          ))}
-
-                          {/* Empty state */}
-                          {!loading && items.length === 0 && workshops.length === 0 && (
-                            <div className="col-span-full text-center py-12">
-                              <p className="text-gray-400 text-lg">Your cart is empty</p>
-                            </div>
-                          )}
-                        </>
-                      )}
+                {/* Empty state */}
+                {!loading && items.length === 0 && workshops.length === 0 && (
+                    <div className="col-span-full text-center py-12">
+                        <p className="text-gray-400 text-lg">Your cart is empty</p>
                     </div>
-      </div>
+                )}
+            </>
+        )}
+    </div>
+</div>
       
       {/* Combo Selection Section */}
-      <div className="max-w-7xl mx-auto px-4 pb-24">
-        <div className="bg-slate-800/50 rounded-xl p-4 mb-8">
-          <div className="flex justify-between items-center">
-            <div>
-              <h3 className="text-xl font-bold text-purple-400">Select Your Package</h3>
-              <p className="text-sm text-gray-400">
-                {hasWorkshop ? 
-                  "Workshop detected in cart - all packages available" : 
-                  "Add a workshop to unlock workshop packages"}
-              </p>
-            </div>
-            <button 
-              onClick={() => setShowComboDetails(!showComboDetails)}
-              className="p-2 hover:bg-slate-700/50 rounded-lg transition-all"
-            >
-              {showComboDetails ? <ChevronUp /> : <ChevronDown />}
-            </button>
-          </div>
-          
-          {/* Existing combo options rendering with updated selection handling */}
-          {showComboDetails && (
-            <div className="mt-4 space-y-4">
-              {getAvailableOptions().map((combo) => (
-                <div key={combo.id} 
-                     className={`p-4 rounded-lg border-2 transition-all duration-300 ${
-                       selectedCombo?.id === combo.id 
-                         ? 'border-purple-500 bg-purple-500/10' 
-                         : 'border-slate-700 hover:border-purple-400'
-                     }`}>
-                  <div className="flex justify-between items-center mb-2">
-                    <div>
-                      <h4 className="text-lg font-bold">{combo.name}</h4>
-                      <p className="text-2xl font-bold text-purple-400">₹{combo.price}</p>
-                    </div>
-                    <div className="flex gap-2">
-                      {selectedCombo?.id === combo.id && (
-                        <button
-                          onClick={handleClearCombo}
-                          className="px-4 py-2 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all"
-                        >
-                          Clear
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleComboSelect(combo)}
-                        className={`px-4 py-2 rounded-lg transition-all duration-300 ${
-                          selectedCombo?.id === combo.id
-                            ? 'bg-purple-500 text-white'
-                            : combo.name.toLowerCase().includes('workshop') && !hasWorkshop
-                              ? 'bg-slate-600 text-gray-400 cursor-not-allowed'
-                              : 'bg-slate-700 hover:bg-purple-500/50'
-                        }`}
-                        disabled={combo.name.toLowerCase().includes('workshop') && !hasWorkshop}
-                      >
-                        {selectedCombo?.id === combo.id ? (
-                          <span className="flex items-center gap-2">
-                            <CheckCircle size={16} />
-                            Selected
-                          </span>
-                        ) : combo.name.toLowerCase().includes('workshop') && !hasWorkshop ?
-                          'Add Workshop First' : 'Select Package'}
-                      </button>
-                    </div>
-                  </div>
-                  {/* Existing features list */}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>  
+      <PackageSelector
+        packages={getAvailableOptions()}
+        selectedCombo={selectedCombo}
+        onSelect={handleComboSelect}
+        onClear={handleClearCombo}
+        hasWorkshop={hasWorkshop}
+      />
 
       {/* Cart Summary - Fixed at bottom */}
-      <div className="fixed bottom-0 inset-x-0 bg-slate-800/95 backdrop-blur-md border-t border-slate-700">
-  <div className="max-w-7xl mx-auto px-4 py-3 md:py-4">
-    <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-      <div className="flex items-center gap-6">
-        <Link to="/" className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-700/50 hover:bg-slate-600/50 border border-slate-600 hover:border-purple-500/50 transition-all duration-300">
-          <ArrowLeft size={16} />
-          <span>Continue Shopping</span>
-        </Link>
-        <div>
-          {selectedCombo ? (
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <p className="text-sm text-gray-400">Package Selected:</p>
-                <p className="text-base font-semibold text-purple-400">{selectedCombo.name}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <p className="text-sm text-gray-400">Total Amount:</p>
-                <p className="text-xl font-bold text-purple-400">₹{selectedCombo.price}</p>
-              </div>
-            </div>
-          ) : (
-            <div>
-              <p className="text-sm text-gray-400">Select a package to continue</p>
-              <p className="text-xl font-bold text-purple-400">₹0</p>
-            </div>
-          )}
-        </div>
-      </div>
-      <button 
-        onClick={initiatePayment}
-        disabled={!selectedCombo}
-        className={`w-full md:w-auto px-8 py-3 rounded-lg transition-all duration-300 font-medium shadow-lg transform hover:scale-105 ${
-          selectedCombo 
-            ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 hover:shadow-purple-500/25' 
-            : 'bg-slate-700 cursor-not-allowed'
-        }`}
-      >
-        {selectedCombo ? 'Proceed to Payment' : 'Select Package to Continue'}
-      </button>
-    </div>
-  </div>
-</div>
+      <BottomNav
+              selectedCombo={selectedCombo}
+              onPayment={initiatePayment}
+            />
 
       {paymentSession && (
         <PaymentHandler 

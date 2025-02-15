@@ -209,34 +209,6 @@ const UserProfile = () => {
     );
   }
 
-  const getUpcomingEvents = () => {
-    if (!registrationData) return [];
-    const now = new Date();
-    return [
-      ...(registrationData.selectedEvents || []).map(event => ({
-        id: event.eventId,
-        type: 'Event',
-        title: event.eventName,
-        status: event.status,
-        payment: {
-          amount: registrationData.amount,
-          status: registrationData.paymentStatus,
-          paidOn: registrationData.paymentCompletedAt
-        }
-      })),
-      ...(registrationData.selectedWorkshops || []).map(workshop => ({
-        id: workshop.workshopId,
-        type: 'Workshop',
-        title: workshop.workshopName,
-        status: workshop.status,
-        payment: {
-          amount: registrationData.amount,
-          status: registrationData.paymentStatus,
-          paidOn: registrationData.paymentCompletedAt
-        }
-      }))
-    ].filter(item => new Date(item.date) > now);
-  };
 
   return (
     <div className="min-h-screen bg-slate-900 pt-24 pb-12 px-4">

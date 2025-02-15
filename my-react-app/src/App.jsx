@@ -18,6 +18,8 @@ import { createApiClient } from './config/kindeAPI.js';
 import { AuthProvider } from '../src/contexts/AuthContext.jsx';
 import { useAuth } from '../src/contexts/AuthContext.jsx';
 import PaymentVerify from './Components/paymentVerify.jsx';
+import ValidationPage from './Components/offlineValidation.jsx';
+import ReceiptPage from './Components/OfflineReceipt.jsx';
 // Lazy load components based on route priority
 const TechniverseHome = lazy(() => import("./Components/HomePage"));
 const AboutPage = lazy(() => import("./Components/About"));
@@ -52,6 +54,7 @@ const IntroAnimation = lazy(() => import('./Components/AdminComponents/IntroAnim
 import PaymentFailure from './Components/paymentFailure.jsx';
 import PaymentSuccess from './Components/paymentSuccess.jsx';
 import TeamShowcase from './Components/TeamShowCase.jsx';
+import ManualRegistration from './Components/offlineRegistrationPage.jsx';
 // Optimized loading spinner
 const LoadingSpinner = () => (
   <div className="fixed inset-0 bg-slate-950/80 flex items-center justify-center">
@@ -332,7 +335,7 @@ function App() {
                 <Toaster 
                   position="top-right" 
                   toastOptions={{
-                    duration: 3000,
+                    duration: 1000,
                     style: {
                       background: '#333',
                       color: '#fff',
@@ -439,7 +442,7 @@ function App() {
                     </Route>
 
                     {/* Validation Routes */}
-                    <Route path="/event-validation" element={<EventValidation />} />
+                    
                     <Route path="/test-validation" element={<TestValidation />} />
 
                     {/* Admin Routes */}
@@ -457,6 +460,22 @@ function App() {
                           </ProtectedRoute>
                         </Suspense>
                       } />
+
+
+                    <Route path="registerOffline" element={<ManualRegistration/>} />
+                    <Route path="validateOffline" element={<ValidationPage />} />
+                    <Route path="print-receipt/:receiptNumber" element={<ReceiptPage />} />
+
+
+                     <Route path="validation" element={
+                        <Suspense fallback={<LoadingSpinner />}>
+                          <ProtectedRoute requireRegistration={false}>
+                                <EventValidation />
+                          </ProtectedRoute>
+                        </Suspense>
+                      } />
+
+
                       <Route path="events" element={
                         <Suspense fallback={<LoadingSpinner />}>
                           <EventsManager />

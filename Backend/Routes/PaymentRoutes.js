@@ -9,20 +9,20 @@ import PaymentSecurityService from '../PaymentSecurity.js';
 import dotenv from 'dotenv';
 import { generateQRCode } from './QRRoutes.js';
 import { sendConfirmationEmail } from '../index.js';
+import initializeJuspay from '../config/justpayconfig.js';
 dotenv.config();
 
 const router = express.Router();
 const paymentSecurity = new PaymentSecurityService(process.env.HDFC_RESPONSE_KEY);
 
 // Initialize Juspay
-const juspay = new Juspay({
-  merchantId: process.env.HDFC_MERCHANT_ID,
-  apiKey: process.env.HDFC_API_KEY,
-  baseUrl: process.env.NODE_ENV === 'production' 
-    ? "https://smartgateway.hdfcbank.com"
-    : "https://smartgatewayuat.hdfcbank.com"
-});
-
+let juspay;
+try {
+    juspay = initializeJuspay();
+} catch (error) {
+    console.error('Failed to initialize Juspay:', error);
+    process.exit(1); // Exit if Juspay initialization fails
+}
 
   // Create return URL using the request object
   const returnUrl = `${process.env.BASE_URL}/api/payment/handleResponse`;

@@ -26,7 +26,8 @@ const AdminDashboard = () => {
         { name: "Events", icon: <Trophy size={20} />, path: "/adminDashboard/events" },
         { name: "New Updates", icon: <ScrollText size={20} />, path: "/adminDashboard/news" },
         { name: "Workshops" ,icon: <Users size={20} />, path: "/adminDashboard/workshops" },
-        { name: "Schedule", icon: <Calendar size={20} />, path: "/adminDashboard/schedule" }
+        { name: "Validation" ,icon: <Users size={20} />, path: "/adminDashboard/validation" },
+        { name: "Offline Registration", icon: <Calendar size={20} />, path: "/adminDashboard/registerOffline" }
       ]
     }
   ];
@@ -100,19 +101,6 @@ const AdminDashboard = () => {
             </div>
           ))}
         </nav>
-
-        {/* Logout Button */}
-        <div className="absolute bottom-0 w-full p-4 border-t border-slate-800">
-          <button
-            className="flex items-center gap-3 px-4 py-3 rounded-lg w-full
-                     text-slate-400 hover:bg-slate-800/50 hover:text-white transition-colors"
-          >
-            <LogOut size={20} />
-            {!isCollapsed && (
-              <span className="text-sm font-medium">Logout</span>
-            )}
-          </button>
-        </div>
       </div>
 
       {/* Main Content */}

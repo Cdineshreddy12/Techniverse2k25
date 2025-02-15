@@ -28,6 +28,7 @@ import PaymentRoutes from './Routes/PaymentRoutes.js'
 import path from "path"
 import { fileURLToPath } from "url";
 import workshopRoutes from './Routes/workShopRoutes.js'
+import OfflineRegistrationRoutes from './Routes/offlineRegistrations.js'
 // Load environment variables
 dotenv.config();
 
@@ -131,23 +132,14 @@ app.use('/api',cartRoutes);
 app.use('/api',comboRoutes);
 app.use('/api',PaymentRoutes);
 app.use('/api',workshopRoutes);
-
+app.use('/api',OfflineRegistrationRoutes);
 
 
 export const sendConfirmationEmail = async (email, qrCode, registrationDetails) => {
   try {
     const qrCodeUrl = await uploadQRCodeToCloudinary(qrCode, registrationDetails.transactionId);
     const senderEmail = 'reddycdinesh41@gmail.com'; 
-    // Try to verify both emails
-    await Promise.all([
-      verifyEmailAddress(senderEmail),
-      verifyEmailAddress(email)
-    ]);
-// Log verification status
-console.log('Email verification requests sent for:', {
-  sender: senderEmail,
-  recipient: email
-});
+
 
     const command = new SendEmailCommand({
       Source: senderEmail,
@@ -276,9 +268,11 @@ console.log('Email verification requests sent for:', {
                     <div class="details">
                       <h2>Registration Details</h2>
                       <ul>
-                        <li><span>Package:</span> ${registrationDetails.combo.name}</li>
-                        <li><span>Amount:</span> ₹${registrationDetails.amount}</li>
-                        <li><span>Transaction ID:</span> ${registrationDetails.transactionId}</li>
+                           
+                            <li><span>Package:</span> ${registrationDetails.combo.comboName || registrationDetails.combo.name}</li>
+                            <li><span>Amount:</span> ₹${registrationDetails.amount}</li>
+                            <li><span>Transaction ID:</span> ${registrationDetails.transactionId}</li>
+            
                       </ul>
                     </div>
 
