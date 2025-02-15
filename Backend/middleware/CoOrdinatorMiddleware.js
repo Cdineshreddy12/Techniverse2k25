@@ -44,7 +44,7 @@ export const authenticateCoordinator = async (req, res, next) => {
   
         next();
       } catch (jwtError) {
-        throw new Error('Invalid authentication token');
+        throw new Error('Invalid authentication token ....');
       }
     } catch (error) {
       res.status(401).json({
