@@ -111,7 +111,7 @@ const isRegistrationAllowed = (workshop) => {
 
 const addToBackendCart = async (kindeId, workshop) => {
   if (!workshop?._id) {
-    throw new Error('Invalid workshop data');
+    throw new Error('Invalid workshop data...');
   }
   
   const workshopItem = {
