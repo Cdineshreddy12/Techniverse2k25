@@ -51,34 +51,26 @@ jobs:
           # Set permissions
           chmod 600 Backend/pem/*.pem
           
+
           # Update code
-          echo "Fetching latest changes....."
+          echo "Fetching latest changes..."
           git fetch origin main
           git reset --hard origin/main
           git clean -fd
           
-          # Deploy with increased memory limits
-          echo "Starting deployment with increased memory limits..."
+          # Deploy
+          echo "Starting deployment...."
           export DOCKER_BUILDKIT=1
           export COMPOSE_DOCKER_CLI_BUILD=1
           
-          # Set Node memory limit for the build
-          export NODE_OPTIONS="--max-old-space-size=4096"
-          
-          # Update Docker daemon settings for more memory
-          sudo sh -c 'echo "{ \"builder\": { \"memory\": 4096000000 } }" > /etc/docker/daemon.json'
-          sudo systemctl restart docker
-          
           docker-compose -f docker-compose.prod.yml down --remove-orphans
-          if DOCKER_BUILDKIT=1 docker-compose -f docker-compose.prod.yml build \
-                --build-arg NODE_OPTIONS="--max-old-space-size=4096" \
+          if docker-compose -f docker-compose.prod.yml build \
                 --build-arg VITE_APP_BACKEND_URL=https://www.techniverse25.rguktsklm.ac.in \
                 --build-arg VITE_APP_KINDE_CLIENT_ID=b33e1744e75f47efba1e56f8f6956266 \
                 --build-arg VITE_APP_KINDE_ISSUER_URL=https://techniverse.kinde.com \
                 --build-arg VITE_APP_KINDE_REDIRECT_URL=https://www.techniverse25.rguktsklm.ac.in/profile \
                 --build-arg VITE_APP_KINDE_POST_LOGOUT_URL=https://www.techniverse25.rguktsklm.ac.in \
                 --build-arg VITE_APP_API_BASE_URL=https://www.techniverse25.rguktsklm.ac.in/api \
-                --memory=4g \
                 --no-cache; then
               echo "Build successful, starting containers..."
               docker-compose -f docker-compose.prod.yml up -d

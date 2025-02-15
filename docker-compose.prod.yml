@@ -36,6 +36,12 @@ services:
         VITE_APP_KINDE_ISSUER_URL: https://techniverse.kinde.com
         VITE_APP_KINDE_REDIRECT_URL: https://www.techniverse25.rguktsklm.ac.in/profile
         VITE_APP_KINDE_POST_LOGOUT_URL: https://www.techniverse25.rguktsklm.ac.in
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+    environment:
+      - NODE_OPTIONS=--max-old-space-size=8192
     ports:
       - "5173:80"
     env_file:
