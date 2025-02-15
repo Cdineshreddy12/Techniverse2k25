@@ -86,3 +86,6 @@ coverage/
 *.pem
 privateKey.pem
 public.pem
+
+# .gitignore
+Backend/pem/*

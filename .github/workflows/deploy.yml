@@ -41,6 +41,17 @@ jobs:
           # Navigate to project directory
           cd /home/ec2-user/Techniverse2k25 || exit 1
 
+          # Create Backend/pem directory if it doesn't exist
+          mkdir -p Backend/pem
+          
+          # Create PEM files from secrets
+          echo "${{ secrets.HDFC_PUBLIC_KEY }}" > Backend/pem/public.pem
+          echo "${{ secrets.HDFC_PRIVATE_KEY }}" > Backend/pem/privateKey.pem
+          
+          # Set permissions
+          chmod 600 Backend/pem/*.pem
+          
+
           # Update code
           echo "Fetching latest changes..."
           git fetch origin main
