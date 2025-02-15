@@ -17,34 +17,70 @@ export const AuthProvider = ({ children }) => {
   const initialCheckDone = useRef(false);
 
   // Add persistent token storage
-  const persistToken = useCallback(async () => {
-    try {
-      const token = await auth.getToken();
-      if (token) {
-        localStorage.setItem('kinde_auth_token', token);
-        // Store token expiry (e.g., 24 hours from now)
-        localStorage.setItem('kinde_token_expiry', new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString());
-      }
-    } catch (error) {
-      console.error('Error persisting token:', error);
+// In AuthContext.jsx
+const persistToken = useCallback(async () => {
+  try {
+    const token = await auth.getToken();
+    if (token) {
+      // Extend token lifetime
+      const expiryTime = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      
+      // Store all necessary auth data
+      localStorage.setItem('kinde_auth_token', token);
+      localStorage.setItem('kinde_token_expiry', expiryTime.toISOString());
+      localStorage.setItem('kinde_user', JSON.stringify(auth.user));
+      
+      console.log('Token stored successfully', {
+        hasToken: true,
+        expiry: expiryTime,
+        userId: auth.user?.id
+      });
+      return true;
     }
-  }, [auth]);
+    return false;
+  } catch (error) {
+    console.error('Token persistence failed:', error);
+    return false;
+  }
+}, [auth]);
 
+  // want to check the exact case to remove the token
   // Restore token on mount or after redirect
-  const restoreToken = useCallback(async () => {
+// In AuthContext.jsx
+const restoreToken = useCallback(async () => {
+  try {
     const storedToken = localStorage.getItem('kinde_auth_token');
     const tokenExpiry = localStorage.getItem('kinde_token_expiry');
-    
-    if (storedToken && tokenExpiry && new Date(tokenExpiry) > new Date()) {
-      // Token exists and hasn't expired
-      return true;
-    } else {
-      // Clear expired tokens
-      localStorage.removeItem('kinde_auth_token');
-      localStorage.removeItem('kinde_token_expiry');
+    const storedUser = localStorage.getItem('kinde_user');
+
+    if (!storedToken || !tokenExpiry) {
+      console.log('No stored token or expiry found');
       return false;
     }
-  }, []);
+
+    const expiryDate = new Date(tokenExpiry);
+    const currentDate = new Date();
+
+    if (expiryDate <= currentDate) {
+      console.log('Token expired, cleaning up');
+      localStorage.removeItem('kinde_auth_token');
+      localStorage.removeItem('kinde_token_expiry');
+      localStorage.removeItem('kinde_user');
+      return false;
+    }
+
+    console.log('Valid token found', {
+      hasToken: true,
+      expiry: expiryDate,
+      user: storedUser ? JSON.parse(storedUser) : null
+    });
+    
+    return true;
+  } catch (error) {
+    console.error('Token restoration failed:', error);
+    return false;
+  }
+}, []);
 
   const checkAdminStatus = useCallback(async () => {
     if (!auth.user) return false;

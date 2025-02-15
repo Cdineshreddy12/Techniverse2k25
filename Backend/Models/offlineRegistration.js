@@ -1,4 +1,4 @@
-// Modified Schema
+// models/OfflineRegistration.js
 import mongoose from 'mongoose';
 
 const offlineRegistrationSchema = new mongoose.Schema({
@@ -12,13 +12,19 @@ const offlineRegistrationSchema = new mongoose.Schema({
   name: {
     type: String,
     required: true,
-    trim: true,
+    trim: true
+  },
+  email: {
+    type: String,
+    required: true,
+    lowercase: true,
+    trim: true
   },
   branch: {
     type: String,
     required: true,
     uppercase: true,
-    set: (branch) => branch.toUpperCase().replace(/\s+/g, ''),
+    enum: ['CSE', 'ECE', 'CIVIL', 'MECH', 'CHEMICAL', 'PUC']
   },
   class: {
     type: String,
@@ -34,10 +40,8 @@ const offlineRegistrationSchema = new mongoose.Schema({
     type: String,
     required: true,
     validate: {
-      validator: function(v) {
-        return /^[6-9]\d{9}$/.test(v);
-      },
-      message: props => `${props.value} is not a valid phone number!`
+      validator: v => /^[6-9]\d{9}$/.test(v),
+      message: 'Invalid mobile number'
     }
   },
   registrationType: {
@@ -45,10 +49,50 @@ const offlineRegistrationSchema = new mongoose.Schema({
     enum: ['events', 'workshop', 'both'],
     required: true
   },
+  selectedEvents: [{
+    eventId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Event'
+    },
+    eventName: String,
+    departmentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Department'
+    },
+    status: {
+      type: String,
+      enum: ['registered', 'checked-in'],
+      default: 'registered'
+    },
+    checkedInAt: Date,
+    checkedInBy: String
+  }],
+  selectedWorkshops: [{
+    workshopId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Workshop'
+    },
+    workshopName: String,
+    departmentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Department'
+    },
+    status: {
+      type: String,
+      enum: ['registered', 'checked-in'],
+      default: 'registered'
+    },
+    checkedInAt: Date,
+    checkedInBy: String
+  }],
   registrationFee: {
     type: Number,
-    required: true,
-    min: 0
+    required: true
+  },
+  paymentStatus: {
+    type: String,
+    enum: ['PENDING', 'PAID'],
+    default: 'PAID'
   },
   receivedBy: {
     type: String,
@@ -56,54 +100,30 @@ const offlineRegistrationSchema = new mongoose.Schema({
   },
   receiptNumber: {
     type: String,
-    unique: true,
-    required: true,
-    default: 'PENDING'
+    unique: true
   },
-  paymentStatus: {
-    type: String,
-    enum: ['PAID', 'PENDING'],
-    default: 'PAID'
-  },
-  // Track event attendance separately
+  qrCode: String,
+  // For tracking event attendance
   eventAttendance: [{
     eventName: String,
-    attendedAt: Date,
+    attendedAt: {
+      type: Date,
+      default: Date.now
+    },
     verifiedBy: String
-  }]
+  }],
+  // Excel upload tracking
+  excelUploadId: String,
+  excelRowNumber: Number,
+  // For validation at events
+  validated: {
+    type: Boolean,
+    default: false
+  },
+  validatedBy: String,
+  validatedAt: Date
 }, {
   timestamps: true
-});
-
-// Indexes - Remove the unique constraint on studentId and registrationType
-offlineRegistrationSchema.index({ branch: 1, class: 1 });
-offlineRegistrationSchema.index({ receiptNumber: 1 }, { unique: true });
-offlineRegistrationSchema.index({ studentId: 1 });
-offlineRegistrationSchema.index({ paymentStatus: 1 });
-
-// Pre-validate middleware
-offlineRegistrationSchema.pre('validate', function(next) {
-  // Clean studentId - remove any trailing 'D'
-  if (this.studentId) {
-    this.studentId = this.studentId.replace(/D$/, '').toUpperCase().trim();
-  }
-  
-  if (this.branch) {
-    this.branch = this.branch.toUpperCase().trim();
-  }
-  
-  if (this.class) {
-    this.class = this.class.toUpperCase().trim();
-  }
-  
-  if (this.class && !this.class.includes('-')) {
-    const match = this.class.match(/([A-Z]+)(\d[A-Z])/);
-    if (match) {
-      this.class = `${match[1]}-${match[2]}`;
-    }
-  }
-
-  next();
 });
 
 // Pre-save middleware for receipt number generation
@@ -122,6 +142,38 @@ offlineRegistrationSchema.pre('save', async function(next) {
   }
 });
 
+// Validate and format data before saving
+offlineRegistrationSchema.pre('validate', function(next) {
+  // Clean studentId
+  if (this.studentId) {
+    this.studentId = this.studentId.replace(/D$/, '').toUpperCase().trim();
+  }
+  
+  // Format branch
+  if (this.branch) {
+    this.branch = this.branch.toUpperCase().trim();
+  }
+  
+  // Format class
+  if (this.class) {
+    this.class = this.class.toUpperCase().trim();
+    if (!this.class.includes('-')) {
+      const match = this.class.match(/([A-Z]+)(\d[A-Z])/);
+      if (match) {
+        this.class = `${match[1]}-${match[2]}`;
+      }
+    }
+  }
+
+  // Set registration fee based on type
+  if (this.registrationType) {
+    this.registrationFee = this.registrationType === 'both' ? 299 : 199;
+  }
+
+  next();
+});
+
+// Method to add event attendance
 offlineRegistrationSchema.methods.addEventAttendance = function(eventName, verifiedBy) {
   this.eventAttendance.push({
     eventName,
@@ -129,6 +181,45 @@ offlineRegistrationSchema.methods.addEventAttendance = function(eventName, verif
     verifiedBy
   });
   return this.save();
+};
+
+// Static method for bulk upload processing
+offlineRegistrationSchema.statics.processExcelUpload = async function(data, uploadId) {
+  const results = {
+    successful: [],
+    failed: []
+  };
+
+  for (let i = 0; i < data.length; i++) {
+    try {
+      const row = data[i];
+      const registration = new this({
+        studentId: row.studentId,
+        name: row.name,
+        email: row.email,
+        branch: row.branch,
+        class: row.class,
+        mobileNo: row.mobileNo,
+        registrationType: row.registrationType,
+        receivedBy: row.receivedBy,
+        excelUploadId: uploadId,
+        excelRowNumber: i + 2 // Account for header row
+      });
+
+      await registration.save();
+      results.successful.push({
+        studentId: row.studentId,
+        receiptNumber: registration.receiptNumber
+      });
+    } catch (error) {
+      results.failed.push({
+        studentId: row.studentId || `Row ${i + 2}`,
+        error: error.message
+      });
+    }
+  }
+
+  return results;
 };
 
 export const OfflineRegistration = mongoose.model('OfflineRegistration', offlineRegistrationSchema);

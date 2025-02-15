@@ -55,6 +55,7 @@ import PaymentFailure from './Components/paymentFailure.jsx';
 import PaymentSuccess from './Components/paymentSuccess.jsx';
 import TeamShowcase from './Components/TeamShowCase.jsx';
 import ManualRegistration from './Components/offlineRegistrationPage.jsx';
+import ClassRegistration from './Components/ClassRegistration.jsx';
 // Optimized loading spinner
 const LoadingSpinner = () => (
   <div className="fixed inset-0 bg-slate-950/80 flex items-center justify-center">
@@ -288,23 +289,44 @@ const queryClient = new QueryClient({
 
 function App() {
 
-  const { isAuthenticated, login: kindeLogin } = useKindeAuth()
+  const { isAuthenticated, login: kindeLogin } = useKindeAuth();
 
-    // Check for cached auth on mount
-    useEffect(() => {
-      const checkAuth = async () => {
-        try {
-          const cachedToken = localStorage.getItem('kinde_auth_token');
-          if (cachedToken && !isAuthenticated && kindeLogin) {
-            await kindeLogin();
-          }
-        } catch (error) {
-          console.error('Auth check failed:', error);
+  useEffect(() => {
+    let mounted = true;
+    
+    const initializeAuth = async () => {
+      try {
+        const token = localStorage.getItem('kinde_auth_token');
+        const tokenExpiry = localStorage.getItem('kinde_token_expiry');
+        
+        console.log('Auth initialization', {
+          hasToken: !!token,
+          isAuthenticated,
+          hasLoginFunction: !!kindeLogin
+        });
+
+        if (token && 
+            tokenExpiry && 
+            new Date(tokenExpiry) > new Date() && 
+            !isAuthenticated && 
+            kindeLogin) {
+          await kindeLogin();
         }
-      };
-      
-      checkAuth();
-    }, [isAuthenticated, kindeLogin]);
+      } catch (error) {
+        console.error('Auth initialization failed:', error);
+      }
+    };
+
+    if (mounted) {
+      initializeAuth();
+    }
+
+    return () => {
+      mounted = false;
+    };
+  }, [isAuthenticated, kindeLogin]);
+
+
   // Prefetch critical components
   React.useEffect(() => {
     const prefetchComponents = async () => {
@@ -326,6 +348,7 @@ function App() {
           domain={import.meta.env.VITE_APP_KINDE_ISSUER_URL}
           redirectUri={import.meta.env.VITE_APP_KINDE_REDIRECT_URL}
           logoutUri={import.meta.env.VITE_APP_KINDE_POST_LOGOUT_URL}
+        
         >
         <AuthProvider>
           <PackageProvider>
@@ -481,6 +504,14 @@ function App() {
                           <EventsManager />
                         </Suspense>
                       } />
+
+                      
+                    <Route path="classRegistrations" element={
+                        <Suspense fallback={<LoadingSpinner />}>
+                          <ClassRegistration />
+                        </Suspense>
+                      } />
+
                       <Route path="news" element={
                         <Suspense fallback={<LoadingSpinner />}>
                           <NewsForm />

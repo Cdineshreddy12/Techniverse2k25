@@ -135,20 +135,40 @@ app.use('/api',workshopRoutes);
 app.use('/api',OfflineRegistrationRoutes);
 
 
-export const sendConfirmationEmail = async (email, qrCode, registrationDetails) => {
+export const sendConfirmationEmail = async (email, qrCode, data) => {
   try {
-    const qrCodeUrl = await uploadQRCodeToCloudinary(qrCode, registrationDetails.transactionId);
-    const senderEmail = 'reddycdinesh41@gmail.com'; 
+    // Handle different types of identifiers for QR upload
+    const identifier = data.transactionId || data.receiptNumber || `TV-${Date.now()}`;
+    const qrCodeUrl = await uploadQRCodeToCloudinary(qrCode, identifier);
+    const senderEmail = process.env.SENDER_EMAIL || 'reddycdinesh41@gmail.com';
 
+    // Standardize registration details
+    const registrationDetails = {
+      name: data.name,
+      package: data.registrationType || (data.combo ? data.combo.comboName || data.combo.name : 'Not Specified'),
+      amount: data.amount || data.registrationFee || 0,
+      identifier: data.transactionId || data.receiptNumber || 'Not Available',
+      events: data.selectedEvents || [],
+      workshops: data.selectedWorkshops || []
+    };
+
+    // Format events and workshops list if available
+    const eventsHtml = registrationDetails.events.length 
+      ? `<li><span>Events:</span> ${registrationDetails.events.map(e => e.eventName || e.name).join(', ')}</li>` 
+      : '';
+    
+    const workshopsHtml = registrationDetails.workshops.length 
+      ? `<li><span>Workshops:</span> ${registrationDetails.workshops.map(w => w.workshopName || w.name).join(', ')}</li>` 
+      : '';
 
     const command = new SendEmailCommand({
       Source: senderEmail,
-      Destination: {
-        ToAddresses: [email]
-      },
+      Destination: { ToAddresses: [email] },
       Message: {
         Subject: {
-          Data: '🎉 Welcome to Techniverse 2025!'
+          Data: data.isUpdate 
+            ? '🔄 Updated Registration - Techniverse 2025'
+            : '🎉 Welcome to Techniverse 2025!'
         },
         Body: {
           Html: {
@@ -263,16 +283,20 @@ export const sendConfirmationEmail = async (email, qrCode, registrationDetails) 
                     </div>
 
                     <p style="color: #e2e8f0;">Dear ${registrationDetails.name},</p>
-                    <p style="color: #94a3b8;">Your registration for Techniverse 2025 has been confirmed! Get ready for an amazing tech fest experience.</p>
+                    <p style="color: #94a3b8;">
+                      ${data.isUpdate 
+                        ? 'Your registration has been updated! Here are your new details.'
+                        : 'Your registration for Techniverse 2025 has been confirmed! Get ready for an amazing tech fest experience.'}
+                    </p>
                     
                     <div class="details">
                       <h2>Registration Details</h2>
                       <ul>
-                           
-                            <li><span>Package:</span> ${registrationDetails.combo.comboName || registrationDetails.combo.name}</li>
-                            <li><span>Amount:</span> ₹${registrationDetails.amount}</li>
-                            <li><span>Transaction ID:</span> ${registrationDetails.transactionId}</li>
-            
+                        <li><span>Package:</span> ${registrationDetails.package}</li>
+                        <li><span>Amount:</span> ₹${registrationDetails.amount}</li>
+                        <li><span>ID:</span> ${registrationDetails.identifier}</li>
+                        ${eventsHtml}
+                        ${workshopsHtml}
                       </ul>
                     </div>
 
@@ -283,7 +307,8 @@ export const sendConfirmationEmail = async (email, qrCode, registrationDetails) 
                     </div>
 
                     <div class="notice">
-                      🎯 Important: Save this QR code and present it during event check-ins. This is your unique identifier for all registered events and workshops.
+                      🎯 Important: Save this QR code and present it during event check-ins. 
+                      This is your unique identifier for all registered events and workshops.
                     </div>
 
                     <div class="footer">
