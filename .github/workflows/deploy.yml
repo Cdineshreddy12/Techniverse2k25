@@ -73,7 +73,7 @@ jobs:
                 --build-arg VITE_APP_KINDE_POST_LOGOUT_URL=https://www.techniverse25.rguktsklm.ac.in \
                 --build-arg VITE_APP_API_BASE_URL=https://www.techniverse25.rguktsklm.ac.in/api \
                 --no-cache; then
-              echo "Build successful, starting containers..."
+              echo "Build successful, starting containers...."
               docker-compose -f docker-compose.prod.yml up -d
           else 
               echo "Build failed!"
