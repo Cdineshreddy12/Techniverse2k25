@@ -29,96 +29,189 @@ jobs:
         key: ${{ secrets.EC2_SSH_KEY }}
         debug: true
         script: |
-          # Cleanup
+          set -e  # Exit on any error
+          
+          echo "Starting deployment process..."
+          
+          # Cleanup with error handling
           echo "Performing cleanup..."
-          docker system prune -af
-          docker volume prune -f
-          docker network prune -f
-          docker builder prune -af --keep-storage 2GB
+          docker system prune -af || true
+          docker volume prune -f || true
+          docker network prune -f || true
+          docker builder prune -af --keep-storage 2GB || true
           docker rm -f $(docker ps -aq) 2>/dev/null || true
           docker rmi -f $(docker images -aq) 2>/dev/null || true
           
           # Navigate to project directory
           cd /home/ec2-user/Techniverse2k25 || exit 1
+          
+          # Backup existing PEM files if they exist
+          if [ -d "Backend/pem" ]; then
+            echo "Backing up existing PEM files..."
+            mkdir -p Backend/pem_backup
+            cp Backend/pem/*.pem Backend/pem_backup/ 2>/dev/null || true
+          fi
 
-          # Create Backend/pem directory if it doesn't exist
+          # Create Backend/pem directory
+          echo "Setting up PEM directory..."
           mkdir -p Backend/pem
           
-          # Create PEM files from secrets
-          echo "${{ secrets.HDFC_PUBLIC_KEY }}" > Backend/pem/public.pem
-          echo "${{ secrets.HDFC_PRIVATE_KEY }}" > Backend/pem/privateKey.pem
+          # Create PEM files using printf to preserve formatting
+          echo "Creating PEM files..."
+          printf "%s\n" "${{ secrets.HDFC_PUBLIC_KEY }}" > Backend/pem/public.pem
+          printf "%s\n" "${{ secrets.HDFC_PRIVATE_KEY }}" > Backend/pem/privateKey.pem
+          
+          # Verify PEM files
+          echo "Verifying PEM files..."
+          if [ ! -s Backend/pem/public.pem ]; then
+            echo "Error: public.pem is empty!"
+            # Restore from backup if available
+            [ -f Backend/pem_backup/public.pem ] && cp Backend/pem_backup/public.pem Backend/pem/
+          fi
+          
+          if [ ! -s Backend/pem/privateKey.pem ]; then
+            echo "Error: privateKey.pem is empty!"
+            # Restore from backup if available
+            [ -f Backend/pem_backup/privateKey.pem ] && cp Backend/pem_backup/privateKey.pem Backend/pem/
+          fi
           
           # Set permissions
           chmod 600 Backend/pem/*.pem
           
-          # Update code
-          echo "Fetching latest changes..."
+          # Show file info without content
+          ls -l Backend/pem/
+          
+          echo "Updating code..."
           git fetch origin main
           git reset --hard origin/main
           git clean -fd
           
-          # Deploy with retry mechanism
-          echo "Starting deployment...."
+          # Configure Docker with error handling
+          echo "Configuring Docker..."
+          sudo mkdir -p /etc/docker
+          echo '{
+            "builder": { "gc": { "enabled": true, "defaultKeepStorage": "20GB" } },
+            "experimental": true,
+            "features": { "buildkit": true },
+            "log-driver": "json-file",
+            "log-opts": {
+              "max-size": "10m",
+              "max-file": "3"
+            }
+          }' | sudo tee /etc/docker/daemon.json
+          
+          sudo systemctl restart docker || (echo "Failed to restart Docker" && exit 1)
+          echo "Waiting for Docker to restart..."
+          sleep 15
+          
+          # Set environment variables
           export DOCKER_BUILDKIT=1
           export COMPOSE_DOCKER_CLI_BUILD=1
           export NODE_OPTIONS="--max-old-space-size=16384"
-
-          # Function to attempt the build and deploy
+          
+          # Define build arguments
+          BUILD_ARGS=(
+            --build-arg VITE_APP_BACKEND_URL=https://www.techniverse25.rguktsklm.ac.in
+            --build-arg VITE_APP_KINDE_CLIENT_ID=b33e1744e75f47efba1e56f8f6956266
+            --build-arg VITE_APP_KINDE_ISSUER_URL=https://auth.techniverse25.rguktsklm.ac.in
+            --build-arg VITE_APP_KINDE_REDIRECT_URL=https://www.techniverse25.rguktsklm.ac.in/profile
+            --build-arg VITE_APP_KINDE_POST_LOGOUT_URL=https://www.techniverse25.rguktsklm.ac.in
+            --build-arg VITE_APP_API_BASE_URL=https://www.techniverse25.rguktsklm.ac.in/api
+          )
+          
+          # Function to check Docker status
+          check_docker() {
+            if ! docker info > /dev/null 2>&1; then
+              echo "Docker is not running properly"
+              return 1
+            fi
+          }
+          
+          # Deploy function with improved error handling
           deploy_with_retry() {
             for i in {1..3}; do
-              echo "Attempt $i of 3..."
+              echo "Deployment attempt $i of 3..."
               
-              docker-compose -f docker-compose.prod.yml down --remove-orphans
+              if ! check_docker; then
+                echo "Attempting to restart Docker..."
+                sudo systemctl restart docker
+                sleep 15
+              fi
               
+              echo "Stopping existing containers..."
+              docker-compose -f docker-compose.prod.yml down --remove-orphans || true
+              
+              echo "Building containers..."
               if docker-compose -f docker-compose.prod.yml build \
-                --build-arg VITE_APP_BACKEND_URL=https://www.techniverse25.rguktsklm.ac.in \
-                --build-arg VITE_APP_KINDE_CLIENT_ID=b33e1744e75f47efba1e56f8f6956266 \
-                --build-arg VITE_APP_KINDE_ISSUER_URL=https://auth.techniverse25.rguktsklm.ac.in \
-                --build-arg VITE_APP_KINDE_REDIRECT_URL=https://www.techniverse25.rguktsklm.ac.in/profile \
-                --build-arg VITE_APP_KINDE_POST_LOGOUT_URL=https://www.techniverse25.rguktsklm.ac.in \
-                --build-arg VITE_APP_API_BASE_URL=https://www.techniverse25.rguktsklm.ac.in/api \
-                --no-cache; then
+                --no-cache \
+                "${BUILD_ARGS[@]}"; then
                 
-                echo "Build successful, starting containers..."
+                echo "Starting containers..."
                 if docker-compose -f docker-compose.prod.yml up -d; then
+                  echo "Deployment successful!"
                   return 0
                 fi
               fi
               
               echo "Attempt $i failed, cleaning up..."
-              docker system prune -af
-              sleep 10
+              docker system prune -af || true
+              sleep 20
             done
             return 1
           }
 
-          # Try to deploy
+          # Execute deployment
           if ! deploy_with_retry; then
             echo "All deployment attempts failed!"
             exit 1
           fi
           
-          sleep 15
-          docker ps
+          # Verify deployment
+          echo "Verifying deployment..."
+          if ! docker ps; then
+            echo "No containers are running!"
+            exit 1
+          fi
+          
+          # Show recent logs
+          echo "Recent container logs:"
+          docker ps -q | xargs -r docker logs --tail 50 || true
 
     - name: Verify Deployment
       run: |
-        sleep 30
-        # Use HTTPS for verification with retries
-        for i in {1..3}; do
-          if curl -I https://techniverse25.rguktsklm.ac.in; then
-            echo "Frontend is responding"
-            break
-          fi
-          echo "Frontend attempt $i failed, retrying..."
-          sleep 10
-        done
-
-        for i in {1..3}; do
-          if curl -I https://techniverse25.rguktsklm.ac.in/api; then
-            echo "Backend is responding"
-            break
-          fi
-          echo "Backend attempt $i failed, retrying..."
-          sleep 10
-        done
+        echo "Starting deployment verification..."
+        sleep 45
+        
+        verify_endpoint() {
+          local url=$1
+          local name=$2
+          local max_attempts=5
+          local attempt=1
+          
+          while [ $attempt -le $max_attempts ]; do
+            echo "Checking $name (attempt $attempt/$max_attempts)..."
+            if curl -sSf -I --max-time 30 "$url" > /dev/null 2>&1; then
+              echo "$name is responding"
+              return 0
+            fi
+            echo "$name check failed, retrying..."
+            attempt=$((attempt + 1))
+            sleep 20
+          done
+          
+          echo "$name is not responding after $max_attempts attempts"
+          return 1
+        }
+        
+        # Verify endpoints
+        if ! verify_endpoint "https://techniverse25.rguktsklm.ac.in" "Frontend"; then
+          echo "Frontend verification failed"
+          exit 1
+        fi
+        
+        if ! verify_endpoint "https://techniverse25.rguktsklm.ac.in/api" "Backend"; then
+          echo "Backend verification failed"
+          exit 1
+        fi
+        
+        echo "Deployment verification completed successfully"
