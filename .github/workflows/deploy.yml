@@ -61,7 +61,7 @@ jobs:
           echo "Starting deployment...."
           export DOCKER_BUILDKIT=1
           export COMPOSE_DOCKER_CLI_BUILD=1
-          export NODE_OPTIONS="--max-old-space-size=8192"
+          export NODE_OPTIONS="--max-old-space-size=16384"
 
           # Function to attempt the build and deploy
           deploy_with_retry() {
