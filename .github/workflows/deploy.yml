@@ -51,33 +51,51 @@ jobs:
           # Set permissions
           chmod 600 Backend/pem/*.pem
           
-
           # Update code
           echo "Fetching latest changes..."
           git fetch origin main
           git reset --hard origin/main
           git clean -fd
           
-          # Deploy
+          # Deploy with retry mechanism
           echo "Starting deployment...."
           export DOCKER_BUILDKIT=1
           export COMPOSE_DOCKER_CLI_BUILD=1
           export NODE_OPTIONS="--max-old-space-size=8192"
-          
-          docker-compose -f docker-compose.prod.yml down --remove-orphans
-          if docker-compose -f docker-compose.prod.yml build \
+
+          # Function to attempt the build and deploy
+          deploy_with_retry() {
+            for i in {1..3}; do
+              echo "Attempt $i of 3..."
+              
+              docker-compose -f docker-compose.prod.yml down --remove-orphans
+              
+              if docker-compose -f docker-compose.prod.yml build \
                 --build-arg VITE_APP_BACKEND_URL=https://www.techniverse25.rguktsklm.ac.in \
                 --build-arg VITE_APP_KINDE_CLIENT_ID=b33e1744e75f47efba1e56f8f6956266 \
-                --build-arg VITE_APP_KINDE_ISSUER_URL=https://techniverse.kinde.com \
+                --build-arg VITE_APP_KINDE_ISSUER_URL=https://auth.techniverse25.rguktsklm.ac.in \
                 --build-arg VITE_APP_KINDE_REDIRECT_URL=https://www.techniverse25.rguktsklm.ac.in/profile \
                 --build-arg VITE_APP_KINDE_POST_LOGOUT_URL=https://www.techniverse25.rguktsklm.ac.in \
                 --build-arg VITE_APP_API_BASE_URL=https://www.techniverse25.rguktsklm.ac.in/api \
                 --no-cache; then
-              echo "Build successful, starting containers..."
-              docker-compose -f docker-compose.prod.yml up -d
-          else 
-              echo "Build failed!"
-              exit 1
+                
+                echo "Build successful, starting containers..."
+                if docker-compose -f docker-compose.prod.yml up -d; then
+                  return 0
+                fi
+              fi
+              
+              echo "Attempt $i failed, cleaning up..."
+              docker system prune -af
+              sleep 10
+            done
+            return 1
+          }
+
+          # Try to deploy
+          if ! deploy_with_retry; then
+            echo "All deployment attempts failed!"
+            exit 1
           fi
           
           sleep 15
@@ -86,6 +104,21 @@ jobs:
     - name: Verify Deployment
       run: |
         sleep 30
-        # Use HTTPS for verification
-        curl -I https://techniverse25.rguktsklm.ac.in || echo "Frontend not responding.."
-        curl -I https://techniverse25.rguktsklm.ac.in/api || echo "Backend not responding"
+        # Use HTTPS for verification with retries
+        for i in {1..3}; do
+          if curl -I https://techniverse25.rguktsklm.ac.in; then
+            echo "Frontend is responding"
+            break
+          fi
+          echo "Frontend attempt $i failed, retrying..."
+          sleep 10
+        done
+
+        for i in {1..3}; do
+          if curl -I https://techniverse25.rguktsklm.ac.in/api; then
+            echo "Backend is responding"
+            break
+          fi
+          echo "Backend attempt $i failed, retrying..."
+          sleep 10
+        done
