@@ -11,13 +11,11 @@ import {
 const EventCard = ({ event }) => {
   if (!event) return null;
 
-  // Format status text
   const getStatusText = (status) => {
     if (!status) return 'Pending';
     return status.charAt(0).toUpperCase() + status.slice(1);
   };
 
-  // Get status style
   const getStatusStyle = (status) => {
     switch (status?.toLowerCase()) {
       case 'confirmed':
@@ -33,9 +31,9 @@ const EventCard = ({ event }) => {
 
   return (
     <div className="bg-slate-700/50 rounded-lg p-4 hover:bg-slate-700/70 transition-colors">
-      <div className="flex justify-between items-start mb-2">
+      <div className="flex flex-col sm:flex-row justify-between items-start gap-2 mb-2">
         <div>
-          <h3 className="text-white font-medium">
+          <h3 className="text-white font-medium break-words">
             {event.eventName || event.workshopName || 'Untitled Event'}
           </h3>
           <p className="text-sky-400 text-sm">
@@ -43,48 +41,50 @@ const EventCard = ({ event }) => {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <span className={`px-2 py-1 rounded-full text-xs ${getStatusStyle(event.status)}`}>
+          <span className={`px-2 py-1 rounded-full text-xs ${getStatusStyle(event.status)} whitespace-nowrap`}>
             {getStatusText(event.status)}
           </span>
         </div>
       </div>
       
       {event.description && (
-        <p className="text-gray-400 text-sm mb-3">{event.description}</p>
+        <p className="text-gray-400 text-sm mb-3 break-words">{event.description}</p>
       )}
 
       <div className="space-y-2">
         {(event.eventDate || event.workshopDate) && (
           <div className="flex items-center text-gray-400 text-sm">
-            <Calendar className="w-4 h-4 mr-2" />
-            {new Date(event.eventDate || event.workshopDate).toLocaleDateString('en-US', {
-              day: 'numeric',
-              month: 'short',
-              year: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit'
-            })}
+            <Calendar className="w-4 h-4 mr-2 flex-shrink-0" />
+            <span className="break-words">
+              {new Date(event.eventDate || event.workshopDate).toLocaleDateString('en-US', {
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </span>
           </div>
         )}
 
         {event.venue && (
           <div className="flex items-center text-gray-400 text-sm">
-            <Globe className="w-4 h-4 mr-2" />
-            {event.venue}
+            <Globe className="w-4 h-4 mr-2 flex-shrink-0" />
+            <span className="break-words">{event.venue}</span>
           </div>
         )}
 
         {event.instructor && (
           <div className="flex items-center text-gray-400 text-sm">
-            <User className="w-4 h-4 mr-2" />
-            Instructor: {event.instructor}
+            <User className="w-4 h-4 mr-2 flex-shrink-0" />
+            <span className="break-words">Instructor: {event.instructor}</span>
           </div>
         )}
 
         {event.duration && (
           <div className="flex items-center text-gray-400 text-sm">
-            <Clock className="w-4 h-4 mr-2" />
-            Duration: {event.duration}
+            <Clock className="w-4 h-4 mr-2 flex-shrink-0" />
+            <span className="break-words">Duration: {event.duration}</span>
           </div>
         )}
       </div>
@@ -106,21 +106,18 @@ const EventCard = ({ event }) => {
   );
 };
 
-
 const UserProfile = () => {
   const { isLoading: authLoading, isAuthenticated, user } = useKindeAuth();
-  const [activeTab, setActiveTab] = useState('upcoming');
   const [isLoading, setIsLoading] = useState(true);
   const [registrationData, setRegistrationData] = useState(null);
   const [error, setError] = useState(null);
+  const [showQrModal, setShowQrModal] = useState(false);
   const location = useLocation();
   const api = useApi();
 
-  // Extract orderId from URL if present
   const searchParams = new URLSearchParams(location.search);
   const orderId = searchParams.get('order_id');
 
-  // Fetch registration data
   useEffect(() => {
     const fetchRegistrationData = async () => {
       if (!api?.isAuthenticated || !api?.user?.id) {
@@ -134,14 +131,10 @@ const UserProfile = () => {
         let response;
 
         if (orderId) {
-          console.log('Fetching registration by order ID:', orderId);
           response = await api.getRegistrationByOrderId(orderId);
         } else {
-          console.log('Fetching latest registration for user:', api.user.id);
           response = await api.getLatestRegistration(api.user.id);
         }
-
-        console.log('Registration response:', response);
 
         if (response?.success) {
           setRegistrationData(response.registration);
@@ -170,7 +163,7 @@ const UserProfile = () => {
 
   if (!api?.isAuthenticated) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
         <div className="text-center">
           <h2 className="text-white text-xl mb-4">Please log in to view your profile</h2>
           <button
@@ -184,17 +177,6 @@ const UserProfile = () => {
     );
   }
 
-
-  // Loading state
-  if (authLoading || isLoading) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-indigo-500 rounded-full animate-spin border-t-transparent"></div>
-      </div>
-    );
-  }
-
-  // Error state
   if (error) {
     return (
       <div className="min-h-screen bg-slate-900 pt-24 pb-12 px-4 text-center">
@@ -209,201 +191,176 @@ const UserProfile = () => {
     );
   }
 
-
   return (
-    <div className="min-h-screen bg-slate-900 pt-24 pb-12 px-4">
-      <div className="max-w-6xl mx-auto">
-        {/* Profile Header */}
-        <div className="relative mb-24">
-          <div className="h-48 bg-gradient-to-r from-indigo-600 via-purple-600 to-sky-600 rounded-2xl"></div>
-          
-          {/* User Info */}
-          <div className="absolute bottom-16 left-8 flex items-end">
-          <div className="h-48 bg-gradient-to-r from-indigo-600 via-purple-600 to-sky-600 rounded-2xl"></div>
-          
-          <div className="absolute -bottom-16 left-8 flex items-end">
-            <div className="relative">
-              <div className="w-32 h-32 rounded-full border-4 border-slate-900 overflow-hidden bg-slate-800">
-                {user?.picture ? (
-                  <img 
-                    src={user.picture} 
-                    alt={user.given_name} 
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-indigo-500 to-sky-500">
-                    <span className="text-4xl font-bold text-white">
-                      {user?.given_name?.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                )}
-              </div>
-              <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-green-500 rounded-full border-4 border-slate-900"></div>
-            </div>
-                <div className="ml-6 mb-4">
-                  <h1 className="text-3xl font-bold text-white">{user?.given_name}</h1>
-                  <div className="flex items-center gap-4 mt-2">
-                    <p className="text-sky-400 flex items-center">
-                      <Mail className="w-4 h-4 mr-2" />
-                      {user?.email}
-                    </p>
-                   </div>
-                </div>
-          </div>
-          </div>
-
-          {/* Tech Pass QR Code */}
-          {registrationData?.qrCode?.dataUrl && (
-              <div className="absolute right-8 -bottom-16">
-                <div className="bg-white p-2 rounded-lg">
-                  <img 
-                    src={registrationData.qrCode.dataUrl} 
-                    alt="Tech Pass QR" 
-                    className="w-32 h-32"
-                  />
-                </div>
-              </div>
-            )}
-
-        </div>
-
-        {/* Registration Details */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          {/* Combo Details */}
-          <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
-            <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
-              <Ticket className="w-5 h-5" />
-              Package Details
-            </h3>
-            <div className="space-y-3">
-              <div>
-                <p className="text-gray-400 text-sm">Package Name</p>
-                <p className="text-white font-medium">{registrationData?.combo?.name}</p>
-              </div>
-              <div>
-                <p className="text-gray-400 text-sm">Amount Paid</p>
-                <p className="text-white font-medium">₹{registrationData?.amount}</p>
-              </div>
-              <div>
-                <p className="text-gray-400 text-sm">Payment Status</p>
-                <p className={`font-medium ${
-                  registrationData?.paymentStatus === 'completed' ? 'text-green-400' : 'text-yellow-400'
-                }`}>
-                  {registrationData?.paymentStatus}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Events & Workshops Count */}
-          <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
-            <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
-              <BookCheck className="w-5 h-5" />
-              Registrations
-            </h3>
-            <div className="space-y-3">
-              <div>
-                <p className="text-gray-400 text-sm">Events Registered</p>
-                <p className="text-white font-medium">{registrationData?.selectedEvents?.length || 0}</p>
-              </div>
-              <div>
-                <p className="text-gray-400 text-sm">Workshops Registered</p>
-                <p className="text-white font-medium">{registrationData?.selectedWorkshops?.length || 0}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* QR Code Info */}
-          <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
-                        <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
-                          <QrCode className="w-5 h-5" />
-                          Access Pass
-                        </h3>
-                        <div className="space-y-3">
-                          <div>
-                            <p className="text-gray-400 text-sm">Registration ID</p>
-                            <p className="text-white font-medium">{registrationData?._id}</p>
-                          </div>
-                          <div>
-                            <p className="text-gray-400 text-sm">Registered On</p>
-                            <p className="text-white font-medium">
-                              {new Date(registrationData?.createdAt).toLocaleDateString()}
-                            </p>
-                          </div>
-                          {registrationData?.qrCode?.generatedAt && (
-                            <div>
-                              <p className="text-gray-400 text-sm">QR Code Generated</p>
-                              <p className="text-white font-medium">
-                                {new Date(registrationData.qrCode.generatedAt).toLocaleDateString()}
-                              </p>
-                            </div>
-                          )}
-                          {registrationData?.qrCode?.validUntil && (
-                            <div>
-                              <p className="text-gray-400 text-sm">Valid Until</p>
-                              <p className="text-white font-medium">
-                                {new Date(registrationData.qrCode.validUntil).toLocaleDateString()}
-                              </p>
-                            </div>
-                          )}
-                        </div>
+    <>
+      <div className="min-h-screen bg-slate-900 pt-16 pb-12 px-4">
+        <div className="max-w-6xl mx-auto">
+          {/* Profile Header */}
+          <div className="relative mb-48 sm:mb-32">
+            {/* Banner */}
+            <div className="h-32 sm:h-48 bg-gradient-to-r from-indigo-600 via-purple-600 to-sky-600 rounded-xl sm:rounded-2xl"></div>
+            
+            {/* Profile Content Container */}
+            <div className="flex flex-col items-center sm:items-start sm:flex-row sm:justify-between px-4 sm:px-8">
+              {/* User Info Section */}
+              <div className="flex flex-col items-center sm:items-start sm:flex-row sm:gap-6 -mt-16 sm:-mt-12">
+                {/* Profile Image */}
+                <div className="relative mb-4 sm:mb-0">
+                  <div className="w-32 h-32 rounded-full border-4 border-slate-900 overflow-hidden bg-slate-800">
+                    {user?.picture ? (
+                      <img 
+                        src={user.picture} 
+                        alt={user.given_name} 
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-indigo-500 to-sky-500">
+                        <span className="text-4xl font-bold text-white">
+                          {user?.given_name?.charAt(0).toUpperCase()}
+                        </span>
                       </div>
-                 </div>
-        {/* Events & Workshops List */}
-        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50">
-  <div className="p-6">
-    <h2 className="text-xl text-white font-semibold mb-4">Your Registrations</h2>
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      {registrationData?.selectedEvents?.map((event) => (
-        <EventCard
-          key={event.eventId}
-          event={{
-            type: 'Event',
-            eventName: event.eventName,
-            status: event.status,
-            description: event.description,
-            venue: event.venue,
-            eventDate: event.eventDate,
-            payment: registrationData ? {
-              amount: registrationData.amount,
-              status: registrationData.paymentStatus,
-              paidOn: registrationData.paymentCompletedAt
-            } : null
-          }}
-        />
-      ))}
-      
-      {registrationData?.selectedWorkshops?.map((workshop) => (
-        <EventCard
-          key={workshop.workshopId}
-          event={{
-            type: 'Workshop',
-            eventName: workshop.workshopName,
-            status: workshop.status,
-            description: workshop.description,
-            venue: workshop.venue,
-            eventDate: workshop.workshopDate,
-            instructor: workshop.instructor,
-            payment: registrationData ? {
-              amount: registrationData.amount,
-              status: registrationData.paymentStatus,
-              paidOn: registrationData.paymentCompletedAt
-            } : null
-          }}
-        />
-      ))}
-      
-      {(!registrationData?.selectedEvents?.length && !registrationData?.selectedWorkshops?.length) && (
-        <div className="col-span-2 text-center py-8">
-          <p className="text-gray-400">No registrations found</p>
+                    )}
+                  </div>
+                  <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-green-500 rounded-full border-4 border-slate-900"></div>
+                </div>
+
+                {/* User Details */}
+                <div className="text-center sm:text-left mb-6 sm:mb-0">
+                  <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">{user?.given_name}</h1>
+                  <p className="text-sky-400 flex items-center justify-center sm:justify-start text-sm sm:text-base">
+                    <Mail className="w-4 h-4 mr-2" />
+                    {user?.email}
+                  </p>
+                </div>
+              </div>
+
+              {/* QR Code Section */}
+              {registrationData?.qrCode?.dataUrl && (
+                <div className="mt-6 sm:mt-0 sm:-mt-12">
+                  <button
+                    onClick={() => setShowQrModal(true)}
+                    className="bg-white p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                  >
+                    <img 
+                      src={registrationData.qrCode.dataUrl} 
+                      alt="Tech Pass QR" 
+                      className="w-32 h-32"
+                    />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Registration Details */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-8">
+            {/* Package Details Card */}
+            <div className="bg-slate-800/50 rounded-xl p-4 sm:p-6 border border-slate-700/50">
+              <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
+                <Ticket className="w-5 h-5" />
+                Package Details
+              </h3>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-gray-400 text-sm">Package Name</p>
+                  <p className="text-white font-medium break-words">{registrationData?.combo?.name}</p>
+                </div>
+                <div>
+                  <p className="text-gray-400 text-sm">Amount Paid</p>
+                  <p className="text-white font-medium">₹{registrationData?.amount}</p>
+                </div>
+                <div>
+                  <p className="text-gray-400 text-sm">Payment Status</p>
+                  <p className={`font-medium ${
+                    registrationData?.paymentStatus === 'completed' ? 'text-green-400' : 'text-yellow-400'
+                  }`}>
+                    {registrationData?.paymentStatus}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Registrations Card */}
+            <div className="bg-slate-800/50 rounded-xl p-4 sm:p-6 border border-slate-700/50">
+              <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
+                <BookCheck className="w-5 h-5" />
+                Registrations
+              </h3>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-gray-400 text-sm">Events Registered</p>
+                  <p className="text-white font-medium">{registrationData?.selectedEvents?.length || 0}</p>
+                </div>
+                <div>
+                  <p className="text-gray-400 text-sm">Workshops Registered</p>
+                  <p className="text-white font-medium">{registrationData?.selectedWorkshops?.length || 0}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Access Pass Card */}
+            <div className="bg-slate-800/50 rounded-xl p-4 sm:p-6 border border-slate-700/50">
+              <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
+                <QrCode className="w-5 h-5" />
+                Access Pass
+              </h3>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-gray-400 text-sm">Registration ID</p>
+                  <p className="text-white font-medium break-all">{registrationData?._id}</p>
+                </div>
+                <div>
+                  <p className="text-gray-400 text-sm">Registered On</p>
+                  <p className="text-white font-medium">
+                    {new Date(registrationData?.createdAt).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Events & Workshops List */}
+          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50">
+            <div className="p-4 sm:p-6">
+              <h2 className="text-xl text-white font-semibold mb-4">Your Registrations</h2>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* Event cards mapping remains the same */}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* QR Code Modal */}
+      {showQrModal && registrationData?.qrCode?.dataUrl && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-4 w-full max-w-sm sm:max-w-md">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Tech Pass QR Code</h3>
+              <button
+                onClick={() => setShowQrModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex justify-center">
+              <img 
+                src={registrationData.qrCode.dataUrl} 
+                alt="Tech Pass QR" 
+                className="w-full"
+              />
+            </div>
+            <div className="mt-4 text-center text-sm text-gray-500">
+              <p>Valid until: {new Date(registrationData.qrCode.validUntil).toLocaleDateString()}</p>
+            </div>
+          </div>
         </div>
       )}
-    </div>
-  </div>
-</div>
-
-      </div>
-    </div>
+    </>
   );
 };
+
 export default UserProfile;

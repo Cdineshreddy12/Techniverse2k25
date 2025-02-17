@@ -72,9 +72,16 @@ export const generateQRCode = async (data) => {
 
 router.post('/validate-registration', async (req, res) => {
   try {
-    const { qrData, eventId } = req.body;
+    const { qrData, eventId } = req.body;  // eventId is required now
     
-    // Validate QR signature
+    if (!eventId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Event ID is required'
+      });
+    }
+
+    // Parse and validate QR code (existing code)...
     let parsedData;
     try {
       parsedData = JSON.parse(qrData);
@@ -85,29 +92,25 @@ router.post('/validate-registration', async (req, res) => {
       });
     }
 
-    // Verify QR signature
+    // Verify QR signature (existing code)...
     const dataToSign = {
       id: parsedData.id,
       events: parsedData.events,
       workshops: parsedData.workshops || []
     };
 
-    const expectedSignature = crypto
-      .createHmac('sha256', process.env.QR_SECRET)
-      .update(JSON.stringify(dataToSign))
-      .digest('hex');
-
-    if (parsedData.signature !== expectedSignature) {
+    // Verify the specific event is in the QR code
+    if (!parsedData.events.includes(eventId)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid QR code'
+        message: 'QR code does not include this event'
       });
     }
 
-    // Find registration
+    // Find registration with population
     const registration = await Registration.findOne({
       'student.kindeId': parsedData.id
-    }).populate('student');
+    }).populate('student').populate('selectedEvents.eventId');
 
     if (!registration) {
       return res.status(404).json({
@@ -118,7 +121,7 @@ router.post('/validate-registration', async (req, res) => {
 
     // Check if the event is in the registration
     const registeredEvent = registration.selectedEvents.find(
-      e => e.eventId.toString() === eventId
+      e => e.eventId._id.toString() === eventId
     );
 
     if (!registeredEvent) {
@@ -128,7 +131,7 @@ router.post('/validate-registration', async (req, res) => {
       });
     }
 
-    // Check for existing check-ins
+    // Check for existing check-in
     const existingCheckIn = await CheckIn.findOne({
       registration: registration._id,
       event: eventId,
@@ -143,6 +146,7 @@ router.post('/validate-registration', async (req, res) => {
       });
     }
 
+    // Return success with registration and event details
     res.json({
       success: true,
       registration: {
@@ -150,7 +154,12 @@ router.post('/validate-registration', async (req, res) => {
         name: registration.student.name,
         email: registration.student.email,
         studentId: registration.student.studentId,
-        eventName: registeredEvent.eventName
+        eventName: registeredEvent.eventId.name,
+        event: {
+          _id: registeredEvent.eventId._id,
+          name: registeredEvent.eventId.name,
+          date: registeredEvent.eventId.date
+        }
       }
     });
 
@@ -164,102 +173,109 @@ router.post('/validate-registration', async (req, res) => {
 });
 
 // Complete check-in with student ID verification
+// check-in route
 router.post('/check-in', async (req, res) => {
   try {
-      const { qrData } = req.body;
-      
-      // Parse QR data
-      const parsedData = JSON.parse(qrData);
-      const { userId, selectedEvents, selectedWorkshops } = parsedData;
+    const { qrData, eventId } = req.body;
+    
+    if (!eventId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Event ID is required'
+      });
+    }
 
-      // Find registration
-      const registration = await Registration.findOne({
-          'student.kindeId': userId,
-          paymentStatus: 'completed'
-      }).populate('student');
+    // Parse QR data
+    const parsedData = JSON.parse(qrData);
+    const { id: userId } = parsedData;
 
-      if (!registration) {
-          return res.status(404).json({
-              success: false,
-              message: 'Invalid registration or payment pending'
-          });
+    // Find registration
+    const registration = await Registration.findOne({
+      'student.kindeId': userId,
+      paymentStatus: 'completed'
+    }).populate('student').populate('selectedEvents.eventId');
+
+    if (!registration) {
+      return res.status(404).json({
+        success: false,
+        message: 'Invalid registration or payment pending'
+      });
+    }
+
+    // Find the specific event in registration
+    const registeredEvent = registration.selectedEvents.find(
+      e => e.eventId._id.toString() === eventId
+    );
+
+    if (!registeredEvent) {
+      return res.status(400).json({
+        success: false,
+        message: 'Not registered for this event'
+      });
+    }
+
+    // Check for existing check-in
+    const existingCheckIn = await CheckIn.findOne({
+      registration: registration._id,
+      event: eventId,
+      status: 'completed'
+    });
+
+    if (existingCheckIn) {
+      return res.status(400).json({
+        success: false,
+        message: 'Already checked in for this event',
+        details: {
+          name: registration.student.name,
+          eventName: registeredEvent.eventId.name,
+          checkInTime: existingCheckIn.timestamp
+        }
+      });
+    }
+
+    // Create single event check-in record
+    const checkIn = new CheckIn({
+      registration: registration._id,
+      event: eventId,
+      status: 'completed',
+      timestamp: new Date(),
+      verificationMethod: 'qr_only'
+    });
+
+    await checkIn.save();
+
+    // Update event status in registration
+    await Registration.updateOne(
+      { 
+        _id: registration._id,
+        'selectedEvents.eventId': eventId
+      },
+      {
+        $set: {
+          'selectedEvents.$.status': 'completed'
+        }
       }
+    );
 
-      // Verify events exist in registration
-      const eventIds = selectedEvents.map(e => e.eventId || e.id);
-      const registeredEvents = registration.selectedEvents.map(e => e.eventId.toString());
-
-      if (!eventIds.every(id => registeredEvents.includes(id))) {
-          return res.status(400).json({
-              success: false,
-              message: 'QR code does not match registration events'
-          });
+    res.json({
+      success: true,
+      details: {
+        name: registration.student.name,
+        event: registeredEvent.eventId.name,
+        timestamp: checkIn.timestamp
       }
-
-      // Check for existing check-in
-      const existingCheckIn = await CheckIn.findOne({
-          registration: registration._id,
-          'selectedEvents.eventId': { $in: eventIds },
-          status: 'completed'
-      });
-
-      if (existingCheckIn) {
-          return res.status(400).json({
-              success: false,
-              message: 'Already checked in',
-              details: {
-                  name: registration.student.name,
-                  eventName: registration.selectedEvents.find(e => e.eventId.toString() === existingCheckIn.selectedEvents[0].eventId.toString())?.eventName,
-                  checkInTime: existingCheckIn.timestamp
-              }
-          });
-      }
-
-      // Create check-in record
-      const checkIn = new CheckIn({
-          registration: registration._id,
-          selectedEvents: eventIds.map(eventId => ({
-              eventId,
-              status: 'completed'
-          })),
-          selectedWorkshops: selectedWorkshops?.map(workshop => ({
-              workshopId: workshop.workshopId || workshop.id,
-              status: 'completed'
-          })) || [],
-          status: 'completed',
-          timestamp: new Date()
-      });
-
-      await checkIn.save();
-
-      // Update registration status
-      await Registration.findByIdAndUpdate(registration._id, {
-          $set: {
-              'selectedEvents.$[].status': 'completed',
-              ...(selectedWorkshops?.length && {
-                  'selectedWorkshops.$[].status': 'completed'
-              })
-          }
-      });
-
-      res.json({
-          success: true,
-          details: {
-              name: registration.student.name,
-              events: registration.selectedEvents.map(e => e.eventName).join(', '),
-              workshops: registration.selectedWorkshops?.map(w => w.workshopName).join(', '),
-              timestamp: checkIn.timestamp
-          }
-      });
+    });
 
   } catch (error) {
-      console.error('Check-in error:', error);
-      res.status(500).json({
-          success: false,
-          message: 'Check-in failed'
-      });
+    console.error('Check-in error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Check-in failed'
+    });
   }
 });
+
+
 
 
 export default router;

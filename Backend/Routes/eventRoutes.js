@@ -53,6 +53,55 @@ const uploadToCloudinary = async (file, folder = 'events') => {
   }
 };
 
+
+router.get('/events', async (req, res) => {
+  try {
+    const events = await Event.find()
+      .populate('departments', 'name shortName icon color')
+      .sort('-createdAt');
+    
+    const now = new Date();
+
+    const stats = {
+      totalEvents: events.length,
+      totalRegistrations: events.reduce((sum, event) => sum + (event.registrationCount || 0), 0),
+      totalRevenue: events.reduce((sum, event) => 
+        sum + ((event.registrationCount || 0) * (parseFloat(event.registrationFee) || 0)), 0),
+      totalPrizeMoney: events.reduce((sum, event) => {
+        return sum + (event.details?.prizeStructure?.reduce((prizeSum, prize) => 
+          prizeSum + (parseFloat(prize.amount) || 0), 0) || 0);
+      }, 0),
+      activeEvents: events.filter(event => 
+        event.status === 'published' && 
+        new Date(event.registrationEndTime) > now
+      ).length,
+      upcomingEvents: events.filter(event => new Date(event.startTime) > now).length,
+      eventsByStatus: {
+        draft: events.filter(event => event.status === 'draft').length,
+        published: events.filter(event => event.status === 'published').length,
+        completed: events.filter(event => event.status === 'completed').length,
+        cancelled: events.filter(event => event.status === 'cancelled').length
+      },
+      registrationTypes: {
+        individual: events.filter(event => event.registrationType === 'individual').length,
+        team: events.filter(event => event.registrationType === 'team').length
+      }
+    };
+
+    res.json({
+      success: true,
+      events,
+      stats
+    });
+  } catch (error) {
+    console.error('Get all events error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch events'
+    });
+  }
+});
+
 // Get overall stats
 router.get('/departments/stats/overall', async (req, res) => {
   try {

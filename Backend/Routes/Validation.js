@@ -2,7 +2,7 @@ import express from 'express';
 const router=express.Router();
 import { Registration } from '../Models/RegistrationSchema.js';
 
-router.post('/validate-registration', async (req, res) => {
+router.post('/code/validate-registration', async (req, res) => {
     try {
       const { code, eventId } = req.body;
       

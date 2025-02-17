@@ -28,7 +28,7 @@ import PaymentRoutes from './Routes/PaymentRoutes.js'
 import path from "path"
 import { fileURLToPath } from "url";
 import workshopRoutes from './Routes/workShopRoutes.js'
-import OfflineRegistrationRoutes from './Routes/offlineRegistrations.js'
+// import OfflineRegistrationRoutes from './Routes/offlineRegistrations.js'
 // Load environment variables
 dotenv.config();
 
@@ -132,7 +132,7 @@ app.use('/api',cartRoutes);
 app.use('/api',comboRoutes);
 app.use('/api',PaymentRoutes);
 app.use('/api',workshopRoutes);
-app.use('/api',OfflineRegistrationRoutes);
+// app.use('/api',OfflineRegistrationRoutes);
 
 
 export const sendConfirmationEmail = async (email, qrCode, data) => {

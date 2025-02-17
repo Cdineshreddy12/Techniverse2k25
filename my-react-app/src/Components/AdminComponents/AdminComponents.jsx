@@ -1,15 +1,33 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, Calendar, Settings, 
   ChevronLeft, ChevronRight, ScrollText, 
   GraduationCap, BadgeCheck, BarChart3,
-  Trophy, Bell, LogOut
+  Trophy, Bell, LogOut, Menu, X
 } from 'lucide-react';
 
 const AdminDashboard = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
+
+  // Close mobile menu when route changes
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [location]);
+
+  // Close mobile menu when screen size increases
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 500) {
+        setIsMobileMenuOpen(false);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const navigationItems = [
     {
@@ -25,8 +43,8 @@ const AdminDashboard = () => {
       items: [
         { name: "Events", icon: <Trophy size={20} />, path: "/adminDashboard/events" },
         { name: "New Updates", icon: <ScrollText size={20} />, path: "/adminDashboard/news" },
-        { name: "Workshops" ,icon: <Users size={20} />, path: "/adminDashboard/workshops" },
-        { name: "Validation" ,icon: <Users size={20} />, path: "/adminDashboard/validation" },
+        { name: "Workshops", icon: <Users size={20} />, path: "/adminDashboard/workshops" },
+        { name: "Validation", icon: <Users size={20} />, path: "/adminDashboard/validation" },
         { name: "Offline Registration", icon: <Calendar size={20} />, path: "/adminDashboard/registerOffline" }
       ]
     }
@@ -41,12 +59,22 @@ const AdminDashboard = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white flex">
+      {/* Mobile Menu Overlay */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
       <div 
-        className={`${
-          isCollapsed ? 'w-20' : 'w-64'
-        } bg-slate-900/50 border-r border-slate-800 transition-all duration-300 ease-in-out
-        fixed h-screen overflow-y-auto`}
+        className={`
+          ${isCollapsed ? 'w-20' : 'w-64'} 
+          ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+          bg-slate-900/50 border-r border-slate-800 transition-all duration-300 ease-in-out
+          fixed h-screen overflow-y-auto z-50
+        `}
       >
         {/* Sidebar Header */}
         <div className="p-4 border-b border-slate-800 flex items-center justify-between">
@@ -56,16 +84,20 @@ const AdminDashboard = () => {
               <h1 className="font-bold text-lg">Admin Panel</h1>
             </div>
           )}
-          <button
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="p-2 rounded-lg hover:bg-slate-800 transition-colors"
-          >
-            {isCollapsed ? (
-              <ChevronRight size={20} />
-            ) : (
-              <ChevronLeft size={20} />
-            )}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsCollapsed(!isCollapsed)}
+              className="p-2 rounded-lg hover:bg-slate-800 transition-colors"
+            >
+              {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+            </button>
+            <button
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="p-2 rounded-lg hover:bg-slate-800 transition-colors lg:hidden"
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Navigation */}
@@ -106,15 +138,32 @@ const AdminDashboard = () => {
       {/* Main Content */}
       <div 
         className={`flex-1 transition-all duration-300 ease-in-out
-        ${isCollapsed ? 'ml-20' : 'ml-64'}`}
+        ${isCollapsed ? 'lg:ml-20' : 'lg:ml-64'}`}
       >
         {/* Content Header */}
-        <header className="bg-slate-900/50 border-b border-slate-800 h-16 flex items-center px-6">
-          <h1 className="text-xl font-semibold">
-            {navigationItems
-              .flatMap(group => group.items)
-              .find(item => isActivePath(item.path))?.name || 'Dashboard'}
-          </h1>
+        <header className="bg-slate-900/50 border-b border-slate-800 h-16 flex items-center justify-between px-6">
+          <div className="flex items-center gap-4">
+            {/* Mobile menu buttons */}
+            <div className="flex items-center gap-2 lg:hidden">
+              <button
+                onClick={() => setIsMobileMenuOpen(true)}
+                className="p-2 rounded-lg hover:bg-slate-800 transition-colors"
+              >
+                <Menu size={20} />
+              </button>
+              <button
+                onClick={() => setIsCollapsed(!isCollapsed)}
+                className="p-2 rounded-lg hover:bg-slate-800 transition-colors"
+              >
+                {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+              </button>
+            </div>
+            <h1 className="text-xl font-semibold">
+              {navigationItems
+                .flatMap(group => group.items)
+                .find(item => isActivePath(item.path))?.name || 'Dashboard'}
+            </h1>
+          </div>
         </header>
 
         {/* Content Area */}
