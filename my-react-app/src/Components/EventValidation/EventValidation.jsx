@@ -193,23 +193,64 @@ function ValidateInterface() {
 
       {/* Scanning Step */}
       {currentStep === 'scan' && (
-        <div className="fixed inset-0 bg-slate-900 z-50 p-4">
-          <div className="max-w-2xl mx-auto">
-            <button
-              onClick={handleBackButton}
-              className="mb-4 text-slate-400 hover:text-white transition-colors flex items-center gap-2"
-            >
-              <ChevronLeft className="w-5 h-5" />
-              <span>Back to Events</span>
-            </button>
-
-            <div className="bg-slate-800 p-4 rounded-lg">
-              <h4 className="text-white font-medium mb-2">Scanning for: {selectedEvent.title}</h4>
-              <p className="text-sm text-slate-400 mb-4">
+        <div className="fixed inset-0 bg-slate-900 z-50">
+          <div className="max-w-2xl mx-auto h-full flex flex-col p-4">
+            {/* Header */}
+            <div className="mb-4">
+              <button
+                onClick={handleBackButton}
+                className="mb-2 text-slate-400 hover:text-white transition-colors flex items-center gap-2"
+              >
+                <ChevronLeft className="w-5 h-5" />
+                <span>Back to Events</span>
+              </button>
+              <h4 className="text-white font-medium text-lg">Scanning for: {selectedEvent.title}</h4>
+              <p className="text-sm text-slate-400">
                 Confirm check-in by scanning participant's QR code
               </p>
+            </div>
+
+            {/* Results display at top */}
+            {validationResult && (
+              <div className={`mb-4 p-4 rounded-lg ${
+                validationResult.success 
+                  ? 'bg-green-900/30 border border-green-500/50' 
+                  : 'bg-red-900/30 border border-red-500/50'
+              }`}>
+                {validationResult.success ? (
+                  <div className="flex items-center gap-3">
+                    <CheckCircle className="w-6 h-6 text-green-400 flex-shrink-0" />
+                    <div>
+                      <p className="text-green-400 font-medium">Check-in Successful</p>
+                      <p className="text-gray-300 text-sm mt-1">{validationResult.details.name}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <AlertCircle className="w-6 h-6 text-red-400 flex-shrink-0" />
+                    <p className="text-red-400">{validationResult.message}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Scanner */}
+            <div className="bg-slate-800 p-4 rounded-lg flex-1">
               <QRScanner onScanSuccess={handleQRScan} />
             </div>
+
+            {/* Bottom Actions */}
+            {validationResult && (
+              <div className="mt-4">
+                <button
+                  onClick={() => setValidationResult(null)}
+                  className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                >
+                  <UserCheck className="w-5 h-5" />
+                  Scan Next Participant
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

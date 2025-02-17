@@ -74,7 +74,6 @@ router.post('/validate-registration', async (req, res) => {
   try {
     const { qrData, eventId } = req.body;
     
-    // Debug log
     console.log('Received request:', { eventId, qrData });
     
     if (!eventId) {
@@ -87,7 +86,6 @@ router.post('/validate-registration', async (req, res) => {
     let parsedData;
     try {
       parsedData = JSON.parse(qrData);
-      // Debug log
       console.log('Parsed QR data:', parsedData);
     } catch (error) {
       console.error('QR parsing error:', error);
@@ -97,31 +95,23 @@ router.post('/validate-registration', async (req, res) => {
       });
     }
 
-    // Verify QR signature
-    const dataToSign = {
-      id: parsedData.id,
-      events: parsedData.events,
-      workshops: parsedData.workshops || []
-    };
-
-    // Debug log
-    console.log('Looking for registration with kindeId:', parsedData.id);
-
-    // Find registration with explicit path
-    const registration = await Registration.findOne({
-      student: { kindeId: parsedData.id }  // Updated query structure
-    }).populate('Student').populate('selectedEvents.eventId');
-
-    // Debug log
-    console.log('Registration search result:', registration ? 'Found' : 'Not found');
-    if (!registration) {
-      // Try alternative query for debugging
-      const allRegistrations = await Registration.find({}).populate('Student');
-      console.log('All registrations count:', allRegistrations.length);
-      console.log('Sample registration structure:', 
-        allRegistrations[0] ? JSON.stringify(allRegistrations[0].student, null, 2) : 'No registrations'
-      );
+    // First find the student
+    const student = await Student.findOne({ kindeId: parsedData.id });
+    
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found'
+      });
     }
+
+    // Then find the registration using student's _id
+    const registration = await Registration.findOne({
+      student: student._id,
+      kindeId: parsedData.id
+    }).populate('student').populate('selectedEvents.eventId');
+
+    console.log('Registration search result:', registration ? 'Found' : 'Not found');
 
     if (!registration) {
       return res.status(404).json({
@@ -208,11 +198,22 @@ router.post('/check-in', async (req, res) => {
     const parsedData = JSON.parse(qrData);
     const { id: userId } = parsedData;
 
-    // Find registration
+    // First find the student
+    const student = await Student.findOne({ kindeId: userId });
+    
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found'
+      });
+    }
+
+    // Then find registration using student's _id
     const registration = await Registration.findOne({
-      'student.kindeId': userId,
+      student: student._id,
+      kindeId: userId,
       paymentStatus: 'completed'
-    }).populate('Student').populate('selectedEvents.eventId');
+    }).populate('student').populate('selectedEvents.eventId');
 
     if (!registration) {
       return res.status(404).json({
@@ -276,6 +277,11 @@ router.post('/check-in', async (req, res) => {
       }
     );
 
+    // Update event registration count
+    await Event.findByIdAndUpdate(eventId, {
+      $inc: { checkInCount: 1 }
+    });
+
     res.json({
       success: true,
       details: {
@@ -289,12 +295,14 @@ router.post('/check-in', async (req, res) => {
     console.error('Check-in error:', error);
     res.status(500).json({
       success: false,
-      message: 'Check-in failed'
+      message: 'Check-in failed',
+      debug: {
+        errorMessage: error.message,
+        timestamp: new Date().toISOString()
+      }
     });
   }
 });
-
-
 
 
 export default router;
