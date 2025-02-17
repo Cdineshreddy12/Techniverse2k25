@@ -92,7 +92,7 @@ const verifyEmailAddress = async (emailAddress) => {
 };
 
 
-
+// verifyEmailAddress('reddycdinesh41@gmail.com');
 
 
 // Database connection

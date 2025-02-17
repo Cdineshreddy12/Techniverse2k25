@@ -1,4 +1,3 @@
-// Models/RegistrationSchema.js
 import mongoose from 'mongoose';
 
 const registrationSchema = new mongoose.Schema({
@@ -61,7 +60,7 @@ const registrationSchema = new mongoose.Schema({
 
     // QR Code and Validation
     qrCode: {
-        dataUrl: { type: String }, // Store the actual QR code data URL
+        dataUrl: { type: String },
         generatedAt: { type: Date },
         validUntil: { type: Date },
         metadata: {
@@ -69,6 +68,7 @@ const registrationSchema = new mongoose.Schema({
             workshops: [String]
         }
     },
+    
     // Email Notification Status
     emailNotification: {
         confirmationSent: {
@@ -140,7 +140,7 @@ registrationSchema.pre('save', function(next) {
     next();
 });
 
-// Generate QR code and send email on successful payment
+// Handle successful payment without email sending
 registrationSchema.methods.handleSuccessfulPayment = async function(juspayResponse) {
     try {
         // Update payment status
@@ -176,50 +176,10 @@ registrationSchema.methods.handleSuccessfulPayment = async function(juspayRespon
             validUntil: new Date(Date.now() + (365 * 24 * 60 * 60 * 1000)) // Valid for 1 year
         };
 
-        // Send confirmation email
-        await this.sendConfirmationEmail();
-
         await this.save();
         return true;
     } catch (error) {
         console.error('Payment completion handling failed:', error);
-        throw error;
-    }
-};
-
-// Send confirmation email with QR code
-registrationSchema.methods.sendConfirmationEmail = async function() {
-    try {
-        const student = await mongoose.model('Student').findById(this.student);
-        if (!student) throw new Error('Student not found');
-
-        // Send email using the imported sendConfirmationEmail function
-        await sendConfirmationEmail(
-            student.email,
-            this.qrCode.dataUrl,
-            {
-                name: student.name,
-                combo: this.combo,
-                amount: this.amount,
-                transactionId: this.paymentDetails.transactionId
-            }
-        );
-
-        // Update email notification status
-        this.emailNotification = {
-            confirmationSent: true,
-            sentAt: new Date(),
-            attempts: this.emailNotification.attempts + 1,
-            lastAttempt: new Date()
-        };
-
-        await this.save();
-        return true;
-    } catch (error) {
-        this.emailNotification.error = error.message;
-        this.emailNotification.lastAttempt = new Date();
-        this.emailNotification.attempts += 1;
-        await this.save();
         throw error;
     }
 };

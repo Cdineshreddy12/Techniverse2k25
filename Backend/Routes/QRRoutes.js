@@ -72,7 +72,10 @@ export const generateQRCode = async (data) => {
 
 router.post('/validate-registration', async (req, res) => {
   try {
-    const { qrData, eventId } = req.body;  // eventId is required now
+    const { qrData, eventId } = req.body;
+    
+    // Debug log
+    console.log('Received request:', { eventId, qrData });
     
     if (!eventId) {
       return res.status(400).json({
@@ -81,41 +84,53 @@ router.post('/validate-registration', async (req, res) => {
       });
     }
 
-    // Parse and validate QR code (existing code)...
     let parsedData;
     try {
       parsedData = JSON.parse(qrData);
+      // Debug log
+      console.log('Parsed QR data:', parsedData);
     } catch (error) {
+      console.error('QR parsing error:', error);
       return res.status(400).json({
         success: false,
         message: 'Invalid QR code format'
       });
     }
 
-    // Verify QR signature (existing code)...
+    // Verify QR signature
     const dataToSign = {
       id: parsedData.id,
       events: parsedData.events,
       workshops: parsedData.workshops || []
     };
 
-    // Verify the specific event is in the QR code
-    if (!parsedData.events.includes(eventId)) {
-      return res.status(400).json({
-        success: false,
-        message: 'QR code does not include this event'
-      });
-    }
+    // Debug log
+    console.log('Looking for registration with kindeId:', parsedData.id);
 
-    // Find registration with population
+    // Find registration with explicit path
     const registration = await Registration.findOne({
-      'student.kindeId': parsedData.id
-    }).populate('student').populate('selectedEvents.eventId');
+      student: { kindeId: parsedData.id }  // Updated query structure
+    }).populate('Student').populate('selectedEvents.eventId');
+
+    // Debug log
+    console.log('Registration search result:', registration ? 'Found' : 'Not found');
+    if (!registration) {
+      // Try alternative query for debugging
+      const allRegistrations = await Registration.find({}).populate('Student');
+      console.log('All registrations count:', allRegistrations.length);
+      console.log('Sample registration structure:', 
+        allRegistrations[0] ? JSON.stringify(allRegistrations[0].student, null, 2) : 'No registrations'
+      );
+    }
 
     if (!registration) {
       return res.status(404).json({
         success: false,
-        message: 'Registration not found'
+        message: 'Registration not found',
+        debug: {
+          searchedId: parsedData.id,
+          timestamp: new Date().toISOString()
+        }
       });
     }
 
@@ -167,7 +182,11 @@ router.post('/validate-registration', async (req, res) => {
     console.error('Registration validation error:', error);
     res.status(500).json({
       success: false,
-      message: 'Validation failed'
+      message: 'Validation failed',
+      debug: {
+        errorMessage: error.message,
+        timestamp: new Date().toISOString()
+      }
     });
   }
 });
@@ -193,7 +212,7 @@ router.post('/check-in', async (req, res) => {
     const registration = await Registration.findOne({
       'student.kindeId': userId,
       paymentStatus: 'completed'
-    }).populate('student').populate('selectedEvents.eventId');
+    }).populate('Student').populate('selectedEvents.eventId');
 
     if (!registration) {
       return res.status(404).json({
