@@ -16,20 +16,47 @@ const cartSlice = createSlice({
       if (type === 'workshop') {
         const existingWorkshop = state.workshops.find(w => w.id === item.id);
         if (!existingWorkshop) {
-          state.workshops.push(item);
+          // Ensure workshop data structure
+          const processedWorkshop = {
+            ...item,
+            id: item.id || item._id,
+            title: item.title || '',
+            departments: item.departments || [],
+            price: item.price || 0,
+            media: item.media || {},
+            registration: item.registration || {},
+            type: 'workshop'
+          };
+          state.workshops.push(processedWorkshop);
         }
       } else {
         const existingItem = state.items.find(i => i.eventInfo?.id === item.eventInfo?.id);
         if (!existingItem) {
-          state.items.push(item);
+          // Ensure event data structure
+          const processedItem = {
+            ...item,
+            eventInfo: {
+              ...item.eventInfo,
+              id: item.eventInfo?.id || item.id,
+              title: item.eventInfo?.title || item.title || '',
+              department: item.eventInfo?.department || item.department || {},
+              tag: item.eventInfo?.tag || item.tag || ''
+            },
+            fee: item.fee || 0,
+            schedule: item.schedule || {},
+            media: item.media || {}
+          };
+          state.items.push(processedItem);
         }
       }
     },
+    
     removeFromCart: (state, action) => {
       const { type, id } = action.payload;
       
       if (type === 'workshop') {
-        // Remove workshop
+        // Store workshop data before removal
+        const workshopToRemove = state.workshops.find(w => w.id === id);
         state.workshops = state.workshops.filter(w => w.id !== id);
         
         // Check and clear workshop combo if needed
@@ -40,7 +67,8 @@ const cartSlice = createSlice({
           }
         }
       } else {
-        // Remove event
+        // Store event data before removal
+        const eventToRemove = state.items.find(item => item.eventInfo?.id === id);
         state.items = state.items.filter(item => item.eventInfo?.id !== id);
         
         // Clear combo if all events are removed
@@ -52,38 +80,52 @@ const cartSlice = createSlice({
         }
       }
     },
+    
     setActiveCombo: (state, action) => {
       state.activeCombo = action.payload;
     },
+    
     clearActiveCombo: (state) => {
       state.activeCombo = null;
     },
+    
     clearCart: (state) => {
       state.items = [];
       state.workshops = [];
       state.activeCombo = null;
     },
+    
     syncCart: (state, action) => {
       const { items, workshops, activeCombo } = action.payload;
       
-      // Process items
-      const processedItems = Array.isArray(items) ? items.map(item => ({
+      // Process items with complete data structure
+      state.items = (Array.isArray(items) ? items : []).map(item => ({
         ...item,
         eventInfo: {
           ...item.eventInfo,
-          id: item.eventInfo?.id || item.id
-        }
-      })) : [];
+          id: item.eventInfo?.id || item.id,
+          title: item.eventInfo?.title || item.title || '',
+          department: item.eventInfo?.department || item.department || {},
+          tag: item.eventInfo?.tag || item.tag || ''
+        },
+        fee: item.fee || 0,
+        schedule: item.schedule || {},
+        media: item.media || {}
+      }));
 
-      // Process workshops
-      const processedWorkshops = Array.isArray(workshops) ? workshops.map(workshop => ({
+      // Process workshops with complete data structure
+      state.workshops = (Array.isArray(workshops) ? workshops : []).map(workshop => ({
         ...workshop,
         id: workshop.id || workshop._id,
+        title: workshop.title || '',
+        departments: workshop.departments || [],
+        price: workshop.price || 0,
+        media: workshop.media || {},
+        registration: workshop.registration || {},
         type: 'workshop'
-      })) : [];
+      }));
       
-      state.items = processedItems;
-      state.workshops = processedWorkshops;
+      // Set active combo
       state.activeCombo = activeCombo || null;
     }
   }

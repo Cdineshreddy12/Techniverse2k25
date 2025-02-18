@@ -5,22 +5,34 @@ class PaymentSecurityService {
     this.responseKey = responseKey;
   }
 
-  // Core signature verification
   verifySignature(params) {
     try {
-      const { signature, signature_algorithm, ...otherParams } = params;
-      
-      if (!signature) {
-        throw new Error('Signature is missing');
+      // Handle Juspay webhook format
+      if (params.event_name && params.content?.order) {
+        const orderData = params.content.order;
+        return ['CHARGED', 'SUCCESS'].includes(orderData.status);
       }
-
-      const stringToHash = this.generateParameterString(otherParams);
+  
+      // Handle payment response format
+      const { signature, status, order_id } = params;
+      if (!signature) {
+        return status === 'CHARGED';
+      }
+  
+      // For Juspay format signature
+      const dataToVerify = `status=${status}&order_id=${order_id}`;
       const calculatedSignature = crypto
         .createHmac('sha256', this.responseKey)
-        .update(stringToHash)
-        .digest('hex');
+        .update(dataToVerify)
+        .digest('base64');
+  
+      console.log('Signature verification:', {
+        received: signature,
+        calculated: calculatedSignature,
+        dataToVerify
+      });
       
-      return calculatedSignature === decodeURIComponent(signature);
+      return calculatedSignature === signature;
     } catch (error) {
       console.error('Signature verification failed:', error);
       return false;
@@ -28,81 +40,54 @@ class PaymentSecurityService {
   }
 
   generateParameterString(params) {
-    return Object.entries(params)
-      .map(([key, value]) => ({
-        key: encodeURIComponent(key),
-        value: encodeURIComponent(value?.toString() || '')
-      }))
-      .sort((a, b) => a.key.localeCompare(b.key))
-      .map(({ key, value }) => `${key}=${value}`)
-      .join('&');
+    try {
+      return Object.entries(params)
+        .map(([key, value]) => `${key}=${value}`)
+        .sort()
+        .join('&');
+    } catch (error) {
+      console.error('Error generating parameter string:', error);
+      return '';
+    }
   }
 
-  // Payment response validation
   async validatePaymentResponse(webhookData, registration) {
-    const validations = [
-      // Amount validation
-      {
-        check: () => this.validateAmount(webhookData.amount, registration.amount),
-        message: 'Amount mismatch detected..'
-      },
-      // Order ID validation
-      {
-        check: () => webhookData.order_id === registration.paymentDetails?.orderId,
-        message: 'Order ID mismatch'
-      },
-      // Timestamp validation
-      {
-        check: () => this.validateTransactionTimestamp(webhookData.timestamp),
-        message: 'Transaction timestamp is invalid'
-      },
-      // Duplicate transaction check
-      {
-        check: () => !registration.paymentDetails?.transactionId || 
-                     registration.paymentDetails.transactionId !== webhookData.txn_id,
-        message: 'Transaction already processed'
-      }
-    ];
+    try {
+      const orderData = webhookData.content?.order || webhookData;
+      
+      const validations = [
+        // Amount validation
+        {
+          check: () => this.validateAmount(orderData.amount, registration.amount),
+          message: 'Amount mismatch detected'
+        },
+        // Order ID validation
+        {
+          check: () => orderData.order_id === registration.paymentDetails?.orderId,
+          message: 'Order ID mismatch'
+        },
+        // Status validation
+        {
+          check: () => ['CHARGED', 'SUCCESS'].includes(orderData.status),
+          message: 'Invalid payment status'
+        }
+      ];
 
-    for (const validation of validations) {
-      if (!validation.check()) {
-        throw new Error(validation.message);
+      for (const validation of validations) {
+        if (!validation.check()) {
+          throw new Error(validation.message);
+        }
       }
+
+      return true;
+    } catch (error) {
+      console.error('Payment validation failed:', error);
+      throw error;
     }
-
-    return true;
   }
 
   validateAmount(webhookAmount, registrationAmount) {
     return Math.abs(parseFloat(webhookAmount) - parseFloat(registrationAmount)) < 0.01;
-  }
-
-  validateTransactionTimestamp(timestamp, maxAgeMinutes = 10) {
-    if (!timestamp) return false;
-    
-    const transactionTime = new Date(timestamp).getTime();
-    const currentTime = Date.now();
-    const maxAge = maxAgeMinutes * 60 * 1000;
-    
-    return (currentTime - transactionTime) <= maxAge;
-  }
-
-  // Webhook data transformation
-  transformWebhookData(webhookData) {
-    return {
-      status: webhookData.status,
-      txn_id: webhookData.txn_id,
-      payment_method: webhookData.payment_method,
-      bank_reference: webhookData.bank_reference,
-      response_code: webhookData.response_code,
-      response_message: webhookData.response_message,
-      customer_details: {
-        name: webhookData.customer_name,
-        email: webhookData.customer_email,
-        phone: webhookData.customer_phone
-      },
-      merchant_params: webhookData.merchant_params
-    };
   }
 }
 

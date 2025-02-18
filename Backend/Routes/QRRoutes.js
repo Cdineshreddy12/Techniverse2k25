@@ -5,7 +5,7 @@ import { CheckIn } from '../Models/checkinSchema.js';
 import crypto from 'crypto';
 import QRCode from 'qrcode';
 import dotenv from 'dotenv';
-
+import Event from '../Models/eventModel.js';
 // Ensure environment variables are loaded
 dotenv.config();
 
@@ -198,6 +198,14 @@ router.post('/check-in', async (req, res) => {
     const parsedData = JSON.parse(qrData);
     const { id: userId } = parsedData;
 
+    // Verify the specific event is in the QR code
+    if (!parsedData.events.includes(eventId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'QR code does not include this event'
+      });
+    }
+
     // First find the student
     const student = await Student.findOne({ kindeId: userId });
     
@@ -224,7 +232,7 @@ router.post('/check-in', async (req, res) => {
 
     // Find the specific event in registration
     const registeredEvent = registration.selectedEvents.find(
-      e => e.eventId._id.toString() === eventId
+      e => e.eventId && e.eventId._id && e.eventId._id.toString() === eventId
     );
 
     if (!registeredEvent) {
@@ -253,7 +261,16 @@ router.post('/check-in', async (req, res) => {
       });
     }
 
-    // Create single event check-in record
+    // Find event to verify it exists
+    const event = await Event.findById(eventId);
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: 'Event not found'
+      });
+    }
+
+    // Create check-in record
     const checkIn = new CheckIn({
       registration: registration._id,
       event: eventId,
@@ -277,7 +294,7 @@ router.post('/check-in', async (req, res) => {
       }
     );
 
-    // Update event registration count
+    // Update event check-in count
     await Event.findByIdAndUpdate(eventId, {
       $inc: { checkInCount: 1 }
     });
@@ -287,7 +304,8 @@ router.post('/check-in', async (req, res) => {
       details: {
         name: registration.student.name,
         event: registeredEvent.eventId.name,
-        timestamp: checkIn.timestamp
+        timestamp: checkIn.timestamp,
+        registrationId: registration._id
       }
     });
 

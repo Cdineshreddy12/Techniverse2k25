@@ -358,12 +358,12 @@ const {user}=useKindeAuth();
             <InstructionsBanner />
        </div>
       {/* Hero Section */}
-      <div className="h-[40vh] relative">
+      <div className="h-[60vh] relative">
 
         <img 
           src={event.media.bannerDesktop || "/api/placeholder/1920/1080"} 
           alt={event.eventInfo.title}
-          className="w-full h-full object-cover"
+          className="w-full h-full p-2 object-fit"
         />
         
         <div className="absolute top-4 left-4 inline-flex items-center px-3 py-1.5 rounded-full 

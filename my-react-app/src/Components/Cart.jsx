@@ -283,8 +283,9 @@ const getAvailableOptions = () => {
   const removeItem = async (id, type) => {
     if (!user?.id) return;
   
+    setLoading(true); // Show loading state
+    
     try {
-      // Use the correct endpoint based on type
       const url = type === 'workshop' 
         ? API_CONFIG.getUrl(`cart/workshop/${user.id}/${id}`)
         : API_CONFIG.getUrl(`cart/${user.id}/${id}`);
@@ -300,26 +301,68 @@ const getAvailableOptions = () => {
         throw new Error(data.error || 'Failed to remove item');
       }
   
-      // Dispatch with type
-      dispatch(removeFromCart({ id, type }));
+      // After successful removal, fetch fresh cart data
+      const cartResponse = await fetch(API_CONFIG.getUrl(`cart/${user.id}`));
+      const cartData = await cartResponse.json();
       
-      // Update selected combo if needed
-      if (type === 'workshop' && selectedCombo?.name?.toLowerCase().includes('workshop')) {
-        handleClearCombo();
+      if (cartData.success && cartData.cart) {
+        // Process events with complete data structure
+        const processedEvents = (cartData.cart.events || []).map(event => ({
+          ...event,
+          eventInfo: {
+            ...event.eventInfo,
+            id: event.eventInfo?.id || event.id,
+            title: event.eventInfo?.title || event.title,
+            department: event.eventInfo?.department || event.department,
+            tag: event.eventInfo?.tag || event.tag
+          },
+          fee: event.fee || 0,
+          schedule: event.schedule || {},
+          media: event.media || {}
+        }));
+  
+        // Process workshops with complete data structure
+        const processedWorkshops = (cartData.cart.workshops || []).map(workshop => ({
+          ...workshop,
+          id: workshop.id || workshop._id,
+          title: workshop.title || '',
+          departments: workshop.departments || [],
+          price: workshop.price || 0,
+          media: workshop.media || {},
+          registration: workshop.registration || {},
+          type: 'workshop'
+        }));
+  
+        // Update Redux state with fresh data
+        dispatch(syncCart({
+          items: processedEvents,
+          workshops: processedWorkshops,
+          activeCombo: cartData.cart.activeCombo
+        }));
+  
+        // Update combo if needed
+        if (cartData.cart.activeCombo) {
+          const packageType = isHostInstitution ? packages[0] : packages[1];
+          const matchingCombo = packageType.options.find(opt => 
+            opt.id === cartData.cart.activeCombo.id
+          );
+          setSelectedCombo(matchingCombo || cartData.cart.activeCombo);
+        } else {
+          setSelectedCombo(null);
+        }
       }
-      
-      // Update cart state from response
-      dispatch(syncCart({
-        items: data.cart.events || [],
-        workshops: data.cart.workshops || [],
-        activeCombo: data.cart.activeCombo
-      }));
+  
+      // Handle workshop-specific combo updates
+      if (type === 'workshop' && selectedCombo?.name?.toLowerCase().includes('workshop')) {
+        await handleClearCombo();
+      }
   
       toast.success(`${type === 'workshop' ? 'Workshop' : 'Event'} removed from cart`);
     } catch (error) {
       console.error('Error removing item:', error);
       toast.error("Failed to remove item");
-      await fetchCart(); // Ensure cart is in sync
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -448,29 +491,34 @@ if (isCartEmpty && !loading) {
 
 
 const CartItem = ({ item, type, onRemove }) => {
-  console.log('wprkshop', item);
   const isWorkshop = type === 'workshop';
-  const title = isWorkshop ? item.title : item.eventInfo?.title;
+  
+  // More robust property access with fallbacks
+  const title = isWorkshop ? item?.title : item?.eventInfo?.title || 'Untitled';
   const departmentName = isWorkshop ? 
-    item.departments?.[0]?.name : 
-    item.eventInfo?.department?.name;
-  const fee = isWorkshop ? item.price : item.fee;
-  const startTime = isWorkshop ? item.registration?.startTime : item.schedule?.startTime;
-  const itemId = isWorkshop ? item.id : item.eventInfo?.id;
+    item?.departments?.[0]?.name : 
+    item?.eventInfo?.department?.name || 'General';
+  const fee = isWorkshop ? item?.price : item?.fee || 0;
+  const startTime = isWorkshop ? item?.registration?.startTime : item?.schedule?.startTime;
+  const itemId = isWorkshop ? item?.id : item?.eventInfo?.id;
+  const bannerImage = item?.media?.bannerDesktop || "/api/placeholder/400/300";
+
+  if (!itemId) {
+    console.warn('CartItem: Missing item ID', { item, type });
+    return null;
+  }
 
   return (
     <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700 hover:border-purple-500/50">
       <div className="flex gap-3">
-        {/* Image */}
         <div className="w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 rounded-lg overflow-hidden">
           <img
-            src={item.media?.bannerDesktop || "/api/placeholder/400/300"}
+            src={bannerImage}
             alt={title}
             className="w-full h-full object-cover"
           />
         </div>
 
-        {/* Content */}
         <div className="flex-1 min-w-0 flex flex-col justify-between">
           <div>
             <h3 className="text-sm font-medium text-white line-clamp-1">
@@ -494,12 +542,15 @@ const CartItem = ({ item, type, onRemove }) => {
             </div>
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold line-through text-purple-800">
-                ₹{fee || 0}
+                ₹{fee}
               </span>
               <button
-                onClick={() => onRemove(itemId, type)}
-                className="p-1 text-red-400 hover:bg-red-400/10 rounded"
-              >
+                      onClick={() => onRemove(itemId, type)}
+                      disabled={loading}
+                      className={`p-1 text-red-400 hover:bg-red-400/10 rounded ${
+                        loading ? 'cursor-not-allowed opacity-50' : ''
+                      }`}
+                    >
                 <Trash2 className="w-4 h-4" />
               </button>
             </div>

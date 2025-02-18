@@ -99,11 +99,11 @@ const EventCard = ({ event, index }) => {
         <div className="bg-slate-800/50 border border-slate-700/50 rounded-lg overflow-hidden
                        hover:border-indigo-500/30 hover:bg-slate-800/70 transition-all">
           {/* Image */}
-          <div className="relative h-28 sm:h-32 overflow-hidden">
+          <div className="relative h-80 overflow-hidden">
             <img
               src={event.bannerDesktop || "/api/placeholder/400/200"}
               alt={event.title}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+              className="w-full h-full  object-fit group-hover:scale-105 transition-transform"
               loading="lazy"
             />
             
