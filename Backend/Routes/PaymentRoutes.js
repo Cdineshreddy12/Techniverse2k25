@@ -45,27 +45,184 @@ const secureResponseData = async (data) => {
 };
 // Payment initiation
 // Payment initiation
-router.post('/payment/initiate', async (req, res) => {
-  try {
-    const { amount, cartItems, combo, kindeId } = req.body;
+// First, define package config at top level
+const PACKAGES = {
+  'rgukt-workshop': { price: 199, type: 'rgukt' },
+  'rgukt-all-events': { price: 199, type: 'rgukt' },
+  'rgukt-combo': { price: 299, type: 'rgukt' },
+  'guest-workshop': { price: 499, type: 'guest' },
+  'guest-all-events': { price: 499, type: 'guest' },
+  'guest-combo': { price: 599, type: 'guest' }
+};
 
+const detectTampering = async (req, res, next) => {
+  try {
+    const { cartItems = [], combo, kindeId, workshops = [] } = req.body;
+
+      // Add timestamp verification
+      const timestamp = Date.now();
+      const maxAge = 5 * 60 * 1000; // 5 minutes
+      if (timestamp - req.body.timestamp > maxAge) {
+        throw new Error('Request expired');
+      }
+  
+  // Generate request signature
+  const requestSignature = crypto
+  .createHmac('sha256', process.env.HDFC_RESPONSE_KEY)
+  .update(`${kindeId}:${combo.id}:${timestamp}`)
+  .digest('base64');
+
+   // Add this to sessionData later
+   req.requestSignature = requestSignature;
+
+    // 1. Verify student exists and get actual data
     const student = await Student.findOne({ kindeId });
     if (!student) {
       throw new Error('Student not found');
     }
 
-    // Create registration
+    // 2. Verify active combo matches and was actually selected
+    if (!student.activeCombo || student.activeCombo.id !== combo.id) {
+      console.error('Package tampering detected:', {
+        requestedCombo: combo.id,
+        activeCombo: student.activeCombo?.id,
+        kindeId
+      });
+      throw new Error('Invalid package selection');
+    }
+
+    // 3. Get server-side package config
+    // Add price verification
+    const packageConfig = PACKAGES[combo.id];
+    if (packageConfig.price !== student.activeCombo.price) {
+      console.error('Price mismatch:', {
+        storedPrice: student.activeCombo.price,
+        packagePrice: packageConfig.price
+      });
+      throw new Error('Invalid package price');
+    }
+    // 4. Verify cart matches database exactly
+    const dbCartIds = student.cart.map(item => item.eventId.toString()).sort();
+    const requestCartIds = cartItems.map(item => item.id.toString()).sort();
+
+    if (JSON.stringify(dbCartIds) !== JSON.stringify(requestCartIds)) {
+      console.error('Cart tampering detected:', {
+        storedCart: dbCartIds,
+        requestCart: requestCartIds,
+        kindeId
+      });
+      throw new Error('Cart verification failed');
+    }
+
+    // 5. Verify package type matches student type
+    const isRGUKTStudent = student.email.toLowerCase().includes('@rgutksklm.ac.in');
+    const validPrefix = isRGUKTStudent ? 'rgukt-' : 'guest-';
+    
+    if (!combo.id.startsWith(validPrefix)) {
+      console.error('Institution type mismatch:', {
+        studentEmail: student.email,
+        attemptedCombo: combo.id,
+        kindeId
+      });
+      throw new Error('Invalid package for your institution');
+    }
+
+    // 6. Validate cart contents against package type
+    const dbWorkshops = student.workshops || [];
+    if (combo.id.includes('all-events')) {
+      if (dbWorkshops.length > 0 || workshops.length > 0) {
+        console.error('Invalid workshop in events package:', {
+          comboId: combo.id,
+          workshopCount: dbWorkshops.length,
+          kindeId
+        });
+        throw new Error('Events package cannot include workshops');
+      }
+    } 
+    else if (combo.id.includes('workshop') && !combo.id.includes('combo')) {
+      if (student.cart.length > 0 || cartItems.length > 0) {
+        throw new Error('Workshop package cannot include events');
+      }
+      if (dbWorkshops.length !== 1 || workshops.length !== 1) {
+        throw new Error('Workshop package requires exactly one workshop');
+      }
+    }
+    else if (combo.id.includes('combo')) {
+      if (dbWorkshops.length !== 1 || workshops.length !== 1) {
+        throw new Error('Combo package requires exactly one workshop');
+      }
+      if (student.cart.length === 0 || cartItems.length === 0) {
+        throw new Error('Combo package requires at least one event');
+      }
+    }
+
+    // 7. Attach validated data to request
+    req.validatedData = {
+      student,
+      packageConfig,
+      verifiedPrice: packageConfig.price,
+      cartValidation: {
+        eventsCount: student.cart.length,
+        workshopsCount: dbWorkshops.length,
+        studentType: validPrefix.slice(0, -1),
+        originalCombo: student.activeCombo
+      }
+    };
+
+    // 8. Log validation success
+    console.log('Payment validation passed:', {
+      kindeId,
+      comboId: combo.id,
+      eventCount: student.cart.length,
+      workshopCount: dbWorkshops.length,
+      price: packageConfig.price
+    });
+
+    next();
+  } catch (error) {
+    // Log detailed error for monitoring
+    console.error('Payment validation failed:', {
+      error: error.message,
+      request: {
+        combo: req.body.combo,
+        cartSize: req.body.cartItems?.length,
+        workshopSize: req.body.workshops?.length,
+        kindeId: req.body.kindeId
+      }
+    });
+
+    // Send generic error to client
+    res.status(400).json({
+      success: false,
+      error: 'Payment validation failed'
+    });
+  }
+};
+
+router.post('/payment/initiate', detectTampering,async (req, res) => {
+  try {
+
+   // Use validated data from middleware
+   const { student, packageConfig, verifiedPrice, cartValidation } = req.validatedData;
+
+    
+    // 6. Create registration with verified details
     const registration = await Registration.create({
       student: student._id,
-      kindeId,
-      selectedEvents: (cartItems || []).map(item => ({
-        eventId: item.id,
+      kindeId: student.kindeId,
+      selectedEvents: student.cart.map(item => ({
+        eventId: item.eventId,
         eventName: item.title || '',
         status: 'pending',
         registrationType: 'individual',
         maxTeamSize: 1
       })),
-      amount: combo.price,
+      selectedWorkshops: (student.workshops || []).map(workshop => ({
+        workshopId: workshop.id,
+        workshopName: workshop.title,
+        status: 'pending'
+      })),
+      amount: verifiedPrice, // Use verified server-side price
       paymentStatus: 'pending',
       paymentInitiatedAt: new Date(),
       paymentDetails: {
@@ -75,24 +232,20 @@ router.post('/payment/initiate', async (req, res) => {
           phone: student.mobileNumber
         },
         merchantParams: {
-          comboId: combo.id,
-          comboName: combo.name,
-          features: combo.features
-        }
+          comboId: cartValidation.originalCombo.id,
+          comboName: cartValidation.originalCombo.name,
+          verificationData: cartValidation
+        },
+        orderId: `order_${Date.now()}_${student.kindeId}`
       }
     });
 
-    const orderId = `order_${Date.now()}_${kindeId}`;
-    await Registration.findByIdAndUpdate(registration._id, {
-      'paymentDetails.orderId': orderId
-    });
-
-    // Create session data
+    // 7. Create payment session with verified price
     const sessionData = {
-      order_id: orderId,
-      amount: amount,
+      order_id: registration.paymentDetails.orderId,
+      amount: packageConfig.price, // Use server-side price
       payment_page_client_id: process.env.HDFC_PAYMENT_PAGE_CLIENT_ID,
-      customer_id: kindeId,
+      customer_id: student.kindeId,
       action: 'paymentPage',
       return_url: `${process.env.BASE_URL}/api/payment/handleResponse`,
       webhook_url: `${process.env.BASE_URL}/api/payment/webhook`,
@@ -103,14 +256,7 @@ router.post('/payment/initiate', async (req, res) => {
       timestamp: new Date().toISOString()
     };
 
-    // Create Juspay session directly without additional signing
     const sessionResponse = await juspay.orderSession.create(sessionData);
-
-    console.log('Payment session created:', {
-      orderId,
-      return_url: sessionData.return_url,
-      webhook_url: sessionData.webhook_url
-    });
 
     res.json({
       success: true,
@@ -119,7 +265,7 @@ router.post('/payment/initiate', async (req, res) => {
 
   } catch (error) {
     console.error('Payment initiation failed:', error);
-    res.status(500).json({
+    res.status(400).json({ // Use 400 for validation errors
       success: false,
       error: error.message
     });
@@ -131,70 +277,114 @@ router.all('/payment/handleResponse', async (req, res) => {
 
   try {
     const responseData = { ...req.body, ...req.query };
-    const orderId = responseData.order_id;
+    const { order_id } = responseData;
 
-    console.log('Payment response received:', { orderId, responseData });
-
-    if (!orderId) {
+    if (!order_id) {
       throw new Error('order_id not present or cannot be empty');
     }
 
-    // Get payment status from Juspay
-    const statusResponse = await juspay.order.status(orderId);
+    // 1. Get payment status directly from Juspay for verification
+    const statusResponse = await juspay.order.status(order_id);
     const orderStatus = statusResponse.status;
+    const paidAmount = parseFloat(statusResponse.amount);
 
-    // Find registration and populate student data
+    // 2. Find registration and verify details
     const registration = await Registration.findOne({
-      'paymentDetails.orderId': orderId
+      'paymentDetails.orderId': order_id
     }).populate('student');
 
     if (!registration) {
       throw new Error('Registration not found');
     }
 
+   
+
+    // 3. Verify user type matches package type
+    const isRGUKTStudent = registration.student.email.toLowerCase().includes('@rgutksklm.ac.in');
+    const expectedPrefix = isRGUKTStudent ? 'rgukt-' : 'guest-';
+    if (!registration.paymentDetails.merchantParams.comboId.startsWith(expectedPrefix)) {
+      console.error('Institution type mismatch:', {
+        studentEmail: registration.student.email,
+        comboId: registration.paymentDetails.merchantParams.comboId,
+        orderId: order_id
+      });
+      throw new Error('Package verification failed');
+    }
+
+     // 4. Verify payment amount against original package price
+     const originalPackage = PACKAGES[registration.paymentDetails.merchantParams.comboId];
+     if (!originalPackage || originalPackage.price !== paidAmount) {
+       console.error('Payment amount mismatch:', {
+         orderId: order_id,
+         expectedAmount: originalPackage?.price,
+         paidAmount,
+         comboId: registration.paymentDetails.merchantParams.comboId
+       });
+       throw new Error('Payment verification failed');
+     }
+
     switch (orderStatus) {
       case "CHARGED":
         try {
           if (!registration.qrCode?.dataUrl) {
+            // Verify transaction hasn't been processed before
+            if (registration.paymentStatus === 'completed') {
+              throw new Error('Payment already processed');
+            }
+
             // Update registration
             registration.paymentStatus = 'completed';
             registration.paymentCompletedAt = new Date();
             registration.paymentDetails.transactionId = statusResponse.txn_id;
             registration.paymentDetails.paymentMethod = statusResponse.payment_method;
-            
-            // Generate QR code
+            registration.paymentDetails.verificationData = {
+              originalAmount: originalPackage.price,
+              paidAmount,
+              verifiedAt: new Date()
+            };
+
+            // Generate QR code with verified data
             const qrCodeDataUrl = await generateQRCode({
               userId: registration.student.kindeId,
               selectedEvents: registration.selectedEvents,
-              selectedWorkshops: registration.selectedWorkshops || []
+              selectedWorkshops: registration.selectedWorkshops || [],
+              verificationHash: crypto
+                .createHmac('sha256', process.env.HDFC_RESPONSE_KEY)
+                .update(`${registration.student.kindeId}:${order_id}:${paidAmount}`)
+                .digest('base64')
             });
-            
-            // Store QR code data
+
+            // Store QR code with verification
             registration.qrCode = {
               dataUrl: qrCodeDataUrl,
               generatedAt: new Date(),
               metadata: {
                 events: registration.selectedEvents.map(e => e.eventId.toString()),
-                workshops: (registration.selectedWorkshops || []).map(w => w.workshopId.toString())
+                workshops: (registration.selectedWorkshops || []).map(w => w.workshopId.toString()),
+                verificationData: {
+                  amount: paidAmount,
+                  transactionId: statusResponse.txn_id,
+                  timestamp: new Date()
+                }
               }
             };
 
-            // Update event statuses
-            for (const event of registration.selectedEvents) {
-              event.status = 'confirmed';
-              await Event.findByIdAndUpdate(event.eventId, {
+            // Update event statuses atomically
+            const eventUpdates = registration.selectedEvents.map(event => 
+              Event.findByIdAndUpdate(event.eventId, {
                 $inc: { registrationCount: 1 }
-              });
-            }
+              })
+            );
+            await Promise.all(eventUpdates);
 
-            // Update workshop statuses
+            // Update workshop statuses atomically
             if (registration.selectedWorkshops?.length) {
-              for (const workshop of registration.selectedWorkshops) {
-                workshop.status = 'confirmed';
-                await Workshop.findByIdAndUpdate(workshop.workshopId, {
+              const workshopUpdates = registration.selectedWorkshops.map(workshop =>
+                Workshop.findByIdAndUpdate(workshop.workshopId, {
                   $inc: { registrationCount: 1 }
-                });
-              }
+                })
+              );
+              await Promise.all(workshopUpdates);
             }
 
             await registration.save();
@@ -204,55 +394,43 @@ router.all('/payment/handleResponse', async (req, res) => {
               $addToSet: { registrations: registration._id },
               $set: { cart: [] }
             });
-
-            // Send confirmation email
-            // if (!registration.emailNotification?.confirmationSent) {
-            //   await sendConfirmationEmail(
-            //     registration.student.email,
-            //     registration.qrCode.dataUrl,
-            //     {
-            //       name: registration.student.name,
-            //       combo: registration.paymentDetails.merchantParams || {},
-            //       amount: registration.amount,
-            //       transactionId: orderId
-            //     }
-            //   );
-
-            //   registration.emailNotification = {
-            //     confirmationSent: true,
-            //     attempts: (registration.emailNotification?.attempts || 0) + 1
-            //   };
-            //   await registration.save();
-            // }
           }
 
-          // Create success params
-          const successParams = new URLSearchParams({
-            order_id: orderId,
+          // Generate signed success params
+          const successData = {
+            order_id,
             status: 'success',
-            amount: registration.amount,
+            amount: paidAmount,
             name: registration.student.name,
             email: registration.student.email,
             timestamp: new Date().toISOString()
-          }).toString();
+          };
 
+          const signature = crypto
+            .createHmac('sha256', process.env.HDFC_RESPONSE_KEY)
+            .update(JSON.stringify(successData))
+            .digest('base64');
+
+          successData.signature = signature;
+          
+          const successParams = new URLSearchParams(successData).toString();
           redirectUrl = `${process.env.FRONTEND_URL}/payment/success?${successParams}`;
 
         } catch (error) {
           console.error('Post-payment processing error:', error);
           const errorParams = new URLSearchParams({
-            order_id: orderId,
-            error: 'Payment processed but email failed',
+            order_id,
+            error: error.message,
             timestamp: new Date().toISOString()
           }).toString();
-          redirectUrl = `${process.env.FRONTEND_URL}/payment/success?${errorParams}`;
+          redirectUrl = `${process.env.FRONTEND_URL}/payment/failure?${errorParams}`;
         }
         break;
 
       case "PENDING":
       case "PENDING_VBV":
         const pendingParams = new URLSearchParams({
-          order_id: orderId,
+          order_id,
           status: 'pending',
           timestamp: new Date().toISOString()
         }).toString();
@@ -261,7 +439,7 @@ router.all('/payment/handleResponse', async (req, res) => {
 
       default:
         const failureParams = new URLSearchParams({
-          order_id: orderId,
+          order_id,
           status: 'failed',
           error: responseData.error_message || 'Payment failed',
           timestamp: new Date().toISOString()
@@ -273,11 +451,11 @@ router.all('/payment/handleResponse', async (req, res) => {
     res.redirect(redirectUrl);
 
   } catch (error) {
-    console.error('Payment response handling failed:', error);
+    console.error('Payment validation failed:', error);
     
     const errorParams = new URLSearchParams({
       status: 'error',
-      message: error.message,
+      message: 'Payment verification failed',  // Generic error for security
       timestamp: new Date().toISOString()
     }).toString();
 

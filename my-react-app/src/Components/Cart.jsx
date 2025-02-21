@@ -21,7 +21,7 @@ const packages = [
       {
         id: 'rgukt-workshop',
         name: "Single Workshop",
-        price: 1,
+        price: 199,
         features: [
           "1 Workshop Registration",
           "Workshop Certificate",
@@ -32,7 +32,7 @@ const packages = [
       {
         id: 'rgukt-all-events',
         name: "All Events",
-        price: 1,
+        price: 199,
         features: [
           "Access to All Technical Events",
           "Access to All Non-Technical Events",
@@ -44,7 +44,7 @@ const packages = [
       {
         id: 'rgukt-combo',
         name: "All Events + Workshop",
-        price: 2,
+        price: 299,
         features: [
           "Access to All Technical Events",
           "Access to All Non-Technical Events",
@@ -66,7 +66,7 @@ const packages = [
       {
         id: 'guest-workshop',
         name: "Single Workshop",
-        price: 1,
+        price: 499,
         features: [
           "1 Workshop Registration",
           "Workshop Certificate",
@@ -77,7 +77,7 @@ const packages = [
       {
         id: 'guest-all-events',
         name: "All Events",
-        price: 1,
+        price: 499,
         features: [
           "Access to All Technical Events",
           "Access to All Non-Technical Events",
@@ -89,7 +89,7 @@ const packages = [
       {
         id: 'guest-combo',
         name: "All Events + Workshop",
-        price: 2,
+        price: 599,
         features: [
           "Access to All Technical Events",
           "Access to All Non-Technical Events",

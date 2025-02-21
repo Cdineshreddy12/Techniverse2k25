@@ -9,7 +9,7 @@ import {
 import { memo } from 'react';
 import CyberTimer from './CyberTimer';
 import { usePackage } from './utils/PackageContext.jsx';
-
+import LectureSeries from './LectureSeries.jsx';
 import Timeline from './Timeline.jsx';
 
 import QRTesting from './QrTesting.jsx';
@@ -499,6 +499,10 @@ const HomePage = () => {
 
                   <section id='departments-section'>
                       <DepartmentEvents/>
+                   </section>
+
+                   <section>
+                      <LectureSeries/> 
                    </section>
 
              <section>

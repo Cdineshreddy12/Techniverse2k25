@@ -10,17 +10,37 @@ class PaymentSecurityService {
       // Handle Juspay webhook format
       if (params.event_name && params.content?.order) {
         const orderData = params.content.order;
+        
+        // Verify webhook signature more strictly
+        const webhookSignature = params.signature;
+        const calculatedSignature = crypto
+          .createHmac('sha256', this.responseKey)
+          .update(JSON.stringify(orderData))
+          .digest('base64');
+
+        if (webhookSignature !== calculatedSignature) {
+          console.error('Webhook signature mismatch');
+          return false;
+        }
+
+        // Also verify amount against package price
+        const packageConfig = PACKAGES[orderData.metadata?.comboId];
+        if (!packageConfig || packageConfig.price !== parseFloat(orderData.amount)) {
+          console.error('Webhook amount mismatch');
+          return false;
+        }
+
         return ['CHARGED', 'SUCCESS'].includes(orderData.status);
       }
   
-      // Handle payment response format
-      const { signature, status, order_id } = params;
-      if (!signature) {
-        return status === 'CHARGED';
+      // Handle payment response format with strict verification
+      const { signature, status, order_id, amount } = params;
+      if (!signature || !order_id || !amount) {
+        return false;
       }
   
-      // For Juspay format signature
-      const dataToVerify = `status=${status}&order_id=${order_id}`;
+      // Verify all critical parameters
+      const dataToVerify = `status=${status}&order_id=${order_id}&amount=${amount}`;
       const calculatedSignature = crypto
         .createHmac('sha256', this.responseKey)
         .update(dataToVerify)
@@ -39,26 +59,20 @@ class PaymentSecurityService {
     }
   }
 
-  generateParameterString(params) {
-    try {
-      return Object.entries(params)
-        .map(([key, value]) => `${key}=${value}`)
-        .sort()
-        .join('&');
-    } catch (error) {
-      console.error('Error generating parameter string:', error);
-      return '';
-    }
-  }
-
   async validatePaymentResponse(webhookData, registration) {
     try {
       const orderData = webhookData.content?.order || webhookData;
       
+      // Get package config for price verification
+      const packageConfig = PACKAGES[registration.paymentDetails.merchantParams.comboId];
+      if (!packageConfig) {
+        throw new Error('Invalid package configuration');
+      }
+
       const validations = [
-        // Amount validation
+        // Strict amount validation against package price
         {
-          check: () => this.validateAmount(orderData.amount, registration.amount),
+          check: () => Math.abs(parseFloat(orderData.amount) - packageConfig.price) < 0.01,
           message: 'Amount mismatch detected'
         },
         // Order ID validation
@@ -70,6 +84,15 @@ class PaymentSecurityService {
         {
           check: () => ['CHARGED', 'SUCCESS'].includes(orderData.status),
           message: 'Invalid payment status'
+        },
+        // Student type validation
+        {
+          check: () => {
+            const isRGUKTStudent = registration.student.email.toLowerCase().includes('@rgutksklm.ac.in');
+            const comboPrefix = registration.paymentDetails.merchantParams.comboId.split('-')[0];
+            return isRGUKTStudent ? comboPrefix === 'rgukt' : comboPrefix === 'guest';
+          },
+          message: 'Invalid student type for package'
         }
       ];
 
@@ -86,8 +109,29 @@ class PaymentSecurityService {
     }
   }
 
+  generateSignedData(data) {
+    try {
+      const timestamp = Date.now();
+      const dataToSign = { ...data, timestamp };
+      
+      const signature = crypto
+        .createHmac('sha256', this.responseKey)
+        .update(JSON.stringify(dataToSign))
+        .digest('base64');
+
+      return {
+        ...dataToSign,
+        signature
+      };
+    } catch (error) {
+      console.error('Error generating signed data:', error);
+      throw error;
+    }
+  }
+
   validateAmount(webhookAmount, registrationAmount) {
-    return Math.abs(parseFloat(webhookAmount) - parseFloat(registrationAmount)) < 0.01;
+    // Use exact amount matching for stricter validation
+    return parseFloat(webhookAmount) === parseFloat(registrationAmount);
   }
 }
 
