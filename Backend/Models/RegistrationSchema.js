@@ -33,6 +33,14 @@ const registrationSchema = new mongoose.Schema({
         maxTeamSize: {
             type: Number,
             default: 1
+        },
+        fee: {
+            type: Number,
+            default: 0
+        },
+        addedAt: {
+            type: Date,
+            default: Date.now
         }
     }],
 
@@ -47,6 +55,14 @@ const registrationSchema = new mongoose.Schema({
             type: String,
             enum: ['pending', 'confirmed', 'cancelled'],
             default: 'pending'
+        },
+        price: {
+            type: Number,
+            default: 0
+        },
+        addedAt: {
+            type: Date,
+            default: Date.now
         }
     }],
 
@@ -55,7 +71,8 @@ const registrationSchema = new mongoose.Schema({
         id: String,
         name: String,
         price: Number,
-        description: String
+        description: String,
+        features: [String]
     },
 
     // QR Code and Validation
@@ -121,6 +138,32 @@ const registrationSchema = new mongoose.Schema({
         responseMessage: String
     },
 
+    // Update History
+    updateHistory: [{
+        timestamp: { 
+            type: Date, 
+            default: Date.now 
+        },
+        addedEvents: [{
+            eventId: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'Event'
+            },
+            eventName: String,
+            fee: Number
+        }],
+        addedWorkshops: [{
+            workshopId: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'Workshop'
+            },
+            workshopName: String,
+            price: Number
+        }],
+        additionalAmount: Number,
+        qrCodeVersion: Number
+    }],
+
     // Timestamps
     createdAt: {
         type: Date,
@@ -131,7 +174,13 @@ const registrationSchema = new mongoose.Schema({
         default: Date.now
     },
     paymentInitiatedAt: Date,
-    paymentCompletedAt: Date
+    paymentCompletedAt: Date,
+    
+    // Version tracking for QR codes
+    currentQRVersion: {
+        type: Number,
+        default: 1
+    }
 });
 
 // Update timestamps
@@ -140,7 +189,7 @@ registrationSchema.pre('save', function(next) {
     next();
 });
 
-// Handle successful payment without email sending
+// Handle successful payment
 registrationSchema.methods.handleSuccessfulPayment = async function(juspayResponse) {
     try {
         // Update payment status
@@ -166,13 +215,17 @@ registrationSchema.methods.handleSuccessfulPayment = async function(juspayRespon
         const qrData = await generateQRCode({
             userId: this.kindeId,
             selectedEvents: this.selectedEvents,
-            selectedWorkshops: this.selectedWorkshops
+            selectedWorkshops: this.selectedWorkshops,
+            version: this.currentQRVersion
         });
 
         this.qrCode = {
             dataUrl: qrData,
             generatedAt: new Date(),
-            signature: qrData.signature,
+            metadata: {
+                events: this.selectedEvents.map(e => e.eventId.toString()),
+                workshops: this.selectedWorkshops.map(w => w.workshopId.toString())
+            },
             validUntil: new Date(Date.now() + (365 * 24 * 60 * 60 * 1000)) // Valid for 1 year
         };
 
@@ -180,6 +233,75 @@ registrationSchema.methods.handleSuccessfulPayment = async function(juspayRespon
         return true;
     } catch (error) {
         console.error('Payment completion handling failed:', error);
+        throw error;
+    }
+};
+
+// Method to update registration with new events/workshops
+registrationSchema.methods.addNewItems = async function(newEvents = [], newWorkshops = []) {
+    try {
+        // Increment QR version
+        this.currentQRVersion += 1;
+
+        // Add new events and workshops
+        const eventUpdates = newEvents.map(event => ({
+            eventId: event.id,
+            eventName: event.title,
+            status: 'confirmed',
+            fee: event.fee || 0,
+            addedAt: new Date()
+        }));
+
+        const workshopUpdates = newWorkshops.map(workshop => ({
+            workshopId: workshop.id,
+            workshopName: workshop.title,
+            status: 'confirmed',
+            price: workshop.price || 0,
+            addedAt: new Date()
+        }));
+
+        // Calculate additional amount
+        const additionalAmount = 
+            eventUpdates.reduce((sum, event) => sum + event.fee, 0) +
+            workshopUpdates.reduce((sum, workshop) => sum + workshop.price, 0);
+
+        // Update arrays
+        this.selectedEvents.push(...eventUpdates);
+        this.selectedWorkshops.push(...workshopUpdates);
+        this.amount += additionalAmount;
+
+        // Add to update history
+        this.updateHistory.push({
+            timestamp: new Date(),
+            addedEvents: eventUpdates,
+            addedWorkshops: workshopUpdates,
+            additionalAmount,
+            qrCodeVersion: this.currentQRVersion
+        });
+
+        // Generate new QR code
+        const qrData = await generateQRCode({
+            userId: this.kindeId,
+            selectedEvents: this.selectedEvents,
+            selectedWorkshops: this.selectedWorkshops,
+            version: this.currentQRVersion
+        });
+
+        // Update QR code
+        this.qrCode = {
+            dataUrl: qrData,
+            generatedAt: new Date(),
+            metadata: {
+                events: this.selectedEvents.map(e => e.eventId.toString()),
+                workshops: this.selectedWorkshops.map(w => w.workshopId.toString())
+            },
+            validUntil: new Date(Date.now() + (365 * 24 * 60 * 60 * 1000))
+        };
+
+        await this.save();
+        return true;
+    } catch (error) {
+        console.error('Registration update failed:', error);
         throw error;
     }
 };

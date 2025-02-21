@@ -17,6 +17,7 @@ import DepartmentEvents from './DepartmentEvents.jsx';
 import { useKindeAuth } from '@kinde-oss/kinde-auth-react';
 import toast from 'react-hot-toast';
 import API_CONFIG from '../config/api.js';
+import LectureSeries from './LectureSeries.jsx';
 const TechIcon = ({ icon: Icon, style, delay = 0 }) => (
   <div 
     className={`absolute transform opacity-20 text-cyan-400
@@ -367,41 +368,7 @@ const HomePage = () => {
   const [isVisible, setIsVisible] = useState(false);
   const navigate = useNavigate();
   const {user}=useKindeAuth();
-  const handlePackageSelect = async (pkg, optionId) => {
-    try {
-      const url=API_CONFIG('combo/select');
-      const response = await fetch(url,{
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          kindeId: user.id,
-          combo: {
-            id: pkg.id,
-            optionId,
-            name: pkg.name,
-            ...pkg.options[optionId]
-          }
-        })
-      });
-  
-      if (!response.ok) throw new Error();
-      
-      setSelectedPackage({
-        id: pkg.id,
-        optionId,
-        name: pkg.name,
-        ...pkg.options[optionId]
-      });
-      
-      toast.success('Package selected!');
-      const departmentsSection = document.getElementById('departments-section');
-      if (departmentsSection) {
-        departmentsSection.scrollIntoView({ behavior: 'smooth' });
-      }
-    } catch (error) {
-      toast.error('Failed to select package');
-    }
-  };
+
 
   useEffect(() => {
     setIsVisible(true);
@@ -501,16 +468,21 @@ const HomePage = () => {
                       <DepartmentEvents/>
                    </section>
 
-             <section>
-                   <ComboPackage />
-             </section>
+                   <section>
+                        <LectureSeries/>
+                   </section>
 
-              {/* <section className="py-8 md:py-16 relative">
+
+              <section className="py-8 md:py-16 relative">
                 <div className="absolute inset-0 bg-gradient-to-b from-transparent via-cyan-500/5 to-transparent" />
                 <div className="relative">
                   <Timeline />
                 </div>
-              </section> */}
+              </section>
+
+              <section>
+                   <ComboPackage />
+             </section>
 
 
           </div>

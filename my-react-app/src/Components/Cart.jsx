@@ -111,6 +111,7 @@ const CartComponent = () => {
   const [loading, setLoading] = useState(true);
   const [selectedCombo, setSelectedCombo] = useState(null);
   const [showComboDetails, setShowComboDetails] = useState(false);
+  const [hasExistingRegistration, setHasExistingRegistration] = useState(false);
   const navigate = useNavigate();
   const dispatch = useDispatch();
   // Redux state with safe defaults
@@ -225,6 +226,55 @@ const CartComponent = () => {
   };
 
 
+  useEffect(() => {
+    const checkExistingRegistration = async () => {
+      if (!user?.id) return;
+      
+      try {
+        const response = await fetch(API_CONFIG.getUrl(`registration/status/${user.id}`));
+        const data = await response.json();
+        setHasExistingRegistration(data.hasCompletedRegistration);
+      } catch (error) {
+        console.error('Error checking registration status:', error);
+      }
+    };
+  
+    checkExistingRegistration();
+  }, [user]);
+
+  // Add this new function
+const handleUpdateRegistration = async () => {
+  if (!user?.id) {
+    toast.error('Please log in to continue');
+    return;
+  }
+
+  try {
+    const response = await fetch(API_CONFIG.getUrl('registration/update'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        kindeId: user.id,
+        newEvents: items,
+        newWorkshops: workshops
+      })
+    });
+
+    const data = await response.json();
+    
+    if (data.success) {
+      toast.success('Registration updated successfully!');
+      // Clear cart after successful update
+      dispatch(syncCart({ items: [], workshops: [], activeCombo: null }));
+      navigate('/profile'); // Redirect to profile page
+    } else {
+      toast.error(data.error || 'Failed to update registration');
+    }
+  } catch (error) {
+    console.error('Update registration error:', error);
+    toast.error('Failed to update registration');
+  }
+};
 
 const getAvailableOptions = () => {
   if (!relevantPackage) return [];
@@ -621,7 +671,7 @@ const PackageSelector = ({ packages, selectedCombo, onSelect, onClear, hasWorksh
   );
 };
   
-const BottomNav = ({ selectedCombo, onPayment }) => {
+const BottomNav = ({ selectedCombo, onPayment, onUpdateRegistration, hasExistingRegistration }) => {
   return (
     <div className="fixed bottom-0 inset-x-0 bg-slate-800/95 backdrop-blur-md border-t border-slate-700 p-3 sm:p-4">
       <div className="max-w-7xl mx-auto">
@@ -636,27 +686,39 @@ const BottomNav = ({ selectedCombo, onPayment }) => {
               <span className="sm:hidden">Back</span>
             </Link>
             
-            <div className="text-right sm:text-left">
-              <p className="text-xs text-gray-400">
-                {selectedCombo ? 'Package Selected' : 'Select Package'}
-              </p>
-              <p className="text-sm font-bold text-purple-400">
-                {selectedCombo ? `₹${selectedCombo.price}` : '₹0'}
-              </p>
-            </div>
+            {!hasExistingRegistration && (
+              <div className="text-right sm:text-left">
+                <p className="text-xs text-gray-400">
+                  {selectedCombo ? 'Package Selected' : 'Select Package'}
+                </p>
+                <p className="text-sm font-bold text-purple-400">
+                  {selectedCombo ? `₹${selectedCombo.price}` : '₹0'}
+                </p>
+              </div>
+            )}
           </div>
 
-          <button
-            onClick={onPayment}
-            disabled={!selectedCombo}
-            className={`w-full sm:w-auto px-6 py-2 rounded text-sm font-medium transition-all ${
-              selectedCombo 
-                ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500' 
-                : 'bg-slate-700 cursor-not-allowed'
-            }`}
-          >
-            {selectedCombo ? 'Proceed to Payment' : 'Select Package'}
-          </button>
+          {hasExistingRegistration ? (
+            <button
+              onClick={onUpdateRegistration}
+              disabled={items.length === 0 && workshops.length === 0}
+              className="w-full sm:w-auto px-6 py-2 rounded text-sm font-medium transition-all bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Update Registration
+            </button>
+          ) : (
+            <button
+              onClick={onPayment}
+              disabled={!selectedCombo}
+              className={`w-full sm:w-auto px-6 py-2 rounded text-sm font-medium transition-all ${
+                selectedCombo 
+                  ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500' 
+                  : 'bg-slate-700 cursor-not-allowed'
+              }`}
+            >
+              {selectedCombo ? 'Proceed to Payment' : 'Select Package'}
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -730,6 +792,7 @@ const BottomNav = ({ selectedCombo, onPayment }) => {
 </div>
       
       {/* Combo Selection Section */}
+      {!hasExistingRegistration && (
       <PackageSelector
         packages={getAvailableOptions()}
         selectedCombo={selectedCombo}
@@ -737,19 +800,23 @@ const BottomNav = ({ selectedCombo, onPayment }) => {
         onClear={handleClearCombo}
         hasWorkshop={hasWorkshop}
       />
+    )}
 
       {/* Cart Summary - Fixed at bottom */}
       <BottomNav
-              selectedCombo={selectedCombo}
-              onPayment={initiatePayment}
-            />
+      selectedCombo={selectedCombo}
+      onPayment={initiatePayment}
+      onUpdateRegistration={handleUpdateRegistration}
+      hasExistingRegistration={hasExistingRegistration}
+    />
 
-      {paymentSession && (
-        <PaymentHandler 
-          sessionData={paymentSession}
-          onClose={() => setPaymentSession(null)}
-        />
-      )}
+       {paymentSession && (
+      <PaymentHandler 
+        sessionData={paymentSession}
+        onClose={() => setPaymentSession(null)}
+      />
+    )}
+    
     </div>
   );
 };

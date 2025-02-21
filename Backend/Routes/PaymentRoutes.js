@@ -508,7 +508,47 @@ router.post('/payment/verify', async (req, res) => {
   });
 
  
-
+  router.get('/registration/status/:kindeId', async (req, res) => {
+    try {
+      const { kindeId } = req.params;
+  
+      // Find the student
+      const student = await Student.findOne({ kindeId });
+      if (!student) {
+        return res.json({
+          success: true,
+          hasCompletedRegistration: false
+        });
+      }
+  
+      // Check for completed registration
+      const completedRegistration = await Registration.findOne({
+        student: student._id,
+        paymentStatus: 'completed'
+      });
+  
+      // Return status
+      res.json({
+        success: true,
+        hasCompletedRegistration: !!completedRegistration,
+        registrationDetails: completedRegistration ? {
+          id: completedRegistration._id,
+          orderId: completedRegistration.paymentDetails?.orderId,
+          amount: completedRegistration.amount,
+          paymentStatus: completedRegistration.paymentStatus,
+          selectedEvents: completedRegistration.selectedEvents,
+          selectedWorkshops: completedRegistration.selectedWorkshops
+        } : null
+      });
+  
+    } catch (error) {
+      console.error('Registration status check failed:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  });
 
   
 // Get registration details with security verification
@@ -578,5 +618,118 @@ router.get('/registrations/order/:orderId', async (req, res) => {
       });
     }
   });
+
+
+  // In paymentRoutes.js, add this new route:
+router.post('/registration/update', async (req, res) => {
+  try {
+    const { kindeId, newEvents, newWorkshops } = req.body;
+
+    // Find the student
+    const student = await Student.findOne({ kindeId });
+    if (!student) {
+      throw new Error('Student not found');
+    }
+
+    // Find the existing completed registration
+    const existingRegistration = await Registration.findOne({
+      student: student._id,
+      paymentStatus: 'completed'
+    });
+
+    if (!existingRegistration) {
+      throw new Error('No completed registration found');
+    }
+
+    // Add new events to the registration
+    const updatedEvents = [
+      ...existingRegistration.selectedEvents,
+      ...(newEvents || []).map(event => ({
+        eventId: event.id,
+        eventName: event.title,
+        status: 'confirmed',
+        registrationType: 'individual',
+        maxTeamSize: 1
+      }))
+    ];
+
+    // Add new workshops
+    const updatedWorkshops = [
+      ...existingRegistration.selectedWorkshops,
+      ...(newWorkshops || []).map(workshop => ({
+        workshopId: workshop.id,
+        workshopName: workshop.title,
+        status: 'confirmed'
+      }))
+    ];
+
+    // Generate new QR code with updated event list
+    const qrCodeDataUrl = await generateQRCode({
+      userId: student.kindeId,
+      selectedEvents: updatedEvents,
+      selectedWorkshops: updatedWorkshops
+    });
+
+    // Update the registration
+    existingRegistration.selectedEvents = updatedEvents;
+    existingRegistration.selectedWorkshops = updatedWorkshops;
+    existingRegistration.qrCode = {
+      dataUrl: qrCodeDataUrl,
+      generatedAt: new Date(),
+      metadata: {
+        events: updatedEvents.map(e => e.eventId.toString()),
+        workshops: updatedWorkshops.map(w => w.workshopId.toString())
+      }
+    };
+
+    await existingRegistration.save();
+
+    // Update event registration counts
+    for (const event of newEvents || []) {
+      await Event.findByIdAndUpdate(event.id, {
+        $inc: { registrationCount: 1 }
+      });
+    }
+
+    // Update workshop registration counts
+    for (const workshop of newWorkshops || []) {
+      await Workshop.findByIdAndUpdate(workshop.id, {
+        $inc: { registrationCount: 1 }
+      });
+    }
+
+    // Clear the student's cart
+    await Student.findByIdAndUpdate(student._id, {
+      $set: { cart: [], workshops: [] }
+    });
+
+    // // Send updated confirmation email
+    // await sendConfirmationEmail(
+    //   student.email,
+    //   qrCodeDataUrl,
+    //   {
+    //     name: student.name,
+    //     combo: existingRegistration.paymentDetails.merchantParams,
+    //     amount: existingRegistration.amount,
+    //     transactionId: existingRegistration.paymentDetails.orderId,
+    //     isUpdate: true
+    //   }
+    // );
+
+    res.json({
+      success: true,
+      message: 'Registration updated successfully',
+      qrCode: qrCodeDataUrl
+    });
+
+  } catch (error) {
+    console.error('Registration update failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 
 export default router;
