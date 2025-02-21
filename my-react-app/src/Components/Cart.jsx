@@ -121,7 +121,9 @@ const CartComponent = () => {
   // Derived states
   const isHostInstitution = useMemo(() => {
     if (!user?.email) return false;
-    return user.email.toLowerCase().startsWith('s');
+    const email = user.email.toLowerCase();
+    // Check format: sxxxxxxx@rgutksklm.ac.in
+    return /^s\d+@rgutksklm\.ac\.in$/.test(email);
   }, [user?.email]);
 
   const [hasWorkshop, setHasWorkshop] = useState(false);
