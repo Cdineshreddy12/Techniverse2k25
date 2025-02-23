@@ -1,5 +1,16 @@
 import crypto from 'crypto';
 
+
+const PACKAGES = {
+  'rgukt-workshop': { price: 199, type: 'rgukt' },
+  'rgukt-all-events': { price: 199, type: 'rgukt' },
+  'rgukt-combo': { price: 299, type: 'rgukt' },
+  'guest-workshop': { price: 499, type: 'guest' },
+  'guest-all-events': { price: 499, type: 'guest' },
+  'guest-combo': { price: 599, type: 'guest' }
+};
+
+
 class PaymentSecurityService {
   constructor(responseKey) {
     this.responseKey = responseKey;
@@ -59,6 +70,7 @@ class PaymentSecurityService {
     }
   }
 
+  
   async validatePaymentResponse(webhookData, registration) {
     try {
       const orderData = webhookData.content?.order || webhookData;

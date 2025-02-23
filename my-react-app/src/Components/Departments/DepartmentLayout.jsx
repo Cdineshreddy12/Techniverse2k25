@@ -2,12 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { Link, Outlet, useLocation, useParams } from 'react-router-dom';
 import { Loader } from 'lucide-react';
 import API_CONFIG from '../../config/api';
+import { useNavigate } from 'react-router-dom';
+
 const DepartmentLayout = () => {
-  const location = useLocation();
+
   const { departmentId } = useParams(); // Changed from deptId to departmentId
   const [department, setDepartment] = useState(null);
   const [loading, setLoading] = useState(true);
-
+  const navigate=useNavigate();
+  const location = useLocation();
   useEffect(() => {
     const fetchDepartment = async () => {
       try {
@@ -29,7 +32,6 @@ const DepartmentLayout = () => {
         setLoading(false);
       }
     };
-    
 
     if (departmentId) {
       fetchDepartment();
@@ -55,9 +57,35 @@ const DepartmentLayout = () => {
     );
   }
 
+      
+  const handleBackClick = (e) => {
+    e.preventDefault();
+    navigate('/');
+  };
+  
+
+
   return (
     <div className="min-h-screen pt-24  bg-gradient-to-br from-slate-950 via-indigo-950 to-black">
       <div className="max-w-7xl mx-auto relative">
+
+      <div className="mb-4  md:block md:mb-0 md:absolute md:left-0 md:top-0 z-50">
+          <button
+            onClick={handleBackClick}
+            className="group inline-flex items-center z-50 gap-2 px-4 py-2 rounded-lg transition-all transform hover:scale-102"
+          >
+            <div className="absolute inset-0 rounded-lg z-50 bg-slate-800/50 group-hover:bg-slate-700/50 transition-all duration-300" />
+            <svg
+              className="w-5 h-5 text-slate-300 group-hover:text-white relative transition-colors"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            <span className="relative text-slate-300 group-hover:text-white transition-colors">Back</span>
+          </button>
+        </div>
 
       <div className="mb-4 hidden md:block md:mb-0 md:absolute md:left-0 md:top-0 z-50">
           <Link

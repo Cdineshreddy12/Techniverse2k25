@@ -1,31 +1,20 @@
+// RegistrationForm.js
 import React, { useState, useEffect, useMemo } from 'react';
-import { useKindeAuth } from '@kinde-oss/kinde-auth-react';
-import { useNavigate,useLocation } from 'react-router-dom';
-import { toast } from 'react-hot-toast';
-import { useApi } from '../config/useApi';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-const RegistrationForm = () => {
+import { useApi } from '../config/useApi';
+import { toast } from 'react-hot-toast';
 
-  const { user, isAdmin, isRegistered, isAuthenticated, checkRegistration } = useAuth();
-  console.log('Auth State:', { isAuthenticated, user });
+const RegistrationForm = () => {
+  const { user, isAdmin, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const api = useApi();
-  console.log('API Client State:', { api });
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [initialCheckDone, setInitialCheckDone] = useState(false);
-  useEffect(() => {
-    if (user?.name) {
-      setFormData(prev => ({
-        ...prev,
-        name: user.name
-      }));
-    }
-  }, [user?.name]);
-
 
   const [formData, setFormData] = useState({
     name: user?.name || '',
@@ -35,41 +24,53 @@ const RegistrationForm = () => {
     mobileNumber: ''
   });
 
+  // Update form data when user info is available
+  useEffect(() => {
+    if (user?.name) {
+      setFormData(prev => ({
+        ...prev,
+        name: user.name
+      }));
+    }
+  }, [user?.name]);
+
   const isStudentEmail = useMemo(() => {
-    const isStudent = Boolean(user?.email?.toLowerCase().startsWith('s'));
-    console.log('Student Email Check:', { email: user?.email, isStudent });
-    return isStudent;
+    if (!user?.email) return false;
+    return /^s\d{6}@rguktsklm\.ac\.in$/.test(user.email.toLowerCase());
   }, [user?.email]);
 
-  // Handle admin and registration status
+  // Handle initial auth and registration check
   useEffect(() => {
     let isMounted = true;
 
     const initializeRegistration = async () => {
+      // Only proceed if we have authentication and haven't done the initial check
       if (!isAuthenticated || !user?.id || initialCheckDone) {
         setIsLoading(false);
         return;
       }
 
       try {
-        // Handle admin case
+        // Handle admin case first
         if (isAdmin) {
           navigate('/adminDashboard');
           return;
         }
 
-        // Check registration status only once
         const data = await api.getUser(user.id);
         
-        if (isMounted) {
-          if (data.success && data.user && !data.needsRegistration) {
-            const returnPath = location.state?.from?.pathname || '/cart';
-            navigate(returnPath);
-          } else {
-            setIsLoading(false);
-          }
-          setInitialCheckDone(true);
+        if (!isMounted) return;
+
+        if (data.success && data.user && !data.needsRegistration) {
+          // User is registered, navigate to intended destination
+          const returnPath = location.state?.from?.pathname || '/cart';
+          navigate(returnPath, { replace: true }); // Use replace to prevent back navigation
+        } else {
+          // User needs registration, stay on form
+          setIsLoading(false);
         }
+        
+        setInitialCheckDone(true);
       } catch (error) {
         console.error('Registration check failed:', error);
         if (isMounted) {
@@ -85,8 +86,7 @@ const RegistrationForm = () => {
     return () => {
       isMounted = false;
     };
-  }, [isAuthenticated, user?.id, isAdmin, api, navigate, location.state, initialCheckDone]);
-
+  }, [isAuthenticated, user?.id, isAdmin, initialCheckDone]);
 
   // Form validation
   const isFormValid = useMemo(() => {
@@ -100,7 +100,6 @@ const RegistrationForm = () => {
 
     return Object.values(validation).every(Boolean);
   }, [formData, isStudentEmail]);
-
 
   // Handle form submission
   const handleSubmit = async (e) => {
@@ -131,9 +130,8 @@ const RegistrationForm = () => {
       const response = await api.registerUser(registrationData);
       
       if (response.success) {
-        await checkRegistration(true); // Force registration check
         toast.success('Registration successful!');
-        navigate('/cart');
+        navigate('/cart', { replace: true }); // Use replace to prevent back navigation
       } else {
         throw new Error(response.error || 'Registration failed');
       }
@@ -145,7 +143,6 @@ const RegistrationForm = () => {
       setIsSubmitting(false);
     }
   };
-
   if (isLoading) {
     console.log('Showing loading state');
     return (
@@ -222,8 +219,10 @@ const RegistrationForm = () => {
                       <option value="" className="bg-slate-800">Select Branch</option>
                       <option value="CSE" className="bg-slate-800">Computer Science</option>
                       <option value="ECE" className="bg-slate-800">Electronics</option>
+                      <option value="EEE" className="bg-slate-800">EEE</option>
                       <option value="MECH" className="bg-slate-800">Mechanical</option>
                       <option value="CIVIL" className="bg-slate-800">Civil</option>
+                      
                     </select>
                   </div>
                 </>

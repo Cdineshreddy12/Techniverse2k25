@@ -9,11 +9,11 @@ const speakers = [
         image: "https://res.cloudinary.com/dxsupdl3t/image/upload/v1740020572/9_hcn52n.png",
         department: "Dept of Chemistry",
         institution: "IIT Hyderabad",
-        topic: "Green Chemistry Innovation",
-        description: "Sustainable chemical processes and environmental technology",
-        date: "March 19, 2025",
-        time: "10:00 AM - 11:30 AM",
-        venue: "Chemistry Research Center"
+        topic: "Catalysis, Nanomaterials and Energy Systems",
+        description: "Catalysis, Nanomaterials and Energy Systems",
+        date: "March 8, 2025",
+        time: "09:00 AM - 10:00 AM",
+        venue: "Seminar Hall"
     },
     {
         name: "Prof. V. Vijaya Saradhi",
@@ -21,11 +21,11 @@ const speakers = [
         image: "https://res.cloudinary.com/dxsupdl3t/image/upload/v1740020569/10_vcekwc.png",
         department: "Dept of CSE",
         institution: "IIT Guwahati",
-        topic: "AI and Machine Learning",
-        description: "Advanced applications of AI in solving complex engineering problems",
-        date: "March 19, 2025",
-        time: "2:00 PM - 3:30 PM",
-        venue: "CSE Conference Hall"
+        topic: "Machine Learning, Kernel Methods, Data Mining and their applications",
+        description: "Machine Learning, Kernel Methods, Data Mining and their applications",
+        date: "March 8, 2025",
+        time: "10:00 AM - 11:00 AM",
+        venue: "Workshop Building"
     },
     
     {
@@ -34,23 +34,23 @@ const speakers = [
         image: "https://res.cloudinary.com/dxsupdl3t/image/upload/v1740020571/11_onbonf.png",
         department: "Dept of Mathematics",
         institution: "IIT Jodhpur",
-        topic: "Mathematical Modeling in Tech",
-        description: "Applications of advanced mathematics in modern technology",
-        date: "March 20, 2025",
-        time: "9:30 AM - 11:00 AM",
-        venue: "Mathematics Department"
+        topic: "Financial Risk Analysis, Categorical Data Analysis and Regression",
+        description: "Financial Risk Analysis, Categorical Data Analysis and Regression",
+        date: "March 7, 2025",
+        time: "11:30 AM - 12:30 PM",
+        venue: "Workshop Building"
     },
     {
         name: "Dr. Valbhaneni Keerthi",
         title: "Scientist-SF",
         image: "https://res.cloudinary.com/dxsupdl3t/image/upload/v1740020568/12_xjyvkz.png",
         department: "National Remote Sensing Center",
-        institution: "ISRO-Dept of space, Hyderabad",
-        topic: "Space Technology Applications",
-        description: "Remote sensing technology and its earthbound applications",
-        date: "March 20, 2025",
-        time: "2:00 PM - 3:30 PM",
-        venue: "Space Tech Center"
+        institution: "ISRO-Dept of Space, Hyderabad",
+        topic: "Data Processing Area",
+        description: "Data Processing Area",
+        date: "March 7, 2025",
+        time: "03:00 PM - 04:00 PM",
+        venue: "Workshop Building"
     },
     {
         name: "Prof. Atul R Ballal",
@@ -58,11 +58,11 @@ const speakers = [
         image: "https://res.cloudinary.com/dxsupdl3t/image/upload/v1740020567/1_e31qrp.png",
         department: "Dept of Metallurgical & Material Engineering",
         institution: "VNIT Nagpur",
-        topic: "Advanced Materials in Industry 4.0",
-        description: "Exploring next-generation materials and their applications in smart manufacturing",
-        date: "March 15, 2025",
-        time: "2:00 PM - 3:30 PM",
-        venue: "Materials Lab Complex"
+        topic: "Mechanical Metallurgy, Ceramic Engineering and Fuel Cells",
+        description: "Mechanical Metallurgy, Ceramic Engineering and Fuel Cells",
+        date: "March 8, 2025",
+        time: "10:00 AM - 11:00 AM",
+        venue: "Seminar Hall"
     },
     {
         name: "Dr. Subrahmanyam",
@@ -70,11 +70,11 @@ const speakers = [
         image: "https://res.cloudinary.com/dxsupdl3t/image/upload/v1740020566/3_xq9vxd.png",
         department: "Dept of Electrical Engineering",
         institution: "IIT Tirupati",
-        topic: "Smart Grid Technologies",
-        description: "Implementation of AI in power distribution and smart grid management",
-        date: "March 16, 2025",
-        time: "9:30 AM - 11:00 AM",
-        venue: "Power Systems Lab"
+        topic: "Medical Imaging, Machine Learning / Deep Learning, Computer Vision and Signal Processing",
+        description: "Medical Imaging, Machine Learning / Deep Learning, Computer Vision and Signal Processing",
+        date: "March 8, 2025",
+        time: "11:30 AM - 12:30 PM",
+        venue: "Seminar Hall"
     },
     {
         name: "Dr. V. Venkata Rao",
@@ -82,11 +82,11 @@ const speakers = [
         image: "https://res.cloudinary.com/dxsupdl3t/image/upload/v1740020567/4_rhwaay.png",
         department: "Harvard Medical School",
         institution: "Massachusetts General Hospital, Boston, USA",
-        topic: "Medical Technology Innovation",
-        description: "Breakthrough developments in medical technology and healthcare systems",
-        date: "March 16, 2025",
-        time: "2:30 PM - 4:00 PM",
-        venue: "Medical Sciences Auditorium"
+        topic: "Cancer Metabolism",
+        description: "Cancer Metabolism",
+        date: "March 8, 2025",
+        time: "09:00 AM - 10:00 AM",
+        venue: "Workshop Building"
     },
     {
         name: "Dr. K. Srinivas Bhaskar",
@@ -94,11 +94,11 @@ const speakers = [
         image: "https://res.cloudinary.com/dxsupdl3t/image/upload/v1740020570/5_ecgil6.png",
         department: "School of Electrical & Computer Science",
         institution: "IIT Bhubaneswar",
-        topic: "Quantum Computing Applications",
-        description: "Future perspectives in quantum computing and its industrial applications",
-        date: "March 17, 2025",
-        time: "10:00 AM - 11:30 AM",
-        venue: "Computing Center"
+        topic: "Power quality, Power Electronics and applications in Power Systems",
+        description: "Power quality, Power Electronics and applications in Power Systems",
+        date: "March 8, 2025",
+        time: "11:30 AM - 12:30 PM",
+        venue: "Workshop Building"
     },
      
     {
@@ -107,11 +107,11 @@ const speakers = [
         image: "https://res.cloudinary.com/dxsupdl3t/image/upload/v1740020566/2_c3jhbn.png",
         department: "Dept of Civil Engineering",
         institution: "IIT Madras",
-        topic: "Sustainable Infrastructure",
-        description: "Smart cities and sustainable infrastructure development strategies",
-        date: "March 17, 2025",
-        time: "1:00 PM - 2:30 PM",
-        venue: "Civil Engineering Complex"
+        topic: "Hydroclimatology and Hydrological Extreme Climate Change",
+        description: "Hydroclimatology and Hydrological Extreme Climate Change",
+        date: "March 8, 2025",
+        time: "03:00 PM - 04:00 PM",
+        venue: "Seminar Hall"
     },
     {
         name: "Dr. Satish Makena",
@@ -119,11 +119,11 @@ const speakers = [
         image: "https://res.cloudinary.com/dxsupdl3t/image/upload/v1740020568/8_zgi1zk.png",
         department: "Leo Global Overseas",
         institution: "London",
-        topic: "Global Tech Business Strategy",
-        description: "International business development and technology market expansion",
-        date: "March 18, 2025",
-        time: "11:30 AM - 1:00 PM",
-        venue: "Business School Auditorium"
+        topic: "Overseas Education consultants",
+        description: "Overseas Education consultants",
+        date: "March 9, 2025",
+        time: "02:00 PM - 03:00 PM",
+        venue: "Workshop Building"
     },
   
 
@@ -133,11 +133,11 @@ const speakers = [
         image: "https://res.cloudinary.com/dxsupdl3t/image/upload/v1740020567/7_exdmx9.png",
         department: "Sense Semi Conductor & IT Solutions PVT LTD",
         institution: "Amaravathi",
-        topic: "Semiconductor Industry Trends",
-        description: "Future of semiconductor technology and manufacturing innovations",
-        date: "March 18, 2025",
-        time: "9:00 AM - 10:30 AM",
-        venue: "Technology Center"
+        topic: "Entrepreneurship",
+        description: "Entrepreneurship",
+        date: "March 9, 2025",
+        time: "11:30 AM - 12:30 PM",
+        venue: "Workshop Building"
     },
     {
         name: "Mr. Paritala Sivaji",
@@ -145,11 +145,11 @@ const speakers = [
         department: "MBA, EDPM-IIM Lucknow",
         image: "https://res.cloudinary.com/dxsupdl3t/image/upload/v1740020570/6_vc1wzd.png",
         institution: "Ivy-Emami Group",
-        topic: "Product Innovation & Market Strategy",
-        description: "Strategic insights into product development and market penetration in emerging tech markets",
-        date: "March 15, 2025",
-        time: "10:00 AM - 11:30 AM",
-        venue: "Innovation Hub"
+        topic: "Entrepreneurship in the AI world",
+        description: "Entrepreneurship in the AI world",
+        date: "March 7, 2025",
+        time: "10:00 AM - 11:00 AM",
+        venue: "Workshop Building"
     }
   
     

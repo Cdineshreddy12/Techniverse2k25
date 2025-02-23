@@ -1,4 +1,5 @@
 import React, { Suspense, lazy } from 'react';
+import { useRef } from 'react';
 import {  Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { store } from './Redux/mainStore.js';
 import { Provider } from 'react-redux';
@@ -19,7 +20,8 @@ import { AuthProvider } from '../src/contexts/AuthContext.jsx';
 import { useAuth } from '../src/contexts/AuthContext.jsx';
 import PaymentVerify from './Components/paymentVerify.jsx';
 import ValidationPage from './Components/offlineValidation.jsx';
-import ReceiptPage from './Components/OfflineReceipt.jsx';
+import StatsDashboard from './Components/statsDashboard.jsx';
+
 // Lazy load components based on route priority
 const TechniverseHome = lazy(() => import("./Components/HomePage"));
 const AboutPage = lazy(() => import("./Components/About"));
@@ -54,8 +56,12 @@ const IntroAnimation = lazy(() => import('./Components/AdminComponents/IntroAnim
 import PaymentFailure from './Components/paymentFailure.jsx';
 import PaymentSuccess from './Components/paymentSuccess.jsx';
 import TeamShowcase from './Components/TeamShowCase.jsx';
-import ManualRegistration from './Components/offlineRegistrationPage.jsx';
-import ClassRegistration from './Components/ClassRegistration.jsx';
+import OfflineRegistrationSystem from './Components/offlineRegistrationPage.jsx';
+// import ClassRegistration from './Components/ClassRegistration.jsx';
+import OfflineLogin from './Components/OfflineLogin.jsx';
+import OfflineDashboard from './Components/OfflineDashboard.jsx';
+import OfflineValidation from './Components/offlineValidation.jsx';
+import ProtectedRoute from './Components/ProtectedRoute.jsx';
 // Optimized loading spinner
 const LoadingSpinner = () => (
   <div className="fixed inset-0 bg-slate-950/80 flex items-center justify-center">
@@ -123,62 +129,49 @@ class ErrorBoundary extends React.Component {
 }
 
 
-const ProtectedRoute = React.memo(({ children, requireRegistration = false }) => {
-  const { isAuthenticated, isLoading: kindeLoading } = useKindeAuth();
-  const { 
-    isRegistered, 
-    isLoading: authLoading, 
-    registrationChecked,
-    isAdmin 
-  } = useAuth();
-  const location = useLocation();
 
-  const isLoading = kindeLoading || authLoading;
-
-  if (isLoading) {
-    return <LoadingSpinner />;
-  }
-
-  if (!isAuthenticated) {
-    return <Navigate to="/" state={{ from: location }} replace />;
-  }
-
-  // Skip registration check for admins
-  if (isAdmin) {
-    return children;
-  }
-
-  // Only check registration if explicitly required
-  if (requireRegistration && !isRegistered && registrationChecked) {
-    return <Navigate to="/register" state={{ from: location }} replace />;
-  }
-
-  return children;
-});
 
 const AdminRoute = React.memo(({ children }) => {
   const { isAuthenticated, isLoading: kindeLoading } = useKindeAuth();
-  const { isAdmin, isLoading: authLoading } = useAuth();
+  const { isAdmin, isLoading: authLoading, checkRegistration } = useAuth();
   const location = useLocation();
+  const checkRef = useRef(false);
 
-  const isLoading = kindeLoading || authLoading;
+  useEffect(() => {
+    if (isAuthenticated && !checkRef.current) {
+      checkRegistration(true);
+      checkRef.current = true;
+    }
+  }, [isAuthenticated, checkRegistration]);
 
-  if (isLoading) {
+  console.log('AdminRoute Debug:', {
+    isAuthenticated,
+    kindeLoading,
+    isAdmin,
+    authLoading
+  });
+
+  if (kindeLoading || authLoading) {
     return <LoadingSpinner />;
   }
 
   if (!isAuthenticated) {
+    console.log('Authentication failed - redirecting to home');
     toast.error('Please login to continue');
     return <Navigate to="/" state={{ from: location }} replace />;
   }
 
   if (!isAdmin) {
+    console.log('Admin check failed - redirecting to unauthorized');
     toast.error('Access denied. Admin privileges required.');
     return <Navigate to="/unauthorized" replace />;
   }
 
   return children;
 });
+
+
+
 
 // Optimized protected routes
 const RegisteredRoute = React.memo(({ children }) => {
@@ -352,6 +345,7 @@ function App() {
         >
         <AuthProvider>
           <PackageProvider>
+          
             <ErrorBoundary>
               <div className="bg-slate-950 min-h-screen">
                 <ScrollToTop />
@@ -382,7 +376,8 @@ function App() {
                     <Route path="/sponsors" element={<SponsorScroll/>} />
                     <Route path="/teams" element={<TeamShowcase/>} />
                     <Route path="/news/:newsId" element={<NewsDetail />} />
-                 
+                    <Route path='/offlineLogin' element={<OfflineLogin/>}/>
+                    <Route path='/offlineDashboard' element={<OfflineDashboard/>}/>
                     <Route 
                         path="/payment/verify" 
                         element={
@@ -419,11 +414,14 @@ function App() {
                                <UserProfile />
                         </ProtectedRoute>
                     } />
-                    <Route path="/cart" element={
+                    <Route
+                      path="/cart"
+                      element={
                         <ProtectedRoute requireRegistration={true}>
-                             <CartComponent />
+                          <CartComponent />
                         </ProtectedRoute>
-                    } />
+                      }
+                    />
                     <Route path="/administration" element={<AdministrationPage />} />
                     <Route path="/payment" element={
                       <RegisteredRoute>
@@ -464,9 +462,7 @@ function App() {
                       } />
                     </Route>
 
-                    {/* Validation Routes */}
-                    
-                    <Route path="/test-validation" element={<TestValidation />} />
+                
 
                     {/* Admin Routes */}
                     <Route path="/adminDashboard" element={
@@ -485,10 +481,9 @@ function App() {
                       } />
 
 
-                    <Route path="registerOffline" element={<ManualRegistration/>} />
-                    <Route path="validateOffline" element={<ValidationPage />} />
-                    <Route path="print-receipt/:receiptNumber" element={<ReceiptPage />} />
-
+                    <Route path="registerOffline" element={<OfflineRegistrationSystem/>} />
+                    <Route path="validateOffline" element={<OfflineValidation />} />
+                    <Route path="stats" element={<StatsDashboard />} />
 
                      <Route path="validation" element={
                         <Suspense fallback={<LoadingSpinner />}>
@@ -499,6 +494,7 @@ function App() {
                       } />
 
 
+
                       <Route path="events" element={
                         <Suspense fallback={<LoadingSpinner />}>
                           <EventsManager />
@@ -506,11 +502,11 @@ function App() {
                       } />
 
                       
-                    <Route path="classRegistrations" element={
+                    {/* <Route path="classRegistrations" element={
                         <Suspense fallback={<LoadingSpinner />}>
                           <ClassRegistration />
                         </Suspense>
-                      } />
+                      } /> */}
 
                       <Route path="news" element={
                         <Suspense fallback={<LoadingSpinner />}>
@@ -527,6 +523,7 @@ function App() {
                 </Suspense>
               </div>
             </ErrorBoundary>
+         
           </PackageProvider>
           </AuthProvider>
         </KindeProvider>

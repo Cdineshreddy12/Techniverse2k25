@@ -19,7 +19,7 @@ import { Buffer } from 'buffer';
 import cartRoutes from './Routes/CartRoutes.js'
 import comboRoutes from './Routes/comboRoutes.js'
 import RegistrationRoutes from './Routes/Registration.js'
-
+import { kindeMiddleware } from './KindeAuth.js';
 import { Student } from './Models/StudentSchema.js';
 import QRRoutes from './Routes/QRRoutes.js'
 import exportRoutes from './Routes/ExportRoutes.js'
@@ -28,6 +28,7 @@ import PaymentRoutes from './Routes/PaymentRoutes.js'
 import path from "path"
 import { fileURLToPath } from "url";
 import workshopRoutes from './Routes/workShopRoutes.js'
+import offlineRoutes from './Routes/OfflineRegistrationRoutes.js'
 // import OfflineRegistrationRoutes from './Routes/offlineRegistrations.js'
 // Load environment variables
 dotenv.config();
@@ -104,12 +105,14 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/Techniver
 app.use(helmet()); // Security headers
 app.use(compression()); // Compress responses
 app.use(morgan('dev')); // Request logging
-app.use(cors({
-  origin: true,
+const corsOptions = {
+  origin: true, // Temporarily allow all origins while testing
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-}));
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Coordinator-ID', 'X-Coordinator-Name']
+};
+
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' })); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true }));
 
@@ -132,6 +135,7 @@ app.use('/api',cartRoutes);
 app.use('/api',comboRoutes);
 app.use('/api',PaymentRoutes);
 app.use('/api',workshopRoutes);
+app.use('/api/offline',offlineRoutes);
 // app.use('/api',OfflineRegistrationRoutes);
 
 

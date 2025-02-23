@@ -78,11 +78,11 @@ const Navbar = ({ onScrollToSection }) => {
 
   const navigationItems = [
     { title: 'Home', icon: <Home className="w-4 h-4" />, path: '/' },
-    { title: 'About', icon: <Info className="w-4 h-4" />, path: '/about' },
     { title: 'Administration', icon: <Users2 className="w-4 h-4" />, path: '/administration' },
     { title: 'News', icon: <Newspaper className="w-4 h-4" />, path: '/news' },
     { title: 'Sponsors', icon: <BadgeCheckIcon className="w-4 h-4" />, path: '/sponsors' },
-    { title: 'Teams', icon: <TableColumnsSplit className="w-4 h-4" />, path: '/teams' }
+    { title: 'Teams', icon: <TableColumnsSplit className="w-4 h-4" />, path: '/teams' },
+    { title: 'Offline', icon: <LogIn className="w-4 h-4" />, path: '/offlineLogin' }
   ];
 
   

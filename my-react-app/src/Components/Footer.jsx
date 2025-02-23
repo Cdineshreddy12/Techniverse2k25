@@ -1,7 +1,6 @@
-// Components/Footer.jsx
 import React from 'react';
 import { 
-  Linkedin, 
+  MessageSquare, // Changed from Linkedin to MessageSquare for WhatsApp
   Youtube, 
   Instagram,
   Rocket 
@@ -27,21 +26,22 @@ const Footer = () => {
           {/* Social Links */}
           <div className="flex gap-6">
             <a 
-              href="#" 
+              href="https://whatsapp.com/channel/0029Vb4zMJILSmbkE0LB882t" 
               className="p-2 bg-slate-800 rounded-lg hover:bg-slate-700 transition-colors group"
-              aria-label="LinkedIn"
+              aria-label="WhatsApp" // Changed from LinkedIn to WhatsApp
             >
-              <Linkedin className="w-6 h-6 text-slate-400 group-hover:text-cyan-400" />
+              <MessageSquare className="w-6 h-6 text-slate-400 group-hover:text-green-400" // Changed hover color to green for WhatsApp
+            />
             </a>
             <a 
-              href="#" 
+              href="https://youtube.com/@rgukt_srikakulam_official?si=poWE_ks1MrjBhWA7" 
               className="p-2 bg-slate-800 rounded-lg hover:bg-slate-700 transition-colors group"
               aria-label="YouTube"
             >
               <Youtube className="w-6 h-6 text-slate-400 group-hover:text-red-400" />
             </a>
             <a 
-              href="#" 
+              href="https://www.instagram.com/techniverse_2k25?igsh=MWhhMWE4MzMxd3d2Zw==" 
               className="p-2 bg-slate-800 rounded-lg hover:bg-slate-700 transition-colors group"
               aria-label="Instagram"
             >

@@ -117,15 +117,17 @@ const CartComponent = () => {
   const items = useSelector(state => state.cart.items || []);
   const workshops = useSelector(state => state.cart.workshops || []);
   const activeCombo = useSelector(state => state.cart.activeCombo);
-
-  // Derived states
+  
   const isHostInstitution = useMemo(() => {
     if (!user?.email) return false;
     const email = user.email.toLowerCase();
-    // Check format: sxxxxxxx@rgutksklm.ac.in
-    return /^s\d+@rgutksklm\.ac\.in$/.test(email);
+    // Corrected domain name in regex
+    return /^s\d+@rguktsklm\.ac\.in$/.test(email.toLowerCase());
   }, [user?.email]);
-
+  
+  console.log('user email', user?.email);
+  console.log('Is Host Institution:', isHostInstitution);
+  
   const [hasWorkshop, setHasWorkshop] = useState(false);
   
   const relevantPackage = useMemo(() => 

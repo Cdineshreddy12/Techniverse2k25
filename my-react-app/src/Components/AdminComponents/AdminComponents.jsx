@@ -33,9 +33,9 @@ const AdminDashboard = () => {
     {
       group: "Main",
       items: [
-        { name: "Analytics", icon: <BarChart3 size={20} />, path: "/adminDashboard/analytics" },
+  
         { name: "Departments", icon: <GraduationCap size={20} />, path: "/adminDashboard/departments" },
-        { name: "Registrations", icon: <ScrollText size={20} />, path: "/adminDashboard/registrations" }
+        { name: "Stats", icon: <GraduationCap size={20} />, path: "/adminDashboard/stats"},
       ]
     },
     {
@@ -45,7 +45,8 @@ const AdminDashboard = () => {
         { name: "New Updates", icon: <ScrollText size={20} />, path: "/adminDashboard/news" },
         { name: "Workshops", icon: <Users size={20} />, path: "/adminDashboard/workshops" },
         { name: "Validation", icon: <Users size={20} />, path: "/adminDashboard/validation" },
-        { name: "Offline Registration", icon: <Calendar size={20} />, path: "/adminDashboard/registerOffline" }
+        { name: "Offline Registration", icon: <Calendar size={20} />, path: "/adminDashboard/registerOffline" },
+        { name: "Offline  Validation", icon: <Calendar size={20} />, path: "/adminDashboard/validateOffline" }
       ]
     }
   ];

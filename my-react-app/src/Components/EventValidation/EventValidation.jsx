@@ -278,16 +278,21 @@ function ValidateInterface() {
                   </div>
                   
                   <div className="space-y-2 text-gray-300">
-                    <p>
-                      <span className="text-gray-400">Name:</span> {validationResult.details.name}
-                    </p>
-                    <p>
-                      <span className="text-gray-400">Event:</span> {validationResult.details.event}
-                    </p>
-                    <p className="text-sm text-gray-400">
-                      Checked in at: {new Date(validationResult.details.timestamp).toLocaleString()}
-                    </p>
-                  </div>
+                        <p>
+                          <span className="text-gray-400">Name:</span> {validationResult.details?.name || 'N/A'}
+                        </p>
+                        <p>
+                          <span className="text-gray-400">Event:</span> {validationResult.details?.event || 'N/A'}
+                        </p>
+                        <p className="text-sm text-gray-400">
+                          Checked in at: {validationResult.details?.timestamp 
+                            ? new Date(validationResult.details.timestamp).toLocaleString() 
+                            : 'N/A'}
+                        </p>
+                        <p className="text-sm text-gray-400">
+                          Registration ID: {validationResult.details?.registrationId || 'N/A'}
+                        </p>
+                      </div>
                 </div>
               ) : (
                 <div className="flex items-center gap-2 text-red-400">

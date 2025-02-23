@@ -1783,6 +1783,224 @@ const otherTeams = [
       }
     ]
   },
+{
+  id: 'puc-ppt presentation',
+  name: 'PUC PPT Presentation Team',
+  members: [
+
+    {
+      name: "Kommoju Chinnu (POC)",
+      id: "S210455",
+      phone: "9381664472",
+      branch: "CSE",
+      year: "E2"
+    },
+    {
+      name: "Kommala Smily Grace",
+      id: "S221094",
+      phone: "8121813359",
+      branch: "CSE",
+      year: "E1"
+    },
+    {
+      name: "Borigi Madhurima",
+      id: "S210436",
+      phone: "6305889385",
+      branch: "ECE",
+      year: "E2"
+    },
+    {
+      name: "Malla Santosh",
+      id: "S211054",
+      phone: "6305889385",
+      branch: "CSE",
+      year: "E2"
+    },
+    {
+      name: "K. Mohan Kartheek",
+      id: "S210016",
+      phone: "9391678130",
+      branch: "CSE",
+      year: "E2"
+    },
+    {
+      name: "K. Pavani (POC)",
+      id: "S210506",
+      phone: "8309595228",
+      branch: "CSE",
+      year: "E2"
+    }
+  ]
+},
+
+{
+  id: 'puc-tech quiz',
+  name: 'PUC Tech Quiz Team',
+  members: [
+
+    {
+      name: "Dindi Yamini Priya Devi (POC)",
+      id: "S210564",
+      phone: "8688167198",
+      branch: "ECE",
+      year: "E2"
+    },
+    {
+      name: "Shaik Kashifa",
+      id: "S221115",
+      phone: "9014394475",
+      branch: "ECE",
+      year: "E1"
+    },
+    {
+      name: "Yalla Abhiram",
+      id: "S210840",
+      phone: "8919117688",
+      branch: "CSE",
+      year: "E2"
+    },
+    {
+      name: "Routhu Suresh",
+      id: "S210027",
+      phone: "9014575251",
+      branch: "CSE",
+      year: "E2"
+    },
+    {
+      name: "Devid Vinayak",
+      id: "S210118",
+      phone: "8919117688",
+      branch: "CSE",
+      year: "E2"
+    },
+    {
+      name: "Teja Sree Yadav",
+      id: "S211139",
+      phone: "6301661004",
+      branch: "CIVIL",
+      year: "E2"
+    }
+  ]
+},
+{
+  id: 'puc-lecture series',
+  name: 'PUC Lecture Series Team',
+  members: [
+
+    {
+      name: "Praveen Kumar Inti (POC)",
+      id: "S210894",
+      phone: "8121142975",
+      branch: "CSE",
+      year: "E2"
+    },
+    {
+      name: "Chinthada Venkata Siva Durga Rao",
+      id: "S210204",
+      phone: "8500893526",
+      branch: "ECE",
+      year: "E2"
+    },
+    {
+      name: "S. Sireesha",
+      id: "S210264",
+      phone: "7997909969",
+      branch: "ECE",
+      year: "E2"
+    },
+    {
+      name: "Raghumanda Pardha Saradhi",
+      id: "S210305",
+      phone: "9908812649",
+      branch: "CSE",
+      year: "E2"
+    },
+    {
+      name: "Anusha Sanapathi (POC)",
+      id: "S210122",
+      phone: "9182166849",
+      branch: "ECE",
+      year: "E2"
+    },
+    {
+      name: "Brahmachaitanya Modepalli",
+      id: "S210255",
+      phone: "7842719360",
+      branch: "ECE",
+      year: "E2"
+    }
+  ]
+},
+{
+  id: 'puc-tech expo',
+  name: 'PUC Tech Expo Team',
+  members: [
+
+    {
+      name: "B. V. Tej Mouli",
+      id: "S210111",
+      phone: "9392526682",
+      branch: "MECH",
+      year: "E2"
+    },
+    {
+      name: "M. Tharun",
+      id: "S210003",
+      phone: "7093974858",
+      branch: "MECH",
+      year: "E2"
+    },
+    {
+      name: "P. Praveena",
+      id: "S210519",
+      phone: "8919766908",
+      branch: "ECE",
+      year: "E2"
+    },
+    {
+      name: "Satya Sree",
+      id: "S220974",
+      phone: "7989101143",
+      branch: "CIVIL",
+      year: "E1"
+    },
+    {
+      name: "K. Manoj Kumar (POC)",
+      id: "S210293",
+      phone: "8074052982",
+      branch: "ECE",
+      year: "E2"
+    },
+    {
+      name: "T. Harika (POC)",
+      id: "S210009",
+      phone: "9014694953",
+      branch: "ECE",
+      year: "E2"
+    },
+    {
+      name: "R. Parinitha",
+      id: "S210114",
+      phone: "8555864224",
+      branch: "ECE",
+      year: "E2"
+    },
+    {
+      name: "T. Satyaveni",
+      id: "S220490",
+      phone: "9392537472",
+      branch: "CSE",
+      year: "E1"
+    },
+    {
+      name: "Mounica Teketi (POC)",
+      id: "S210472",
+      phone: "8074188767",
+      branch: "CSE",
+      year: "E2"
+    }
+    ]
+  }
 
 ];
 

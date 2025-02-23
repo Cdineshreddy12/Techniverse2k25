@@ -1,6 +1,19 @@
-import React from 'react';
 
-const AboutPage = () => {
+export default function AboutPage(){
+  const handleDownload = () => {
+    // Replace this URL with your actual brochure PDF URL
+    const brochureUrl = './Techniverse.pdf';
+    
+    // Create a temporary link element
+    const link = document.createElement('a');
+    link.href = brochureUrl;
+    link.setAttribute('download', 'Techniverse.pdf');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+
   return (
     <div className="min-h-screen mt-[-18%] sm:mt-[-8%] bg-gradient-to-br from-slate-950 via-indigo-950 to-black relative overflow-hidden">
       {/* Enhanced Background Glow Effects */}
@@ -83,26 +96,32 @@ const AboutPage = () => {
                 </div>
 
                 {/* Enhanced Interactive Button */}
-                <button className="group relative px-6 py-3 rounded-lg overflow-hidden">
-                  {/* Button glow background */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-cyan-500 to-purple-500 transition-all duration-300 group-hover:opacity-80" />
-                  <div className="relative flex items-center gap-2 text-white font-semibold">
-                    Explore More
-                    <svg 
-                      className="w-5 h-5 transform group-hover:translate-x-1 transition-transform" 
-                      fill="none" 
-                      viewBox="0 0 24 24" 
-                      stroke="currentColor"
-                    >
-                      <path 
-                        strokeLinecap="round" 
-                        strokeLinejoin="round" 
-                        strokeWidth={2} 
-                        d="M13 7l5 5m0 0l-5 5m5-5H6" 
-                      />
-                    </svg>
-                  </div>
-                </button>
+                <button 
+                        onClick={handleDownload}
+                        className="group relative px-6 py-3 rounded-lg overflow-hidden"
+                      >
+                        {/* Button glow background */}
+                        <div className="absolute inset-0 bg-gradient-to-r from-cyan-500 to-purple-500 transition-all duration-300 group-hover:opacity-80" />
+                        <div className="relative flex items-center gap-2 text-white font-semibold">
+                          Download Brochure
+                          <svg 
+                            className="w-5 h-5 transform group-hover:translate-x-1 transition-transform" 
+                            fill="none" 
+                            viewBox="0 0 24 24" 
+                            stroke="currentColor"
+                          >
+                            <path 
+                              strokeLinecap="round" 
+                              strokeLinejoin="round" 
+                              strokeWidth={2} 
+                              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                            />
+                          </svg>
+                        </div>
+                      </button>
+
+
+
               </div>
             </div>
           </div>
@@ -112,4 +131,3 @@ const AboutPage = () => {
   );
 };
 
-export default AboutPage;

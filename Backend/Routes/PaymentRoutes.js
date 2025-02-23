@@ -114,15 +114,27 @@ const detectTampering = async (req, res, next) => {
       throw new Error('Cart verification failed');
     }
 
-    // 5. Verify package type matches student type
-    const isRGUKTStudent = student.email.toLowerCase().includes('@rgutksklm.ac.in');
+    const studentEmail = (student.email || '').toLowerCase().trim();
+    const rguktsklmRegex = /@rguktsklm\.ac\.in$/i;
+    const isRGUKTStudent = rguktsklmRegex.test(studentEmail);
+    const comboId = (combo.id || '').trim();
     const validPrefix = isRGUKTStudent ? 'rgukt-' : 'guest-';
     
-    if (!combo.id.startsWith(validPrefix)) {
+    console.log('Package validation (regex):', {
+      studentEmail,
+      isRGUKTStudent,
+      comboId,
+      validPrefix,
+      startsWithPrefix: comboId.startsWith(validPrefix)
+    });
+    
+    if (!comboId.startsWith(validPrefix)) {
       console.error('Institution type mismatch:', {
-        studentEmail: student.email,
-        attemptedCombo: combo.id,
-        kindeId
+        studentEmail,
+        attemptedCombo: comboId,
+        kindeId,
+        isRGUKTStudent,
+        validPrefix
       });
       throw new Error('Invalid package for your institution');
     }
@@ -300,13 +312,27 @@ router.all('/payment/handleResponse', async (req, res) => {
    
 
     // 3. Verify user type matches package type
-    const isRGUKTStudent = registration.student.email.toLowerCase().includes('@rgutksklm.ac.in');
+    const studentEmail = (registration.student.email || '').toLowerCase().trim();
+    const rguktsklmRegex = /@rguktsklm\.ac\.in$/i;
+    const isRGUKTStudent = rguktsklmRegex.test(studentEmail);
     const expectedPrefix = isRGUKTStudent ? 'rgukt-' : 'guest-';
+    
+    // Add debug logging
+    console.log('Payment verification check:', {
+      studentEmail,
+      isRGUKTStudent,
+      comboId: registration.paymentDetails.merchantParams.comboId,
+      expectedPrefix,
+      startsWithPrefix: registration.paymentDetails.merchantParams.comboId.startsWith(expectedPrefix)
+    });
+    
     if (!registration.paymentDetails.merchantParams.comboId.startsWith(expectedPrefix)) {
       console.error('Institution type mismatch:', {
-        studentEmail: registration.student.email,
+        studentEmail,
         comboId: registration.paymentDetails.merchantParams.comboId,
-        orderId: order_id
+        orderId: order_id,
+        isRGUKTStudent,
+        expectedPrefix
       });
       throw new Error('Package verification failed');
     }

@@ -54,7 +54,7 @@ const AdministrationPage = () => {
         { name: "Mr.T. Raghavendra Rao", role: "HOD, Physics" },
         { name: "Dr. L. Chandrasekhara Rao", role: "HOD, Chemistry" },
         { name: "Dr. B.Neela rao", role: "HOD, Mathematics" },
-        { name: "Dr. G. SivaPraveena", role: "HOD, Bio Sciences" },
+        { name: "Dr. G. Siva Praveena", role: "HOD, Bio Sciences" },
         { name: "Mr. Y.V.G Nukeswara Rao", role: "HOD, English" },
         { name: "Dr. P.Chiranjeevi", role: "HOD, Telugu" },
         { name: "Mr. S.Sreenuvasa Rao", role: "HOD, IT" },
@@ -92,7 +92,8 @@ const AdministrationPage = () => {
             { name: "Mr. M Jeevan", role: "Asst. Professor, CE" },
             { name: "Mr. K Lakshmi Narayana", role: "Asst. Professor, ECE" },
             { name: "Dr. Mohammad Ashik", role: "Asst. Professor, ECE" },
-            { name: "Dr. P V Naidu", role: "Asst. Professor, Management" }
+            { name: "Dr. P V Naidu", role: "Asst. Professor, Management" },
+            { name: "Mrs. K Archana", role: "Instructor , Yoga" }
         ],
     },
     {
@@ -100,7 +101,7 @@ const AdministrationPage = () => {
         icon: Laptop2,
         members: [
             { name: "Mr. K Dileep Kumar", role: "Asst. Professor, CSE" },
-            { name: "Mrs. S Lakshmisri", role: "Asst. Professor, CSE" }
+            { name: "Mrs. S Lakshmi sri", role: "Asst. Professor, CSE" }
         ],
     },
     {
@@ -144,19 +145,13 @@ const AdministrationPage = () => {
            { name: "Mr. M. Shanmukh", role: " PRO RGUKT-Srikakulam" },
       ],
     },
-    {
-      title: "Website & Social Media Team", 
-      icon: Building,
-      members: [
-           { name: "Mr. K. DileepKumar", role: "Asst.Professor, CSE" },
-          { name: "Mrs. D. Lakshmisri", role: " Asst.Professor, CSE" },
-      ],
-    },
+    
     {
       title: "IT Infra Team", 
       icon: Building,
       members: [
            { name: "Mr. G. Siva Rama Sastry", role: "Asst.Professor, CSE" },
+           { name: "Mr. P. Srinivasa Rao", role: "Mentor , IT" }
       ],
     },
     {
@@ -167,6 +162,7 @@ const AdministrationPage = () => {
       { name: "Dr. R. Ramesh ", role: " Asst.Professor, Library Sciences" },
       { name: "Mrs. K. Revathi", role: " Asst.Professor, EEE" },
       { name: "Ms. P. Tirumala ", role: " Asst.Professor, ECE" },
+      { name: "Dr. B. Sridhar ", role: " Lecturer, Physics" }
       ],
     },
     {
@@ -226,6 +222,8 @@ const AdministrationPage = () => {
       ],
     }
   ];
+
+
 
   const filteredCommittees = committees.map(committee => ({
     ...committee,

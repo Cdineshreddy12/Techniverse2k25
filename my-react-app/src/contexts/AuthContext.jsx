@@ -1,4 +1,4 @@
-// AuthContext.jsx
+// AuthContext.jsx - Updated implementation
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useKindeAuth } from '@kinde-oss/kinde-auth-react';
 import { useApi } from '../config/useApi.js';
@@ -12,172 +12,100 @@ export const AuthProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [userData, setUserData] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const registrationChecked = useRef(false);
-  const checkInProgress = useRef(false);
-  const initialCheckDone = useRef(false);
+  
+  const authState = useRef({
+    registrationChecked: false,
+    checkInProgress: false,
+    initialCheckDone: false,
+    lastCheck: null
+  });
 
-  // Add persistent token storage
-// In AuthContext.jsx
-const persistToken = useCallback(async () => {
-  try {
-    const token = await auth.getToken();
-    if (token) {
-      // Extend token lifetime
-      const expiryTime = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-      
-      // Store all necessary auth data
-      localStorage.setItem('kinde_auth_token', token);
-      localStorage.setItem('kinde_token_expiry', expiryTime.toISOString());
-      localStorage.setItem('kinde_user', JSON.stringify(auth.user));
-      
-      console.log('Token stored successfully', {
-        hasToken: true,
-        expiry: expiryTime,
-        userId: auth.user?.id
-      });
-      return true;
-    }
-    return false;
-  } catch (error) {
-    console.error('Token persistence failed:', error);
-    return false;
-  }
-}, [auth]);
-
-  // want to check the exact case to remove the token
-  // Restore token on mount or after redirect
-// In AuthContext.jsx
-const restoreToken = useCallback(async () => {
-  try {
-    const storedToken = localStorage.getItem('kinde_auth_token');
-    const tokenExpiry = localStorage.getItem('kinde_token_expiry');
-    const storedUser = localStorage.getItem('kinde_user');
-
-    if (!storedToken || !tokenExpiry) {
-      console.log('No stored token or expiry found');
-      return false;
-    }
-
-    const expiryDate = new Date(tokenExpiry);
-    const currentDate = new Date();
-
-    if (expiryDate <= currentDate) {
-      console.log('Token expired, cleaning up');
-      localStorage.removeItem('kinde_auth_token');
-      localStorage.removeItem('kinde_token_expiry');
-      localStorage.removeItem('kinde_user');
-      return false;
-    }
-
-    console.log('Valid token found', {
-      hasToken: true,
-      expiry: expiryDate,
-      user: storedUser ? JSON.parse(storedUser) : null
-    });
-    
-    return true;
-  } catch (error) {
-    console.error('Token restoration failed:', error);
-    return false;
-  }
-}, []);
-
+  // Improved check admin status
   const checkAdminStatus = useCallback(async () => {
-    if (!auth.user) return false;
-
+    if (!auth.user) {
+      console.log('No user found for admin check');
+      return false;
+    }
     try {
       const permissions = await auth.getPermissions();
-      return permissions?.permissions?.includes('TECH_ADMIN') || false;
+      console.log('Admin check permissions:', permissions);
+      const hasAdminPermission = permissions?.permissions?.includes('TECH_ADMIN') || false;
+      console.log('Has admin permission:', hasAdminPermission);
+      setIsAdmin(hasAdminPermission); // Directly update the state
+      return hasAdminPermission;
     } catch (error) {
       console.error('Error checking admin status:', error);
+      setIsAdmin(false);
       return false;
     }
   }, [auth]);
 
+  // Update checkRegistration to handle admin status properly
   const checkRegistration = useCallback(async (force = false) => {
-    if (checkInProgress.current && !force) return;
+    if (authState.current.checkInProgress && !force) return;
     
-    if (!auth.isAuthenticated || !auth.user?.id || !api) {
+    if (!auth.isAuthenticated || !auth.user?.id) {
       setIsLoading(false);
-      registrationChecked.current = true;
+      setIsAdmin(false);
+      authState.current.registrationChecked = true;
       return;
     }
 
     try {
-      checkInProgress.current = true;
+      authState.current.checkInProgress = true;
+      setIsLoading(true);
 
-      // Store token whenever checking registration
-      await persistToken();
-
+      // Check admin status first
       const adminStatus = await checkAdminStatus();
+      
       if (adminStatus) {
-        setIsAdmin(true);
         setIsRegistered(true);
         setIsLoading(false);
-        registrationChecked.current = true;
+        authState.current.registrationChecked = true;
         return;
       }
 
-      if (registrationChecked.current && !force) {
-        return;
+      // Only check regular user registration if not admin
+      if (!adminStatus && api) {
+        const data = await api.getUser(auth.user.id);
+        setIsRegistered(data.success && data.user && !data.needsRegistration);
+        setUserData(data.success && data.user ? data.user : null);
       }
 
-      const data = await api.getUser(auth.user.id);
-
-      if (data.success && data.user && !data.needsRegistration) {
-        setIsRegistered(true);
-        setUserData(data.user);
-      } else {
-        setIsRegistered(false);
-        setUserData(null);
-      }
     } catch (error) {
       console.error('Auth check failed:', error);
       setIsRegistered(false);
+      setIsAdmin(false);
       setUserData(null);
     } finally {
       setIsLoading(false);
-      registrationChecked.current = true;
-      checkInProgress.current = false;
-      initialCheckDone.current = true;
+      authState.current.checkInProgress = false;
+      authState.current.initialCheckDone = true;
+      authState.current.registrationChecked = true;
     }
-  }, [auth.isAuthenticated, auth.user?.id, api, checkAdminStatus, persistToken]);
+  }, [auth.isAuthenticated, auth.user?.id, api, checkAdminStatus]);
 
-  // Add authentication restoration on mount
+  // Add effect to monitor auth state changes
   useEffect(() => {
-    const initAuth = async () => {
-      const hasValidToken = await restoreToken();
-      if (hasValidToken && !auth.isAuthenticated && auth.login) {
-        try {
-          await auth.login();
-        } catch (error) {
-          console.error('Error restoring auth:', error);
-        }
-      }
-    };
-
-    initAuth();
-  }, [auth.isAuthenticated, auth.login, restoreToken]);
-
-  // Initial authentication check
-  useEffect(() => {
-    if (!initialCheckDone.current && auth.isAuthenticated) {
-      checkRegistration();
-    }
-  }, [auth.isAuthenticated, checkRegistration]);
-
-  // Reset state on logout
-  useEffect(() => {
-    if (!auth.isAuthenticated) {
-      localStorage.removeItem('kinde_auth_token');
-      localStorage.removeItem('kinde_token_expiry');
-      setIsRegistered(false);
+    if (auth.isAuthenticated && auth.user) {
+      checkRegistration(true);
+    } else {
       setIsAdmin(false);
+      setIsRegistered(false);
       setUserData(null);
-      registrationChecked.current = false;
-      initialCheckDone.current = false;
     }
-  }, [auth.isAuthenticated]);
+  }, [auth.isAuthenticated, auth.user, checkRegistration]);
+
+  // Debug logging
+  useEffect(() => {
+    console.log('Auth Context State:', {
+      isAuthenticated: auth.isAuthenticated,
+      isAdmin,
+      isLoading,
+      user: auth.user,
+      registrationChecked: authState.current.registrationChecked
+    });
+  }, [auth.isAuthenticated, isAdmin, isLoading, auth.user]);
 
   const value = {
     isRegistered,
@@ -188,14 +116,10 @@ const restoreToken = useCallback(async () => {
     login: auth.login,
     logout: auth.logout,
     checkRegistration,
-    registrationChecked: registrationChecked.current
+    registrationChecked: authState.current.registrationChecked
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {
