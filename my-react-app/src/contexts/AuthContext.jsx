@@ -1,4 +1,3 @@
-// AuthContext.jsx - Updated implementation
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useKindeAuth } from '@kinde-oss/kinde-auth-react';
 import { useApi } from '../config/useApi.js';
@@ -13,19 +12,11 @@ export const AuthProvider = ({ children }) => {
   const [userData, setUserData] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   
-  const authState = useRef({
-    registrationChecked: false,
-    checkInProgress: false,
-    initialCheckDone: false,
-    lastCheck: null
-  });
-
-  // Add a ref to track initialization
+  // Single initialization ref to prevent multiple checks
   const initialized = useRef(false);
 
   const getCombinedUserData = useCallback(() => {
     if (!auth.user) return null;
-
     return {
       id: auth.user.id,
       kindeId: auth.user.id,
@@ -37,17 +28,22 @@ export const AuthProvider = ({ children }) => {
     };
   }, [auth.user, userData]);
 
- 
-
-  // Update checkRegistration to handle admin status properly
-  const checkRegistration = useCallback(async () => {
+  const checkRegistration = useCallback(async (force = false) => {
+    // Skip if not authenticated or no user
     if (!auth.isAuthenticated || !auth.user?.id) {
       setIsLoading(false);
       return;
     }
 
+    // Skip if already initialized and not forced
+    if (initialized.current && !force) {
+      return;
+    }
+
     try {
-      // Check admin status first
+      setIsLoading(true);
+      
+      // Check admin status
       const permissions = await auth.getPermissions();
       const hasAdminPermission = permissions?.permissions?.includes('TECH_ADMIN') || false;
       setIsAdmin(hasAdminPermission);
@@ -59,8 +55,11 @@ export const AuthProvider = ({ children }) => {
 
       // Check user registration
       const data = await api.getUser(auth.user.id);
+      
       setIsRegistered(data.success && data.user && !data.needsRegistration);
       setUserData(data.success ? data.user : null);
+      
+      initialized.current = true;
     } catch (error) {
       console.error('Auth check failed:', error);
       setIsRegistered(false);
@@ -71,28 +70,14 @@ export const AuthProvider = ({ children }) => {
     }
   }, [auth, api]);
 
-
-  // Add effect to monitor auth state changes
+  // Initial auth state check
   useEffect(() => {
-    if (!initialized.current && auth.isAuthenticated && auth.user) {
-      initialized.current = true;
+    if (auth.isAuthenticated && auth.user && !initialized.current) {
       checkRegistration();
+    } else if (!auth.isLoading && !auth.isAuthenticated) {
+      setIsLoading(false);
     }
-  }, [auth.isAuthenticated, auth.user, checkRegistration]);
-
-  // Debug logging
-  useEffect(() => {
-    console.log('Auth Context State:', {
-      isAuthenticated: auth.isAuthenticated,
-      isAdmin,
-      isLoading,
-      user: auth.user,
-      registrationChecked: authState.current.registrationChecked
-    });
-  }, [auth.isAuthenticated, isAdmin, isLoading, auth.user]);
-
-
-
+  }, [auth.isAuthenticated, auth.isLoading, auth.user, checkRegistration]);
 
   const value = {
     isRegistered,
@@ -103,7 +88,7 @@ export const AuthProvider = ({ children }) => {
     login: auth.login,
     logout: auth.logout,
     checkRegistration,
-    registrationChecked: authState.current.registrationChecked
+    initialized: initialized.current
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

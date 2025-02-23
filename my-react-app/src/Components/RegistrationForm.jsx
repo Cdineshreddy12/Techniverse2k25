@@ -1,31 +1,19 @@
-// RegistrationForm.js
-import React, { useState, useEffect, useMemo,useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useApi } from '../config/useApi';
 import { toast } from 'react-hot-toast';
-const RegistrationForm = () => {
-  const { user, isAdmin, isAuthenticated, isLoading: authLoading } = useAuth();
-  // Update the email check to use the proper user object
-  const isStudentEmail = useMemo(() => {
-    const email = user?.email;
-    if (!email) {
-      console.log('No email available');
-      return false;
-    }
-    const isValid = /^s\d{6}@rguktsklm\.ac\.in$/.test(email.toLowerCase());
-    console.log('Email validation:', { email, isValid });
-    return isValid;
-  }, [user?.email]);
 
+const RegistrationForm = () => {
+  const { user, isAdmin, isAuthenticated, isLoading: authLoading, checkRegistration } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const api = useApi();
 
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
-  const initialized = useRef(false);
+
   const [formData, setFormData] = useState({
     name: user?.name || '',
     collegeId: '',
@@ -33,6 +21,12 @@ const RegistrationForm = () => {
     collegeName: '',
     mobileNumber: ''
   });
+
+  // Check if user is a student based on email
+  const isStudentEmail = useMemo(() => {
+    const email = user?.email;
+    return email ? /^s\d{6}@rguktsklm\.ac\.in$/.test(email.toLowerCase()) : false;
+  }, [user?.email]);
 
   // Update form data when user info is available
   useEffect(() => {
@@ -43,38 +37,6 @@ const RegistrationForm = () => {
       }));
     }
   }, [user?.name]);
-
-  // Handle initial auth and registration check
-  useEffect(() => {
-    if (!initialized.current && !authLoading && isAuthenticated && user?.id) {
-      initialized.current = true;
-      const checkRegistration = async () => {
-        try {
-          if (isAdmin) {
-            navigate('/adminDashboard');
-            return;
-          }
-  
-          const data = await api.getUser(user.id);
-          if (data.success && data.user && !data.needsRegistration) {
-            const returnPath = location.state?.from?.pathname || '/cart';
-            navigate(returnPath, { replace: true });
-          }
-        } catch (error) {
-          console.error('Registration check failed:', error);
-          setError(error.message);
-        } finally {
-          setIsLoading(false);
-        }
-      };
-  
-      checkRegistration();
-    } else if (!authLoading) {
-      setIsLoading(false);
-    }
-  }, [authLoading, isAuthenticated, user?.id, isAdmin, api, navigate, location.state?.from?.pathname]);
-
-  console.log('user email',user.email);
 
   // Form validation
   const isFormValid = useMemo(() => {
@@ -118,8 +80,13 @@ const RegistrationForm = () => {
       const response = await api.registerUser(registrationData);
       
       if (response.success) {
+        // Force registration check after successful registration
+        await checkRegistration(true);
         toast.success('Registration successful!');
-        navigate('/cart', { replace: true }); // Use replace to prevent back navigation
+        
+        // Navigate to the return path or cart
+        const returnPath = location.state?.from?.pathname || '/cart';
+        navigate(returnPath, { replace: true });
       } else {
         throw new Error(response.error || 'Registration failed');
       }
@@ -131,8 +98,8 @@ const RegistrationForm = () => {
       setIsSubmitting(false);
     }
   };
-  if (isLoading) {
-    console.log('Showing loading state');
+
+  if (authLoading || isLoading) {
     return (
       <div className="min-h-screen bg-slate-900 pt-24 flex items-center justify-center">
         <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
