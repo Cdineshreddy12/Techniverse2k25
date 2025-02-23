@@ -1,12 +1,23 @@
 // RegistrationForm.js
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo,useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useApi } from '../config/useApi';
 import { toast } from 'react-hot-toast';
-
 const RegistrationForm = () => {
-  const { user, isAdmin, isAuthenticated } = useAuth();
+  const { user, isAdmin, isAuthenticated, isLoading: authLoading } = useAuth();
+  // Update the email check to use the proper user object
+  const isStudentEmail = useMemo(() => {
+    const email = user?.email;
+    if (!email) {
+      console.log('No email available');
+      return false;
+    }
+    const isValid = /^s\d{6}@rguktsklm\.ac\.in$/.test(email.toLowerCase());
+    console.log('Email validation:', { email, isValid });
+    return isValid;
+  }, [user?.email]);
+
   const navigate = useNavigate();
   const location = useLocation();
   const api = useApi();
@@ -14,8 +25,7 @@ const RegistrationForm = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
-  const [initialCheckDone, setInitialCheckDone] = useState(false);
-
+  const initialized = useRef(false);
   const [formData, setFormData] = useState({
     name: user?.name || '',
     collegeId: '',
@@ -34,59 +44,37 @@ const RegistrationForm = () => {
     }
   }, [user?.name]);
 
-  const isStudentEmail = useMemo(() => {
-    if (!user?.email) return false;
-    return /^s\d{6}@rguktsklm\.ac\.in$/.test(user.email.toLowerCase());
-  }, [user?.email]);
-
   // Handle initial auth and registration check
   useEffect(() => {
-    let isMounted = true;
-
-    const initializeRegistration = async () => {
-      // Only proceed if we have authentication and haven't done the initial check
-      if (!isAuthenticated || !user?.id || initialCheckDone) {
-        setIsLoading(false);
-        return;
-      }
-
-      try {
-        // Handle admin case first
-        if (isAdmin) {
-          navigate('/adminDashboard');
-          return;
-        }
-
-        const data = await api.getUser(user.id);
-        
-        if (!isMounted) return;
-
-        if (data.success && data.user && !data.needsRegistration) {
-          // User is registered, navigate to intended destination
-          const returnPath = location.state?.from?.pathname || '/cart';
-          navigate(returnPath, { replace: true }); // Use replace to prevent back navigation
-        } else {
-          // User needs registration, stay on form
-          setIsLoading(false);
-        }
-        
-        setInitialCheckDone(true);
-      } catch (error) {
-        console.error('Registration check failed:', error);
-        if (isMounted) {
+    if (!initialized.current && !authLoading && isAuthenticated && user?.id) {
+      initialized.current = true;
+      const checkRegistration = async () => {
+        try {
+          if (isAdmin) {
+            navigate('/adminDashboard');
+            return;
+          }
+  
+          const data = await api.getUser(user.id);
+          if (data.success && data.user && !data.needsRegistration) {
+            const returnPath = location.state?.from?.pathname || '/cart';
+            navigate(returnPath, { replace: true });
+          }
+        } catch (error) {
+          console.error('Registration check failed:', error);
           setError(error.message);
+        } finally {
           setIsLoading(false);
-          setInitialCheckDone(true);
         }
-      }
-    };
+      };
+  
+      checkRegistration();
+    } else if (!authLoading) {
+      setIsLoading(false);
+    }
+  }, [authLoading, isAuthenticated, user?.id, isAdmin, api, navigate, location.state?.from?.pathname]);
 
-    initializeRegistration();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [isAuthenticated, user?.id, isAdmin, initialCheckDone]);
+  console.log('user email',user.email);
 
   // Form validation
   const isFormValid = useMemo(() => {

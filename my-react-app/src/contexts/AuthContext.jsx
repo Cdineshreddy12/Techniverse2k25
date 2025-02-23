@@ -20,58 +20,47 @@ export const AuthProvider = ({ children }) => {
     lastCheck: null
   });
 
-  // Improved check admin status
-  const checkAdminStatus = useCallback(async () => {
-    if (!auth.user) {
-      console.log('No user found for admin check');
-      return false;
-    }
-    try {
-      const permissions = await auth.getPermissions();
-      console.log('Admin check permissions:', permissions);
-      const hasAdminPermission = permissions?.permissions?.includes('TECH_ADMIN') || false;
-      console.log('Has admin permission:', hasAdminPermission);
-      setIsAdmin(hasAdminPermission); // Directly update the state
-      return hasAdminPermission;
-    } catch (error) {
-      console.error('Error checking admin status:', error);
-      setIsAdmin(false);
-      return false;
-    }
-  }, [auth]);
+  // Add a ref to track initialization
+  const initialized = useRef(false);
+
+  const getCombinedUserData = useCallback(() => {
+    if (!auth.user) return null;
+
+    return {
+      id: auth.user.id,
+      kindeId: auth.user.id,
+      email: auth.user.email,
+      name: `${auth.user.given_name} ${auth.user.family_name || ''}`.trim(),
+      picture: auth.user.picture,
+      registrationComplete: userData?.registrationComplete || false,
+      ...(userData || {})
+    };
+  }, [auth.user, userData]);
+
+ 
 
   // Update checkRegistration to handle admin status properly
-  const checkRegistration = useCallback(async (force = false) => {
-    if (authState.current.checkInProgress && !force) return;
-    
+  const checkRegistration = useCallback(async () => {
     if (!auth.isAuthenticated || !auth.user?.id) {
       setIsLoading(false);
-      setIsAdmin(false);
-      authState.current.registrationChecked = true;
       return;
     }
 
     try {
-      authState.current.checkInProgress = true;
-      setIsLoading(true);
-
       // Check admin status first
-      const adminStatus = await checkAdminStatus();
-      
-      if (adminStatus) {
+      const permissions = await auth.getPermissions();
+      const hasAdminPermission = permissions?.permissions?.includes('TECH_ADMIN') || false;
+      setIsAdmin(hasAdminPermission);
+
+      if (hasAdminPermission) {
         setIsRegistered(true);
-        setIsLoading(false);
-        authState.current.registrationChecked = true;
         return;
       }
 
-      // Only check regular user registration if not admin
-      if (!adminStatus && api) {
-        const data = await api.getUser(auth.user.id);
-        setIsRegistered(data.success && data.user && !data.needsRegistration);
-        setUserData(data.success && data.user ? data.user : null);
-      }
-
+      // Check user registration
+      const data = await api.getUser(auth.user.id);
+      setIsRegistered(data.success && data.user && !data.needsRegistration);
+      setUserData(data.success ? data.user : null);
     } catch (error) {
       console.error('Auth check failed:', error);
       setIsRegistered(false);
@@ -79,20 +68,15 @@ export const AuthProvider = ({ children }) => {
       setUserData(null);
     } finally {
       setIsLoading(false);
-      authState.current.checkInProgress = false;
-      authState.current.initialCheckDone = true;
-      authState.current.registrationChecked = true;
     }
-  }, [auth.isAuthenticated, auth.user?.id, api, checkAdminStatus]);
+  }, [auth, api]);
+
 
   // Add effect to monitor auth state changes
   useEffect(() => {
-    if (auth.isAuthenticated && auth.user) {
-      checkRegistration(true);
-    } else {
-      setIsAdmin(false);
-      setIsRegistered(false);
-      setUserData(null);
+    if (!initialized.current && auth.isAuthenticated && auth.user) {
+      initialized.current = true;
+      checkRegistration();
     }
   }, [auth.isAuthenticated, auth.user, checkRegistration]);
 
@@ -107,11 +91,14 @@ export const AuthProvider = ({ children }) => {
     });
   }, [auth.isAuthenticated, isAdmin, isLoading, auth.user]);
 
+
+
+
   const value = {
     isRegistered,
     isLoading,
     isAdmin,
-    user: userData || auth.user,
+    user: getCombinedUserData(),
     isAuthenticated: auth.isAuthenticated,
     login: auth.login,
     logout: auth.logout,

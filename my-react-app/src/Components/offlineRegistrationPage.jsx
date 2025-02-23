@@ -152,49 +152,6 @@ const OfflineRegistrationSystem = () => {
     }));
   };
 
-  const handleSearchSubmit = async (e) => {
-    e.preventDefault();
-    if (!searchData.studentId || !searchData.email) {
-      toast.error('Please enter both Student ID and Email');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const response = await makeOfflineRequest(api, offlineEndpoints.searchRegistration, {
-        method: 'POST',
-        body: JSON.stringify(searchData)
-      });
-      
-      if (response.registration) {
-        const { user, events, workshops, registrationType, _id } = response.registration;
-        setFormData({
-          studentId: user.studentId,
-          name: user.name,
-          email: user.email,
-          branch: user.branch,
-          class: user.class,
-          mobileNo: user.mobileNo,
-          events: events.map(e => ({ eventId: e.id, title: e.title })),
-          workshops: workshops.map(w => ({ workshopId: w.id, title: w.title })),
-          registrationType
-        });
-        setRegistrationId(_id);
-        setIsUpdateMode(true);
-        setSections({ personal: false, type: false, selection: true });
-        toast.success('Registration found! You can now update events/workshops.');
-      } else {
-        toast.error('No registration found with these details');
-      }
-    } catch (error) {
-      console.error('Search error:', error);
-      toast.error(error.message || 'Failed to find registration');
-      setError('Could not find registration');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleUpdateRegistration = async () => {
     try {
       setLoading(true);
@@ -385,8 +342,14 @@ const OfflineRegistrationSystem = () => {
           branch: user.branch,
           class: user.class,
           mobileNo: user.mobileNo,
-          events: events.map(e => ({ eventId: e.id, title: e.title })),
-          workshops: workshops.map(w => ({ workshopId: w.id, title: w.title })),
+          events: events.map(e => ({ 
+            eventId: e.id, 
+            title: e.name // Changed from e.title to e.name to match the response format
+          })),
+          workshops: workshops.map(w => ({ 
+            workshopId: w.id, 
+            title: w.name // Changed from w.title to w.name to match the response format
+          })),
           registrationType
         });
         setRegistrationId(_id);

@@ -21,7 +21,7 @@ import { useAuth } from '../src/contexts/AuthContext.jsx';
 import PaymentVerify from './Components/paymentVerify.jsx';
 import ValidationPage from './Components/offlineValidation.jsx';
 import StatsDashboard from './Components/statsDashboard.jsx';
-
+const DevelopersPage = lazy(() => import('./Components/DevelopersComponent.jsx'));
 // Lazy load components based on route priority
 const TechniverseHome = lazy(() => import("./Components/HomePage"));
 const AboutPage = lazy(() => import("./Components/About"));
@@ -378,6 +378,14 @@ function App() {
                     <Route path="/news/:newsId" element={<NewsDetail />} />
                     <Route path='/offlineLogin' element={<OfflineLogin/>}/>
                     <Route path='/offlineDashboard' element={<OfflineDashboard/>}/>
+                    <Route 
+                        path="/developers" 
+                        element={
+                          <Suspense fallback={<LoadingSpinner />}>
+                            <DevelopersPage />
+                          </Suspense>
+                        } 
+                      />
                     <Route 
                         path="/payment/verify" 
                         element={

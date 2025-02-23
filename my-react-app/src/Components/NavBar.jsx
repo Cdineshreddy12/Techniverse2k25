@@ -79,6 +79,7 @@ const Navbar = ({ onScrollToSection }) => {
   const navigationItems = [
     { title: 'Home', icon: <Home className="w-4 h-4" />, path: '/' },
     { title: 'Administration', icon: <Users2 className="w-4 h-4" />, path: '/administration' },
+    { title: 'Devs', icon: <Users2 className="w-4 h-4" />, path: '/developers' },
     { title: 'News', icon: <Newspaper className="w-4 h-4" />, path: '/news' },
     { title: 'Sponsors', icon: <BadgeCheckIcon className="w-4 h-4" />, path: '/sponsors' },
     { title: 'Teams', icon: <TableColumnsSplit className="w-4 h-4" />, path: '/teams' },
@@ -216,12 +217,12 @@ const Navbar = ({ onScrollToSection }) => {
             </button>
           </div>
 
-          <div className="hidden lg:flex items-center space-x-1">
+          <div className="hidden lg:flex items-center ">
             {navigationItems.map((item, index) => (
               <Link
                 key={index}
                 to={item.path}
-                className="px-4 py-2 rounded-lg text-sm font-medium text-gray-300 hover:text-white hover:bg-white/5 transition-all flex items-center space-x-2 group"
+                className="px-4 py-2 rounded-lg text-sm font-medium text-gray-300 hover:text-white hover:bg-white/5 transition-all flex items-center space-x-1 group"
               >
                 <span className="group-hover:animate-bounce-x">{item.icon}</span>
                 <span>{item.title}</span>

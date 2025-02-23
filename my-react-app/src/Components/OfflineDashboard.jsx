@@ -184,12 +184,14 @@ const OfflineDashboard = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 flex items-center justify-center">
-        <div className="text-center p-8 bg-gray-800 rounded-xl shadow-2xl">
-          <p className="text-xl text-red-400 mb-4">{error}</p>
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
+        <div className="text-center p-8 bg-slate-800/80 backdrop-blur rounded-2xl shadow-2xl max-w-md w-full border border-red-500/20">
+          <X className="h-12 w-12 text-red-400 mx-auto mb-4" />
+          <p className="text-xl text-red-400 mb-6">{error}</p>
           <button
             onClick={() => window.location.href = '/offlineLogin'}
-            className="mt-4 bg-blue-600 px-6 py-3 rounded-lg text-white font-semibold hover:bg-blue-700 transition-colors duration-200 shadow-lg hover:shadow-xl"
+            className="bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-3 rounded-xl text-white font-semibold 
+                     hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 shadow-lg hover:shadow-blue-500/20"
           >
             Back to Login
           </button>
@@ -199,62 +201,74 @@ const OfflineDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 text-white p-6">
-      <div className="max-w-6xl mx-auto space-y-8">
-       
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        {/* Profile Card */}
+        <div className="bg-slate-800/50 backdrop-blur-xl rounded-3xl shadow-2xl p-6 lg:p-8 mb-8 border border-white/10">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8">
+            <div className="flex-1 space-y-6">
+              <div className="flex items-center gap-4">
+                <div className="h-16 w-16 rounded-full bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center">
+                  <User className="h-8 w-8" />
+                </div>
+                <div>
+                  <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent">
+                    {userData?.name}
+                  </h1>
+                  <p className="text-slate-400">{userData?.studentId}</p>
+                </div>
+              </div>
 
-        {/* User Info Section */}
-        <div className="bg-gray-800 mt-24 rounded-2xl shadow-2xl p-8 backdrop-blur-lg bg-opacity-50 border border-gray-700">
-          <div className="flex items-start justify-between flex-wrap gap-8">
-            <div className="flex-1">
-              <h1 className="text-3xl font-bold mb-6 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                Welcome, {userData?.name}!
-              </h1>
-              <div className="grid sm:grid-cols-2 gap-6 text-gray-300">
-                <div className="space-y-3">
-                  <p className="flex items-center gap-2">
-                    <User className="h-5 w-5 text-blue-400" />
-                    <span className="text-gray-400">Student ID:</span> {userData?.studentId}
-                  </p>
-                  <p className="flex items-center gap-2">
-                    <Calendar className="h-5 w-5 text-blue-400" />
-                    <span className="text-gray-400">Branch:</span> {userData?.branch}
-                  </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 bg-slate-700/50 p-4 rounded-xl">
+                    <Mail className="h-5 w-5 text-blue-400" />
+                    <div>
+                      <p className="text-sm text-slate-400">Email</p>
+                      <p className="text-white">{userData?.email}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 bg-slate-700/50 p-4 rounded-xl">
+                    <School className="h-5 w-5 text-blue-400" />
+                    <div>
+                      <p className="text-sm text-slate-400">Branch</p>
+                      <p className="text-white">{userData?.branch}</p>
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-3">
-                  <p className="flex items-center gap-2">
-                    <QrCode className="h-5 w-5 text-blue-400" />
-                    <span className="text-gray-400">Class:</span> {userData?.class}
-                  </p>
-                  <p className="flex items-center gap-2">
-                    <Calendar className="h-5 w-5 text-blue-400" />
-                    <span className="text-gray-400">Email:</span> {userData?.email}
-                  </p>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 bg-slate-700/50 p-4 rounded-xl">
+                    <Book className="h-5 w-5 text-blue-400" />
+                    <div>
+                      <p className="text-sm text-slate-400">Class</p>
+                      <p className="text-white">{userData?.class}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowResetForm(true)}
+                    className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 py-4 rounded-xl hover:from-blue-700 
+                             hover:to-indigo-700 transition-all duration-300 font-medium"
+                  >
+                    Reset Password
+                  </button>
                 </div>
-                 {/* Header with Reset Password Button */}
-                                    <div className="flex  justify-end">
-                                    <button
-                                        onClick={() => setShowResetForm(true)}
-                                        className="bg-blue-600 px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors duration-200 text-sm font-semibold"
-                                    >
-                                        Reset Password
-                                    </button>
-                                    </div>
               </div>
             </div>
+
             {userData?.registration?.qrCode && (
-              <div className="text-center">
+              <div className="lg:border-l lg:pl-8 lg:border-slate-700 flex flex-col items-center">
                 <div 
-                  className="bg-white p-4 rounded-xl shadow-2xl mb-2 cursor-pointer transform hover:scale-105 transition-transform duration-200"
                   onClick={() => setShowQRModal(true)}
+                  className="bg-white p-4 rounded-2xl shadow-xl cursor-pointer transform hover:scale-105 
+                           transition-all duration-300 hover:shadow-blue-500/20"
                 >
                   <img 
                     src={userData.registration.qrCode} 
                     alt="Registration QR" 
-                    className="w-32 h-32"
+                    className="w-40 h-40"
                   />
                 </div>
-                <p className="text-sm text-blue-400">
+                <p className="mt-4 text-sm font-medium text-blue-400">
                   Receipt: {userData.registration.receiptNumber}
                 </p>
               </div>
@@ -263,20 +277,23 @@ const OfflineDashboard = () => {
         </div>
 
         {/* Events and Workshops Grid */}
-        <div className="grid md:grid-cols-2 gap-8">
+        <div className="grid md:grid-cols-2 gap-8 mb-8">
           {/* Events Section */}
-          <div className="bg-gray-800 rounded-2xl shadow-2xl p-8 backdrop-blur-lg bg-opacity-50 border border-gray-700 hover:shadow-blue-900/20 transition-shadow duration-300">
-            <h2 className="text-2xl font-semibold mb-6 flex items-center gap-3 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+          <div className="bg-slate-800/50 backdrop-blur-xl rounded-3xl shadow-2xl p-6 lg:p-8 border border-white/10">
+            <h2 className="text-2xl font-bold flex items-center gap-3 mb-6">
               <Calendar className="h-6 w-6 text-blue-400" />
-              Registered Events
+              <span className="bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                Registered Events
+              </span>
             </h2>
             <div className="space-y-4">
               {userData.registration?.events.map(event => (
                 <div 
                   key={event.id} 
-                  className="flex items-center justify-between bg-gray-700 bg-opacity-50 p-4 rounded-xl border border-gray-600 hover:border-blue-500 transition-colors duration-200"
+                  className="flex items-center justify-between bg-slate-700/50 p-4 rounded-xl border border-white/5
+                           hover:border-blue-500/50 transition-all duration-300 group"
                 >
-                  <span className="text-gray-200">{event.name}</span>
+                  <span className="text-slate-200 group-hover:text-white transition-colors">{event.name}</span>
                   {checkIns.find(c => c.type === 'event' && c.itemName === event.name) ? (
                     <CheckCircle className="h-5 w-5 text-green-400" />
                   ) : (
@@ -288,18 +305,21 @@ const OfflineDashboard = () => {
           </div>
 
           {/* Workshops Section */}
-          <div className="bg-gray-800 rounded-2xl shadow-2xl p-8 backdrop-blur-lg bg-opacity-50 border border-gray-700 hover:shadow-purple-900/20 transition-shadow duration-300">
-            <h2 className="text-2xl font-semibold mb-6 flex items-center gap-3 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+          <div className="bg-slate-800/50 backdrop-blur-xl rounded-3xl shadow-2xl p-6 lg:p-8 border border-white/10">
+            <h2 className="text-2xl font-bold flex items-center gap-3 mb-6">
               <Calendar className="h-6 w-6 text-purple-400" />
-              Registered Workshops
+              <span className="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+                Registered Workshops
+              </span>
             </h2>
             <div className="space-y-4">
               {userData.registration?.workshops.map(workshop => (
                 <div 
                   key={workshop.id} 
-                  className="flex items-center justify-between bg-gray-700 bg-opacity-50 p-4 rounded-xl border border-gray-600 hover:border-purple-500 transition-colors duration-200"
+                  className="flex items-center justify-between bg-slate-700/50 p-4 rounded-xl border border-white/5
+                           hover:border-purple-500/50 transition-all duration-300 group"
                 >
-                  <span className="text-gray-200">{workshop.name}</span>
+                  <span className="text-slate-200 group-hover:text-white transition-colors">{workshop.name}</span>
                   {checkIns.find(c => c.type === 'workshop' && c.itemName === workshop.name) ? (
                     <CheckCircle className="h-5 w-5 text-green-400" />
                   ) : (
@@ -312,29 +332,29 @@ const OfflineDashboard = () => {
         </div>
 
         {/* Check-in History */}
-        <div className="bg-gray-800 rounded-2xl shadow-2xl p-8 backdrop-blur-lg bg-opacity-50 border border-gray-700">
-          <h2 className="text-2xl font-semibold mb-6 bg-gradient-to-r from-green-400 to-blue-400 bg-clip-text text-transparent">
+        <div className="bg-slate-800/50 backdrop-blur-xl rounded-3xl shadow-2xl p-6 lg:p-8 border border-white/10">
+          <h2 className="text-2xl font-bold mb-6 bg-gradient-to-r from-green-400 to-blue-400 bg-clip-text text-transparent">
             Check-in History
           </h2>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="text-left border-b border-gray-700">
-                  <th className="pb-4 text-blue-400">Type</th>
-                  <th className="pb-4 text-blue-400">Name</th>
-                  <th className="pb-4 text-blue-400">Time</th>
-                  <th className="pb-4 text-blue-400">Verified By</th>
+                <tr className="text-left border-b border-slate-700">
+                  <th className="pb-4 text-blue-400 font-medium">Type</th>
+                  <th className="pb-4 text-blue-400 font-medium">Name</th>
+                  <th className="pb-4 text-blue-400 font-medium">Time</th>
+                  <th className="pb-4 text-blue-400 font-medium">Verified By</th>
                 </tr>
               </thead>
               <tbody>
                 {checkIns.map((checkIn, index) => (
-                  <tr key={index} className="border-b border-gray-700/50 hover:bg-gray-700/30 transition-colors duration-200">
-                    <td className="py-4 text-gray-300">{checkIn.type}</td>
-                    <td className="py-4 text-gray-300">{checkIn.itemName}</td>
-                    <td className="py-4 text-gray-300">
+                  <tr key={index} className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-all duration-200">
+                    <td className="py-4 text-slate-300">{checkIn.type}</td>
+                    <td className="py-4 text-slate-300">{checkIn.itemName}</td>
+                    <td className="py-4 text-slate-300">
                       {new Date(checkIn.timestamp).toLocaleString()}
                     </td>
-                    <td className="py-4 text-gray-300">{checkIn.verifiedBy}</td>
+                    <td className="py-4 text-slate-300">{checkIn.verifiedBy}</td>
                   </tr>
                 ))}
               </tbody>

@@ -160,6 +160,13 @@ const otherTeams = [
         year: "E2"
       },
       {
+        name: "V.Balaji",
+        id: "S210112",
+        phone: "7032993352",
+        branch: "CSE",
+        year: "E2"
+      },
+      {
         name: "V. Sriram Kumar",
         id: "S210632",
         phone: "6301050585",
@@ -778,7 +785,7 @@ const otherTeams = [
     name: 'Cultural  Team',
     members: [
       {
-        name: "Lokesh (POC)",
+        name: "T.Lokesh (POC)",
         id: "S210566",
         phone: "9505740689",
         branch: "ECE",
