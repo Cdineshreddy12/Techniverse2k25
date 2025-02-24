@@ -84,6 +84,28 @@ const workshopSchema = new mongoose.Schema({
       required: true
     }
   },
+  workshopTiming: {
+    startDate: {
+      type: Date,
+      required: true
+    },
+    endDate: {
+      type: Date,
+      required: true
+    },
+    dailyStartTime: {
+      type: String,  // Format: "HH:mm"
+      required: true
+    },
+    dailyEndTime: {
+      type: String,  // Format: "HH:mm"
+      required: true
+    },
+    timeZone: {
+      type: String,
+      default: 'Asia/Kolkata'  // Default to IST
+    }
+  },
   registrationEndTime: {
     type: Date,
     required: true

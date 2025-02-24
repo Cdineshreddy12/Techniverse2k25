@@ -224,10 +224,10 @@ const Timeline = () => {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-2 sm:px-4 py-4 sm:py-6">
+    <div className="max-w-7xl mx-auto px-2 mt-20  sm:mt-16 sm:px-4 py-4 sm:py-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold text-white">Timeline</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-purple-400">Timeline</h1>
         <div className="flex gap-2">
           <button
             onClick={() => setView('card')}

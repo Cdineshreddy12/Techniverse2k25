@@ -29,6 +29,13 @@ const WorkshopForm = ({ workshop, onClose, onSubmit }) => {
           role: workshop.lecturer.role || 'Main Lecturer',
           order: 0
         }] : [],
+        workshopTiming: workshop.workshopTiming || {
+          startDate: now.toISOString().split('T')[0],
+          endDate: oneWeekFromNow.toISOString().split('T')[0],
+          dailyStartTime: '09:00',
+          dailyEndTime: '17:00',
+          timeZone: 'Asia/Kolkata'
+        },
         departments: workshop.departments || [],
         price: workshop.price || 0,
         duration: workshop.duration || { total: 2, unit: 'hours' },
@@ -58,6 +65,13 @@ const WorkshopForm = ({ workshop, onClose, onSubmit }) => {
         total: 2,
         unit: 'hours'
       },
+      workshopTiming: {
+        startDate: now.toISOString().split('T')[0],
+        endDate: oneWeekFromNow.toISOString().split('T')[0],
+        dailyStartTime: '09:00',
+        dailyEndTime: '17:00',
+        timeZone: 'Asia/Kolkata'
+      },
       registration: {
         isOpen: false,
         totalSlots: 30,
@@ -80,6 +94,10 @@ const WorkshopForm = ({ workshop, onClose, onSubmit }) => {
 
   const tabs = [
     { id: 'basic', name: 'Basic Info', icon: <Info className="w-4 h-4" /> },
+    {    id: 'timing', 
+      name: 'Workshop Timing', 
+      icon: <Clock className="w-4 h-4" /> 
+    },
     { id: 'registration', name: 'Registration', icon: <Users className="w-4 h-4" /> },
     { id: 'media', name: 'Media', icon: <Image className="w-4 h-4" /> },
     { id: 'lecturer', name: 'Lecturer', icon: <GraduationCap className="w-4 h-4" /> },
@@ -249,6 +267,84 @@ const WorkshopForm = ({ workshop, onClose, onSubmit }) => {
             </div>
           </div>
         );
+
+        case 'timing':
+          return (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input
+                  label="Workshop Start Date"
+                  type="date"
+                  value={formData.workshopTiming.startDate}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    workshopTiming: {
+                      ...formData.workshopTiming,
+                      startDate: e.target.value
+                    }
+                  })}
+                  required
+                />
+                <Input
+                  label="Workshop End Date"
+                  type="date"
+                  value={formData.workshopTiming.endDate}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    workshopTiming: {
+                      ...formData.workshopTiming,
+                      endDate: e.target.value
+                    }
+                  })}
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input
+                  label="Daily Start Time"
+                  type="time"
+                  value={formData.workshopTiming.dailyStartTime}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    workshopTiming: {
+                      ...formData.workshopTiming,
+                      dailyStartTime: e.target.value
+                    }
+                  })}
+                  required
+                />
+                <Input
+                  label="Daily End Time"
+                  type="time"
+                  value={formData.workshopTiming.dailyEndTime}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    workshopTiming: {
+                      ...formData.workshopTiming,
+                      dailyEndTime: e.target.value
+                    }
+                  })}
+                  required
+                />
+              </div>
+              <select
+                value={formData.workshopTiming.timeZone}
+                onChange={(e) => setFormData({
+                  ...formData,
+                  workshopTiming: {
+                    ...formData.workshopTiming,
+                    timeZone: e.target.value
+                  }
+                })}
+                className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 
+                  rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+              >
+                <option value="Asia/Kolkata">India (IST)</option>
+                <option value="UTC">UTC</option>
+                {/* Add more timezone options as needed */}
+              </select>
+            </div>
+          );
 
       case 'registration':
         return (

@@ -1,25 +1,27 @@
 import React from 'react';
-import { Github, Linkedin, Mail, Globe } from 'lucide-react';
+import { Github, Linkedin, Mail, Globe, Contact } from 'lucide-react';
 
 const DevelopersSection = () => {
   const developers = [
     {
       name: "Dileep Kumar Koda",
-      role: "Asst. Professor, CSE Department",
+      role: "WEB MASTER(RGUKT SRIKAKULAM)",
       description: "WebTeam lead of Techniverse2k25",
       image: "https://aikyam.rguktsklm.ac.in/faculty/images/(2181510s)-b956b52b1079a396a683bc1f9d7276fd.jpeg",
       github: "https://github.com/yourusername",
       linkedin: "https://linkedin.com/in/yourusername",
-      website: "https://rguktsklm.ac.in"
+      website: "https://rguktsklm.ac.in",
+      mobile:'9000254442'
     },
     {
       name: "Chinta Dinesh Reddy",
-      role: "FullStack Developer",
+      role: "MERNSTACK Developer(CSE)",
       description: "Developer of Techniverse2k25",
       image: "https://res.cloudinary.com/dxsupdl3t/image/upload/v1740306488/WhatsApp_Image_2025-02-23_at_15.57.34_aa5f07e1_er54ai.jpg",
       github: "https://github.com/Cdineshreddy12",
       linkedin: "https://www.linkedin.com/in/c-dinesh-reddy/",
-      website: "https://www.techniverse25.rguktsklm.ac.in"
+      website: "https://www.techniverse25.rguktsklm.ac.in",
+      mobile:'8074683901'
     }
   ];
 
@@ -75,7 +77,7 @@ const DevelopersSection = () => {
                     <h3 className="text-2xl font-bold text-white mb-2">{dev.name}</h3>
                     <div className="text-cyan-400 font-medium mb-3 text-lg">{dev.role}</div>
                     <p className="text-gray-400 mb-6">{dev.description}</p>
-
+                    <p className="text-gray-400 mb-6">Contact Number: {dev.mobile}</p>
                     {/* Enhanced Social Links */}
                     <div className="flex items-center justify-center gap-4">
                       <a 

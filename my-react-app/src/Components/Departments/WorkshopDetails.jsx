@@ -277,6 +277,33 @@ const addToBackendCart = async (kindeId, workshop) => {
           </div>
         </div>
 
+        <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700 mb-6">
+            <h2 className="text-xl font-semibold text-white mb-4">Workshop Timing</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex items-center gap-3">
+                <Calendar className="w-5 h-5 text-indigo-400" />
+                <div>
+                  <p className="text-sm text-gray-400">Duration</p>
+                  <p className="text-white">
+                    {new Date(workshop.workshopTiming.startDate).toLocaleDateString()} - 
+                    {new Date(workshop.workshopTiming.endDate).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <Clock className="w-5 h-5 text-indigo-400" />
+                <div>
+                  <p className="text-sm text-gray-400">Daily Schedule</p>
+                  <p className="text-white">
+                    {workshop.workshopTiming.dailyStartTime} - 
+                    {workshop.workshopTiming.dailyEndTime} 
+                    ({workshop.workshopTiming.timeZone})
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
         {/* Lecturers */}
         <div className="mb-12">
           <h2 className="text-2xl font-bold text-white mb-6">Workshop Leaders</h2>

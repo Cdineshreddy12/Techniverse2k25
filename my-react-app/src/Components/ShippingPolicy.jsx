@@ -18,6 +18,8 @@ const ShippingPolicy = () => {
             </ul>
           </div>
 
+
+
           <div>
             <h3 className="text-xl font-semibold mb-2">Registration Confirmation</h3>
             <ul className="list-disc pl-5 space-y-2">
@@ -26,6 +28,27 @@ const ShippingPolicy = () => {
               <li>No physical shipping is involved in this process</li>
             </ul>
           </div>
+
+          <section className="mb-8">
+        <div className="space-y-4">
+          <div>
+            <h3 className="text-xl font-semibold mb-2">Shipping Timeline</h3>
+            <p>Items will be delivered within 7 to 10 working days after order confirmation.</p>
+          </div>
+          
+          <div>
+            <h3 className="text-xl font-semibold mb-2">Our Address</h3>
+            <address className="not-italic">
+              Bahudha Block,<br />
+              Etcherla Mandal,<br />
+              S.M Puram,<br />
+              Srikakulam District,<br />
+              Andhra Pradesh,<br />
+              PIN: 532410
+            </address>
+          </div>
+        </div>
+      </section>
 
           <div>
             <h3 className="text-xl font-semibold mb-2">Workshop Materials</h3>
@@ -37,12 +60,14 @@ const ShippingPolicy = () => {
           </div>
         </div>
       </section>
+      
+      
 
       <section className="mb-8">
         <h2 className="text-2xl font-semibold mb-4">Technical Support</h2>
         <ul className="list-disc pl-5 space-y-2">
           <li>For any issues with digital delivery, contact our support team</li>
-          <li>Support email:techniverse@rguktsklm.ac.in</li>
+          <li>Support email: techniverse@rguktsklm.ac.in</li>
           <li>Response time: Within 24 hours</li>
         </ul>
       </section>

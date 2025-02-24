@@ -108,7 +108,7 @@ const DepartmentCards = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950">
+    <div className="min-h-screen mt-12 bg-slate-950">
       {/* Header Section */}
       {/* <header className="relative px-4 py-8">
         <div className="max-w-7xl mx-auto">

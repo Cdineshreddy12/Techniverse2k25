@@ -22,6 +22,7 @@ import PaymentVerify from './Components/paymentVerify.jsx';
 import ValidationPage from './Components/offlineValidation.jsx';
 import StatsDashboard from './Components/statsDashboard.jsx';
 const DevelopersPage = lazy(() => import('./Components/DevelopersComponent.jsx'));
+import DepartmentCards from './Components/DepartmentEvents.jsx';
 // Lazy load components based on route priority
 const TechniverseHome = lazy(() => import("./Components/HomePage"));
 const AboutPage = lazy(() => import("./Components/About"));
@@ -66,6 +67,7 @@ import ShippingPolicy from './Components/ShippingPolicy';
 import CancellationPolicy from './Components/CancellationPolicy';
 import PrivacyPolicy from './Components/PrivacyPolicy';
 import TermsAndConditions from './Components/TermsAndConditions.jsx';
+import Timeline from './Components/Timeline.jsx';
 // Optimized loading spinner
 const LoadingSpinner = () => (
   <div className="fixed inset-0 bg-slate-950/80 flex items-center justify-center">
@@ -377,6 +379,8 @@ function App() {
                     <Route path="/about" element={<AboutPage />} />
                     <Route path="/intro" element={<IntroAnimation />} />
                     <Route path="/news" element={<NewsList />} />
+                    <Route path="/timeline" element={<Timeline />} />
+                    <Route path="/departments" element={<DepartmentCards />} />
                     <Route path="/sponsors" element={<SponsorScroll/>} />
                     <Route path="/teams" element={<TeamShowcase/>} />
                     <Route path="/news/:newsId" element={<NewsDetail />} />

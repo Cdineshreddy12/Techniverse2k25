@@ -4,7 +4,10 @@ import {
   Menu, X, Home, Info, Clock, Users2, 
   Sparkles, ShoppingCart, LogOut, LogIn, User, Stars,Newspaper,
   BadgeCheckIcon,
-  TableColumnsSplit
+  TableColumnsSplit,
+  TimerIcon,
+  LucideAlignEndVertical,
+  BotIcon
 } from 'lucide-react';
 import { useKindeAuth } from '@kinde-oss/kinde-auth-react';
 import { useNavigate } from 'react-router-dom';
@@ -76,17 +79,28 @@ const Navbar = ({ onScrollToSection }) => {
     };
   }, []);
 
-  const navigationItems = [
+  // Desktop navigation items (without Devs)
+  const desktopNavigationItems = [
     { title: 'Home', icon: <Home className="w-4 h-4" />, path: '/' },
     { title: 'Administration', icon: <Users2 className="w-4 h-4" />, path: '/administration' },
-    { title: 'Devs', icon: <Users2 className="w-4 h-4" />, path: '/developers' },
-    { title: 'News', icon: <Newspaper className="w-4 h-4" />, path: '/news' },
+    { title: 'Events', icon: <BotIcon className="w-4 h-4" />, path: '/departments' },
+    { title: 'Timeline', icon: <TimerIcon className="w-4 h-4" />, path: '/timeline' },
     { title: 'Sponsors', icon: <BadgeCheckIcon className="w-4 h-4" />, path: '/sponsors' },
     { title: 'Teams', icon: <TableColumnsSplit className="w-4 h-4" />, path: '/teams' },
     { title: 'Offline', icon: <LogIn className="w-4 h-4" />, path: '/offlineLogin' }
   ];
 
-  
+  // Mobile navigation items (includes Devs)
+  const mobileNavigationItems = [
+    { title: 'Home', icon: <Home className="w-4 h-4" />, path: '/' },
+    { title: 'Administration', icon: <Users2 className="w-4 h-4" />, path: '/administration' },
+    { title: 'Events', icon: <BotIcon className="w-4 h-4" />, path: '/departments' },
+    { title: 'Timeline', icon: <TimerIcon className="w-4 h-4" />, path: '/timeline' },
+    { title: 'Sponsors', icon: <BadgeCheckIcon className="w-4 h-4" />, path: '/sponsors' },
+    { title: 'Teams', icon: <TableColumnsSplit className="w-4 h-4" />, path: '/teams' },
+    { title: 'Devs', icon: <Users2 className="w-4 h-4" />, path: '/developers' },
+    { title: 'Offline', icon: <LogIn className="w-4 h-4" />, path: '/offlineLogin' }
+  ];
 
   const MobileMenuItem = ({ item, onClick }) => (
     <Link
@@ -191,13 +205,13 @@ const Navbar = ({ onScrollToSection }) => {
     >
       <div className="max-w-7xl mx-auto px-6">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3 group cursor-pointer" onClick={() => onScrollToSection('home')}>
-            <div className="flex ml-[-40px]">
+          <div className="flex items-center  group cursor-pointer" onClick={() => onScrollToSection('home')}>
+            <div className="flex ml-[-50px] ">
               <Logo />
             </div>
           </div>
 
-          <div className="lg:hidden flex items-center space-x-3">
+          <div className="lg:hidden flex items-center">
             <Link 
               to="/cart"
               className="relative p-2 rounded-full bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors group"
@@ -218,11 +232,11 @@ const Navbar = ({ onScrollToSection }) => {
           </div>
 
           <div className="hidden lg:flex items-center ">
-            {navigationItems.map((item, index) => (
+            {desktopNavigationItems.map((item, index) => (
               <Link
                 key={index}
                 to={item.path}
-                className="px-4 py-2 rounded-lg text-sm font-medium text-gray-300 hover:text-white hover:bg-white/5 transition-all flex items-center space-x-1 group"
+                className="px-3 py-2 rounded-lg text-sm font-medium text-gray-300 hover:text-white hover:bg-white/5 transition-all flex items-center space-x-1 group"
               >
                 <span className="group-hover:animate-bounce-x">{item.icon}</span>
                 <span>{item.title}</span>
@@ -276,7 +290,7 @@ const Navbar = ({ onScrollToSection }) => {
           </div>
           
           <div className="py-4 bg-black ">
-            {navigationItems.map((item, index) => (
+            {mobileNavigationItems.map((item, index) => (
               <MobileMenuItem 
                 key={index} 
                 item={item} 

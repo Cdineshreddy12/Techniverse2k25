@@ -5,13 +5,13 @@ import {  Code2, Mail, Phone, Github, Linkedin, UserCircle2 } from 'lucide-react
 
 const webTeam = {
   id: 'web-team',
-  name: 'Web & Social Media Team',
+  name: 'Web Team(RGUKT SRIKAKULAM)',
   description: 'The creative minds behind our digital presence',
   members: [
     {
       name: 'K.Dileep Kumar',
       phone: '9000254442',
-      role: 'Web Team Lead',
+      role: 'Web Master(RGUKT)',
       github: 'https://github.com',
       linkedin: 'https://linkedin.com'
     },
@@ -21,7 +21,7 @@ const webTeam = {
       phone: '',
       branch: '',
       year: '',
-      role: 'WEB TEAM',
+      role: 'Assistant Professor(CSE)',
       github: 'https://github.com',
       linkedin: 'https://linkedin.com'
     },

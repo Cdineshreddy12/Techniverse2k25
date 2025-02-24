@@ -375,8 +375,8 @@ const HomePage = () => {
   const stats = [
     { value: '40+', label: 'Tech Events', icon: Terminal },
     { value: '7 +', label: 'Innovation Workshops', icon: Brain },
-    { value: '₹10k+', label: 'Prize Pool', icon: Trophy },
-    { value: '3000+', label: 'Tech Enthusiasts', icon: Users }
+    { value: '₹100k+', label: 'Prize Pool', icon: Trophy },
+    { value: '10+', label: 'GuestLectures & TechTalk', icon: Users }
   ];
 
   const principles = [
