@@ -14,8 +14,6 @@ services:
     volumes:
       - ./Backend:/app
       - /app/node_modules
-    depends_on:
-      - mongodb
     networks:
       - mern-network
 

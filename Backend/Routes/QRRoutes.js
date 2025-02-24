@@ -11,51 +11,43 @@ dotenv.config();
 
 const router = express.Router();
 
-// Enhanced environment validation
+// Environment validation
 const validateEnvironment = () => {
-  const requiredVars = ['QR_SECRET', 'HDFC_RESPONSE_KEY'];
-  const missing = requiredVars.filter(v => !process.env[v]);
-  
-  if (missing.length > 0) {
-    throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+  if (!process.env.RAZORPAY_SECRET_KEY) {
+    throw new Error('Missing required environment variable: RAZORPAY_SECRET_KEY');
   }
 };
 
-// Enhanced QR code generation with payment verification
+// Enhanced QR code generation with Razorpay verification
 export const generateQRCode = async (data) => {
   try {
     validateEnvironment();
 
     // Validate required input data
-    if (!data?.userId || !data?.selectedEvents || !data?.verificationHash) {
+    if (!data?.userId || !data?.selectedEvents) {
       throw new Error('Invalid input data for QR code generation');
     }
 
-    // Create the data object with enhanced verification
+    // Create the data object with Razorpay verification
     const dataToSign = {
       id: data.userId,
       events: (data.selectedEvents || []).map(e => e.eventId || e.id).filter(Boolean),
       workshops: (data.selectedWorkshops || []).map(w => w.workshopId || w.id).filter(Boolean),
-      paymentVerification: data.verificationHash // Include payment verification hash
+      orderId: data.orderId,
+      paymentId: data.paymentId,
+      amount: data.amount
     };
 
-    // Generate two-layer signature for enhanced security
-    const primarySignature = crypto
-      .createHmac('sha256', process.env.QR_SECRET)
+    // Generate Razorpay-based signature
+    const signature = crypto
+      .createHmac('sha256', process.env.RAZORPAY_SECRET_KEY)
       .update(JSON.stringify(dataToSign))
       .digest('hex');
 
-    // Additional payment verification layer
-    const paymentSignature = crypto
-      .createHmac('sha256', process.env.HDFC_RESPONSE_KEY)
-      .update(primarySignature)
-      .digest('hex');
-
-    // Combine data with dual signatures and timestamp
+    // Combine data with signature and timestamp
     const qrData = JSON.stringify({
       ...dataToSign,
-      signature: primarySignature,
-      paymentSignature,
+      signature,
       timestamp: new Date().toISOString(),
       validUntil: new Date(Date.now() + (7 * 24 * 60 * 60 * 1000)).toISOString() // 7 days validity
     });
@@ -75,7 +67,7 @@ export const generateQRCode = async (data) => {
   }
 };
 
-// Enhanced validation endpoint with payment verification
+// Enhanced validation endpoint with Razorpay verification
 router.post('/validate-registration', async (req, res) => {
   try {
     const { qrData, eventId } = req.body;
@@ -100,31 +92,28 @@ router.post('/validate-registration', async (req, res) => {
         });
       }
 
-      // Verify signatures
+      // Verify Razorpay signature
       const dataToVerify = {
         id: parsedData.id,
         events: parsedData.events,
         workshops: parsedData.workshops,
-        paymentVerification: parsedData.paymentVerification
+        orderId: parsedData.orderId,
+        paymentId: parsedData.paymentId,
+        amount: parsedData.amount
       };
 
-      const expectedPrimarySignature = crypto
-        .createHmac('sha256', process.env.QR_SECRET)
+      const expectedSignature = crypto
+        .createHmac('sha256', process.env.RAZORPAY_SECRET_KEY)
         .update(JSON.stringify(dataToVerify))
         .digest('hex');
 
-      const expectedPaymentSignature = crypto
-        .createHmac('sha256', process.env.HDFC_RESPONSE_KEY)
-        .update(expectedPrimarySignature)
-        .digest('hex');
-
-      if (parsedData.signature !== expectedPrimarySignature || 
-          parsedData.paymentSignature !== expectedPaymentSignature) {
+      if (parsedData.signature !== expectedSignature) {
         return res.status(400).json({
           success: false,
           message: 'Invalid QR code signature'
         });
       }
+
     } catch (error) {
       console.error('QR parsing error:', error);
       return res.status(400).json({
@@ -133,7 +122,7 @@ router.post('/validate-registration', async (req, res) => {
       });
     }
 
-    // Rest of the validation logic remains the same
+    // Validate student and registration
     const student = await Student.findOne({ kindeId: parsedData.id });
     if (!student) {
       return res.status(404).json({
@@ -145,13 +134,23 @@ router.post('/validate-registration', async (req, res) => {
     const registration = await Registration.findOne({
       student: student._id,
       kindeId: parsedData.id,
-      paymentStatus: 'completed' // Ensure payment is completed
+      paymentStatus: 'completed',
+      'paymentDetails.razorpayOrderId': parsedData.orderId,
+      'paymentDetails.razorpayPaymentId': parsedData.paymentId
     }).populate('student').populate('selectedEvents.eventId');
 
     if (!registration) {
       return res.status(404).json({
         success: false,
         message: 'Registration not found or payment pending'
+      });
+    }
+
+    // Verify amount matches
+    if (registration.amount !== parsedData.amount) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid payment amount'
       });
     }
 
@@ -206,8 +205,7 @@ router.post('/validate-registration', async (req, res) => {
   }
 });
 
-// Complete check-in with student ID verification
-// check-in route
+// Check-in route with Razorpay verification
 router.post('/check-in', async (req, res) => {
   try {
     const { qrData, eventId } = req.body;
@@ -219,9 +217,30 @@ router.post('/check-in', async (req, res) => {
       });
     }
 
-    // Parse QR data
+    // Parse and verify QR data
     const parsedData = JSON.parse(qrData);
-    const { id: userId } = parsedData;
+
+    // Verify Razorpay signature
+    const dataToVerify = {
+      id: parsedData.id,
+      events: parsedData.events,
+      workshops: parsedData.workshops,
+      orderId: parsedData.orderId,
+      paymentId: parsedData.paymentId,
+      amount: parsedData.amount
+    };
+
+    const expectedSignature = crypto
+      .createHmac('sha256', process.env.RAZORPAY_SECRET_KEY)
+      .update(JSON.stringify(dataToVerify))
+      .digest('hex');
+
+    if (parsedData.signature !== expectedSignature) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid QR code signature'
+      });
+    }
 
     // Verify the specific event is in the QR code
     if (!parsedData.events.includes(eventId)) {
@@ -231,9 +250,8 @@ router.post('/check-in', async (req, res) => {
       });
     }
 
-    // First find the student
-    const student = await Student.findOne({ kindeId: userId });
-    
+    // Verify student and registration
+    const student = await Student.findOne({ kindeId: parsedData.id });
     if (!student) {
       return res.status(404).json({
         success: false,
@@ -241,11 +259,12 @@ router.post('/check-in', async (req, res) => {
       });
     }
 
-    // Then find registration using student's _id
     const registration = await Registration.findOne({
       student: student._id,
-      kindeId: userId,
-      paymentStatus: 'completed'
+      kindeId: parsedData.id,
+      paymentStatus: 'completed',
+      'paymentDetails.razorpayOrderId': parsedData.orderId,
+      'paymentDetails.razorpayPaymentId': parsedData.paymentId
     }).populate('student').populate('selectedEvents.eventId');
 
     if (!registration) {
@@ -255,7 +274,14 @@ router.post('/check-in', async (req, res) => {
       });
     }
 
-    // Find the specific event in registration
+    // Verify amount matches
+    if (registration.amount !== parsedData.amount) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid payment amount'
+      });
+    }
+
     const registeredEvent = registration.selectedEvents.find(
       e => e.eventId && e.eventId._id && e.eventId._id.toString() === eventId
     );
@@ -267,7 +293,6 @@ router.post('/check-in', async (req, res) => {
       });
     }
 
-    // Check for existing check-in
     const existingCheckIn = await CheckIn.findOne({
       registration: registration._id,
       event: eventId,
@@ -286,7 +311,6 @@ router.post('/check-in', async (req, res) => {
       });
     }
 
-    // Find event to verify it exists
     const event = await Event.findById(eventId);
     if (!event) {
       return res.status(404).json({
@@ -328,9 +352,26 @@ router.post('/check-in', async (req, res) => {
       success: true,
       details: {
         name: registration.student.name,
+        email: registration.student.email,
+        studentId: registration.student.studentId,
+        mobileNumber: registration.student.mobileNumber,
         event: registeredEvent.eventId.name,
-        timestamp: checkIn.timestamp,
-        registrationId: registration._id
+        eventDetails: {
+          name: registeredEvent.eventId.name,
+          date: registeredEvent.eventId.date,
+          tag: registeredEvent.eventId.tag,
+          registrationType: registeredEvent.registrationType
+        },
+        registration: {
+          id: registration._id,
+          amount: registration.amount,
+          paymentId: registration.paymentDetails.razorpayPaymentId,
+          orderId: registration.paymentDetails.razorpayOrderId
+        },
+        checkIn: {
+          timestamp: checkIn.timestamp,
+          registrationId: registration._id
+        }
       }
     });
 
@@ -346,8 +387,5 @@ router.post('/check-in', async (req, res) => {
     });
   }
 });
-
-
-
 
 export default router;

@@ -14,6 +14,12 @@ dotenv.config();
 
 const router = express.Router();
 
+const validateEnvironment = () => {
+  if (!process.env.RAZORPAY_SECRET_KEY) {
+    throw new Error('Missing required environment variable: RAZORPAY_SECRET_KEY');
+  }
+};
+
 // Initialize Razorpay
 const razorpay = new Razorpay({
     key_id: process.env.RAZORPAY_KEY_ID,
@@ -942,6 +948,9 @@ router.post('/registration/update', async (req, res) => {
     const { kindeId, newEvents, newWorkshops } = req.body;
     console.log('Update request with data:', { kindeId, newEvents, newWorkshops });
 
+    // Validate environment variables
+    validateEnvironment();
+
     const result = await withTransaction(async (session) => {
       // Find existing registration with student populated
       const registration = await Registration.findOne({ 
@@ -995,7 +1004,7 @@ router.post('/registration/update', async (req, res) => {
                 $addToSet: { registeredStudents: registration.student._id }
               },
               { session, new: true }
-            ).exec() // Add .exec() to ensure promise resolution
+            ).exec()
           );
 
           // Add new events to registration
@@ -1055,7 +1064,34 @@ router.post('/registration/update', async (req, res) => {
         ).exec();
       }
 
-      // Save registration
+      // Generate new QR code using the existing generateQRCode function
+      const qrCodeDataUrl = await generateQRCode({
+        userId: registration.student.kindeId,
+        selectedEvents: registration.selectedEvents,
+        selectedWorkshops: registration.selectedWorkshops,
+        orderId: registration.paymentDetails.razorpayOrderId,
+        paymentId: registration.paymentDetails.razorpayPaymentId,
+        amount: registration.amount
+      });
+
+      // Update QR code in registration
+      registration.qrCode = {
+        dataUrl: qrCodeDataUrl,
+        generatedAt: new Date(),
+        validUntil: new Date(Date.now() + (7 * 24 * 60 * 60 * 1000)),
+        metadata: {
+          events: registration.selectedEvents.map(e => e.eventId.toString()),
+          workshops: (registration.selectedWorkshops || []).map(w => w.workshopId.toString()),
+          verificationData: {
+            orderId: registration.paymentDetails.razorpayOrderId,
+            paymentId: registration.paymentDetails.razorpayPaymentId,
+            amount: registration.amount,
+            timestamp: new Date()
+          }
+        }
+      };
+
+      // Save registration with new QR code
       await registration.save({ session });
 
       console.log('Final events count:', registration.selectedEvents.length);
@@ -1075,7 +1111,8 @@ router.post('/registration/update', async (req, res) => {
           name: e.eventName,
           status: e.status
         })),
-        totalEvents: result.selectedEvents.length
+        totalEvents: result.selectedEvents.length,
+        qrCode: result.qrCode.dataUrl
       }
     });
 
@@ -1088,6 +1125,7 @@ router.post('/registration/update', async (req, res) => {
     });
   }
 });
+
 
 router.get('/registration/status/:kindeId', async (req, res) => {
   try {

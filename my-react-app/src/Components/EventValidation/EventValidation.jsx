@@ -257,61 +257,99 @@ function ValidateInterface() {
 
       {/* Results Step */}
       {currentStep === 'result' && (
-        <div className="fixed inset-0 bg-slate-900 z-50 p-4">
-          <div className="max-w-2xl mx-auto">
-            <button
-              onClick={handleBackButton}
-              className="mb-4 text-slate-400 hover:text-white transition-colors flex items-center gap-2"
-            >
-              <ChevronLeft className="w-5 h-5" />
-              <span>Back to Scanner</span>
-            </button>
+  <div className="fixed inset-0 bg-slate-900 z-50 p-4">
+    <div className="max-w-2xl mx-auto">
+      <button
+        onClick={handleBackButton}
+        className="mb-4 text-slate-400 hover:text-white transition-colors flex items-center gap-2"
+      >
+        <ChevronLeft className="w-5 h-5" />
+        <span>Back to Scanner</span>
+      </button>
 
-            <div className={`p-6 rounded-lg ${
-              validationResult.success ? 'bg-green-900/30 border border-green-500/50' : 'bg-red-900/30 border border-red-500/50'
-            }`}>
-              {validationResult.success ? (
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 text-green-400">
-                    <CheckCircle className="w-6 h-6" />
-                    <p className="text-lg font-medium">Check-in Successful</p>
-                  </div>
-                  
-                  <div className="space-y-2 text-gray-300">
-                        <p>
-                          <span className="text-gray-400">Name:</span> {validationResult.details?.name || 'N/A'}
-                        </p>
-                        <p>
-                          <span className="text-gray-400">Event:</span> {validationResult.details?.event || 'N/A'}
-                        </p>
-                        <p className="text-sm text-gray-400">
-                          Checked in at: {validationResult.details?.timestamp 
-                            ? new Date(validationResult.details.timestamp).toLocaleString() 
-                            : 'N/A'}
-                        </p>
-                        <p className="text-sm text-gray-400">
-                          Registration ID: {validationResult.details?.registrationId || 'N/A'}
-                        </p>
-                      </div>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 text-red-400">
-                  <AlertCircle className="w-6 h-6" />
-                  <p className="text-lg">{validationResult.message}</p>
-                </div>
-              )}
+      <div className={`p-6 rounded-lg ${
+        validationResult.success ? 'bg-green-900/30 border border-green-500/50' : 'bg-red-900/30 border border-red-500/50'
+      }`}>
+        {validationResult.success ? (
+          <div className="space-y-6">
+            <div className="flex items-center gap-2 text-green-400">
+              <CheckCircle className="w-6 h-6" />
+              <p className="text-lg font-medium">Check-in Successful</p>
             </div>
+            
+            {/* Student Details */}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <h3 className="text-gray-400 text-sm font-medium uppercase">Student Details</h3>
+                <div className="grid grid-cols-2 gap-3 text-gray-300">
+                  <p><span className="text-gray-400">Name:</span> {validationResult.details?.name || 'N/A'}</p>
+                  <p><span className="text-gray-400">Student ID:</span> {validationResult.details?.studentId || 'N/A'}</p>
+                  <p><span className="text-gray-400">Email:</span> {validationResult.details?.email || 'N/A'}</p>
+                  <p><span className="text-gray-400">Mobile:</span> {validationResult.details?.mobileNumber || 'N/A'}</p>
+                </div>
+              </div>
 
-            <button
-              onClick={handleReset}
-              className="w-full mt-4 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-            >
-              <UserCheck className="w-5 h-5" />
-              Check in Another Participant
-            </button>
+              {/* Event Details */}
+              <div className="space-y-2">
+                <h3 className="text-gray-400 text-sm font-medium uppercase">Event Details</h3>
+                <div className="grid grid-cols-2 gap-3 text-gray-300">
+                  <p><span className="text-gray-400">Event:</span> {validationResult.details?.eventDetails?.name || 'N/A'}</p>
+                  <p><span className="text-gray-400">Tag:</span> {validationResult.details?.eventDetails?.tag || 'N/A'}</p>
+                  <p><span className="text-gray-400">Date:</span> {
+                    validationResult.details?.eventDetails?.date ? 
+                    formatDate(validationResult.details.eventDetails.date) : 'N/A'
+                  }</p>
+                  <p><span className="text-gray-400">Type:</span> {validationResult.details?.eventDetails?.registrationType || 'Individual'}</p>
+                </div>
+              </div>
+
+              {/* Registration Details */}
+              <div className="space-y-2">
+                <h3 className="text-gray-400 text-sm font-medium uppercase">Registration Details</h3>
+                <div className="grid grid-cols-2 gap-3 text-gray-300">
+                  <p><span className="text-gray-400">Registration ID:</span> {validationResult.details?.registration?.id || 'N/A'}</p>
+                  <p><span className="text-gray-400">Amount Paid:</span> ₹{validationResult.details?.registration?.amount || 'N/A'}</p>
+                  <p className="col-span-2 truncate">
+                    <span className="text-gray-400">Payment ID:</span> {validationResult.details?.registration?.paymentId || 'N/A'}
+                  </p>
+                  <p className="col-span-2 truncate">
+                    <span className="text-gray-400">Order ID:</span> {validationResult.details?.registration?.orderId || 'N/A'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Check-in Details */}
+              <div className="space-y-2">
+                <h3 className="text-gray-400 text-sm font-medium uppercase">Check-in Details</h3>
+                <div className="text-gray-300">
+                  <p>
+                    <span className="text-gray-400">Time:</span> {
+                      validationResult.details?.checkIn?.timestamp ? 
+                      new Date(validationResult.details.checkIn.timestamp).toLocaleString() : 'N/A'
+                    }
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="flex items-center gap-2 text-red-400">
+            <AlertCircle className="w-6 h-6" />
+            <p className="text-lg">{validationResult.message}</p>
+          </div>
+        )}
+      </div>
+
+      <button
+        onClick={handleReset}
+        className="w-full mt-4 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+      >
+        <UserCheck className="w-5 h-5" />
+        Check in Another Participant
+      </button>
+    </div>
+  </div>
+)}
 
       {/* Loading State */}
       {loading && (
