@@ -1143,4 +1143,19 @@ router.get('/registration/status/:kindeId', async (req, res) => {
   }
 });
 
+
+router.get('/shipping-policy', (req, res) => {
+  res.render('policy', { content: shippingPolicy });
+});
+
+router.get('/cancellation-policy', (req, res) => {
+  res.render('policy', { content: cancellationPolicy });
+});
+
+router.get('/privacy-policy', (req, res) => {
+  res.render('policy', { content: privacyPolicy });
+});
+
+
+
 export default router;

@@ -63,6 +63,21 @@ const PaymentHandler = ({ sessionData, onClose }) => {
       theme: {
         color: "#7e22ce"
       },
+      terms: {
+        show: true,
+        privacyPolicy: {
+          url: `${window.location.origin}/privacy-policy`
+        },
+        termsAndConditions: {
+          url: `${window.location.origin}/terms-and-conditions`
+        },
+        shippingPolicy: {
+          url: `${window.location.origin}/shipping-policy`  
+        },
+        cancellationPolicy: {
+          url: `${window.location.origin}/cancellation-policy`
+        }
+      },
       modal: {
         ondismiss: function() {
           toast.error('Payment cancelled');

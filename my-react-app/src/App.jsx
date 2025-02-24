@@ -62,6 +62,10 @@ import OfflineLogin from './Components/OfflineLogin.jsx';
 import OfflineDashboard from './Components/OfflineDashboard.jsx';
 import OfflineValidation from './Components/offlineValidation.jsx';
 import ProtectedRoute from './Components/ProtectedRoute.jsx';
+import ShippingPolicy from './Components/ShippingPolicy';
+import CancellationPolicy from './Components/CancellationPolicy';
+import PrivacyPolicy from './Components/PrivacyPolicy';
+import TermsAndConditions from './Components/TermsAndConditions.jsx';
 // Optimized loading spinner
 const LoadingSpinner = () => (
   <div className="fixed inset-0 bg-slate-950/80 flex items-center justify-center">
@@ -378,6 +382,12 @@ function App() {
                     <Route path="/news/:newsId" element={<NewsDetail />} />
                     <Route path='/offlineLogin' element={<OfflineLogin/>}/>
                     <Route path='/offlineDashboard' element={<OfflineDashboard/>}/>
+
+                    <Route path="/shipping-policy" element={<ShippingPolicy />} />
+                    <Route path="/cancellation-policy" element={<CancellationPolicy />} />
+                    <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+                    <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
+
                     <Route 
                         path="/developers" 
                         element={

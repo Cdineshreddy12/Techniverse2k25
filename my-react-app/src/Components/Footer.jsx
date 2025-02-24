@@ -5,6 +5,7 @@ import {
   Instagram,
   Rocket 
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const Footer = () => {
   return (
@@ -47,6 +48,32 @@ const Footer = () => {
             >
               <Instagram className="w-6 h-6 text-slate-400 group-hover:text-pink-400" />
             </a>
+          </div>
+
+          <div className="w-full  text-white md:w-auto mt-4 md:mt-0">
+            <h3 className="text-lg font-semibold mb-4">Policies</h3>
+            <ul className="space-y-2">
+              <li>
+                <Link to="/shipping-policy" className="hover:text-purple-400">
+                  Shipping Policy
+                </Link>
+              </li>
+              <li>
+                <Link to="/cancellation-policy" className="hover:text-purple-400">
+                  Cancellation & Refund Policy
+                </Link>
+              </li>
+              <li>
+                <Link to="/privacy-policy" className="hover:text-purple-400">
+                  Privacy Policy
+                </Link>
+                <li>
+                <Link to="/terms-and-conditions" className="hover:text-purple-400">
+                  Terms & Conditions
+                </Link>
+              </li>
+              </li>
+            </ul>
           </div>
 
           {/* Copyright */}
