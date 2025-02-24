@@ -85,7 +85,7 @@ const Navbar = ({ onScrollToSection }) => {
     { title: 'Administration', icon: <Users2 className="w-4 h-4" />, path: '/administration' },
     { title: 'Events', icon: <BotIcon className="w-4 h-4" />, path: '/departments' },
     { title: 'Timeline', icon: <TimerIcon className="w-4 h-4" />, path: '/timeline' },
-    { title: 'Sponsors', icon: <BadgeCheckIcon className="w-4 h-4" />, path: '/sponsors' },
+    { title: 'News', icon: <Newspaper className="w-4 h-4" />, path: '/news' },
     { title: 'Teams', icon: <TableColumnsSplit className="w-4 h-4" />, path: '/teams' },
     { title: 'Offline', icon: <LogIn className="w-4 h-4" />, path: '/offlineLogin' }
   ];
@@ -96,6 +96,7 @@ const Navbar = ({ onScrollToSection }) => {
     { title: 'Administration', icon: <Users2 className="w-4 h-4" />, path: '/administration' },
     { title: 'Events', icon: <BotIcon className="w-4 h-4" />, path: '/departments' },
     { title: 'Timeline', icon: <TimerIcon className="w-4 h-4" />, path: '/timeline' },
+    { title: 'News', icon: <Newspaper className="w-4 h-4" />, path: '/news' },
     { title: 'Sponsors', icon: <BadgeCheckIcon className="w-4 h-4" />, path: '/sponsors' },
     { title: 'Teams', icon: <TableColumnsSplit className="w-4 h-4" />, path: '/teams' },
     { title: 'Devs', icon: <Users2 className="w-4 h-4" />, path: '/developers' },
