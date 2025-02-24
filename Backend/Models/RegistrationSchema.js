@@ -1,7 +1,6 @@
 import mongoose from 'mongoose';
 
 const registrationSchema = new mongoose.Schema({
-    // Student Reference
     student: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Student',
@@ -11,8 +10,22 @@ const registrationSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    qrCode: {
+        dataUrl: String,
+        generatedAt: Date,
+        metadata: {
+            events: [String],
+            workshops: [String],
+            verificationData: {
+                amount: Number,
+                paymentId: String,
+                timestamp: Date,
+                verificationHash: String
+            }
+        },
+        validUntil: Date
+    },
     
-    // Selected Items
     selectedEvents: [{
         eventId: {
             type: mongoose.Schema.Types.ObjectId,
@@ -22,7 +35,7 @@ const registrationSchema = new mongoose.Schema({
         eventName: String,
         status: {
             type: String,
-            enum: ['pending', 'confirmed', 'cancelled'],
+            enum: ['pending', 'completed', 'cancelled', 'refunded'],
             default: 'pending'
         },
         registrationType: {
@@ -45,46 +58,11 @@ const registrationSchema = new mongoose.Schema({
         workshopName: String,
         status: {
             type: String,
-            enum: ['pending', 'confirmed', 'cancelled'],
+            enum: ['pending', 'completed', 'cancelled', 'refunded'],
             default: 'pending'
         }
     }],
 
-    // Combo Package Information
-    combo: {
-        id: String,
-        name: String,
-        price: Number,
-        description: String
-    },
-
-    // QR Code and Validation
-    qrCode: {
-        dataUrl: { type: String },
-        generatedAt: { type: Date },
-        validUntil: { type: Date },
-        metadata: {
-            events: [String],
-            workshops: [String]
-        }
-    },
-    
-    // Email Notification Status
-    emailNotification: {
-        confirmationSent: {
-            type: Boolean,
-            default: false
-        },
-        sentAt: Date,
-        attempts: {
-            type: Number,
-            default: 0
-        },
-        lastAttempt: Date,
-        error: String
-    },
-
-    // Payment Information
     amount: {
         type: Number,
         required: true
@@ -96,32 +74,40 @@ const registrationSchema = new mongoose.Schema({
     },
     paymentDetails: {
         orderId: String,
-        juspayId: String,
-        transactionId: String,
+        razorpayOrderId: String,
+        razorpayPaymentId: String,
+        razorpaySignature: String,
         paymentMethod: String,
-        bankReferenceNumber: String,
         status: String,
-        statusMessage: String,
-        paymentLinks: {
-            web: String,
-            expiry: Date
-        },
-        sdkPayload: {
-            requestId: String,
-            clientAuthToken: String,
-            clientId: String
-        },
         customerDetails: {
             name: String,
             email: String,
             phone: String
         },
         merchantParams: mongoose.Schema.Types.Mixed,
-        responseCode: String,
-        responseMessage: String
+        refund: {
+            id: String,
+            amount: Number,
+            status: String,
+            reason: String,
+            createdAt: Date
+        }
     },
 
-    // Timestamps
+    paymentInitiatedAt: Date,
+    paymentCompletedAt: Date,
+
+    version: {
+        type: Number,
+        default: 1
+    },
+
+    updateHistory: [{
+        version: Number,
+        updatedAt: Date,
+        changes: mongoose.Schema.Types.Mixed
+    }],
+
     createdAt: {
         type: Date,
         default: Date.now
@@ -129,52 +115,96 @@ const registrationSchema = new mongoose.Schema({
     updatedAt: {
         type: Date,
         default: Date.now
-    },
-    paymentInitiatedAt: Date,
-    paymentCompletedAt: Date
+    }
 });
 
-// Update timestamps
+// Pre-save middleware
 registrationSchema.pre('save', function(next) {
     this.updatedAt = new Date();
+    if (this.isModified('selectedEvents') || this.isModified('selectedWorkshops')) {
+        this.version += 1;
+        this.updateHistory.push({
+            version: this.version,
+            updatedAt: new Date(),
+            changes: {
+                events: this.selectedEvents.map(e => ({
+                    eventId: e.eventId,
+                    status: e.status
+                })),
+                workshops: this.selectedWorkshops.map(w => ({
+                    workshopId: w.workshopId,
+                    status: w.status
+                }))
+            }
+        });
+    }
     next();
 });
 
-// Handle successful payment without email sending
-registrationSchema.methods.handleSuccessfulPayment = async function(juspayResponse) {
+// Method to update registration with new items
+registrationSchema.methods.addItems = async function(newEvents = [], newWorkshops = []) {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
     try {
-        // Update payment status
+        // Validate payment status
+        if (this.paymentStatus !== 'completed') {
+            throw new Error('Cannot update registration: Payment not completed');
+        }
+
+        // Add new events
+        if (newEvents.length > 0) {
+            const eventUpdates = newEvents.map(event => ({
+                eventId: event.eventInfo.id,
+                eventName: event.eventInfo.title,
+                status: 'completed',
+                registrationType: 'individual',
+                maxTeamSize: 1
+            }));
+            this.selectedEvents.push(...eventUpdates);
+        }
+
+        // Add new workshops
+        if (newWorkshops.length > 0) {
+            const workshopUpdates = newWorkshops.map(workshop => ({
+                workshopId: workshop.id,
+                workshopName: workshop.title,
+                status: 'completed'
+            }));
+            this.selectedWorkshops.push(...workshopUpdates);
+        }
+
+        await this.save({ session });
+        await session.commitTransaction();
+        return true;
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
+    }
+};
+
+// Method to handle successful payment
+registrationSchema.methods.handleSuccessfulPayment = async function(razorpayResponse) {
+    try {
         this.paymentStatus = 'completed';
         this.paymentCompletedAt = new Date();
         this.paymentDetails = {
             ...this.paymentDetails,
-            status: juspayResponse.status,
-            juspayId: juspayResponse.id,
-            orderId: juspayResponse.order_id,
-            transactionId: juspayResponse.txn_id
+            status: 'completed',
+            razorpayPaymentId: razorpayResponse.razorpay_payment_id,
+            razorpayOrderId: razorpayResponse.razorpay_order_id,
+            razorpaySignature: razorpayResponse.razorpay_signature
         };
 
         // Update event and workshop statuses
         this.selectedEvents.forEach(event => {
-            event.status = 'confirmed';
+            event.status = 'completed';
         });
         this.selectedWorkshops.forEach(workshop => {
-            workshop.status = 'confirmed';
+            workshop.status = 'completed';
         });
-
-        // Generate QR code
-        const qrData = await generateQRCode({
-            userId: this.kindeId,
-            selectedEvents: this.selectedEvents,
-            selectedWorkshops: this.selectedWorkshops
-        });
-
-        this.qrCode = {
-            dataUrl: qrData,
-            generatedAt: new Date(),
-            signature: qrData.signature,
-            validUntil: new Date(Date.now() + (365 * 24 * 60 * 60 * 1000)) // Valid for 1 year
-        };
 
         await this.save();
         return true;
@@ -184,27 +214,37 @@ registrationSchema.methods.handleSuccessfulPayment = async function(juspayRespon
     }
 };
 
-// Method to update payment status
-registrationSchema.methods.updatePaymentStatus = async function(juspayResponse) {
-    if (juspayResponse.status === 'CHARGED') {
-        return this.handleSuccessfulPayment(juspayResponse);
+// Method to handle refunds
+registrationSchema.methods.handleRefund = async function(refundData) {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        this.paymentStatus = 'refunded';
+        this.selectedEvents.forEach(event => {
+            event.status = 'refunded';
+        });
+        this.selectedWorkshops.forEach(workshop => {
+            workshop.status = 'refunded';
+        });
+
+        this.paymentDetails.refund = {
+            id: refundData.id,
+            amount: refundData.amount,
+            status: refundData.status,
+            reason: refundData.reason,
+            createdAt: new Date()
+        };
+
+        await this.save({ session });
+        await session.commitTransaction();
+        return true;
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
     }
-
-    // Handle other payment statuses
-    this.paymentDetails = {
-        ...this.paymentDetails,
-        status: juspayResponse.status,
-        juspayId: juspayResponse.id,
-        orderId: juspayResponse.order_id
-    };
-
-    if (['PENDING', 'PENDING_VBV'].includes(juspayResponse.status)) {
-        this.paymentStatus = 'pending';
-    } else {
-        this.paymentStatus = 'failed';
-    }
-
-    await this.save();
 };
 
 export const Registration = mongoose.model('Registration', registrationSchema);

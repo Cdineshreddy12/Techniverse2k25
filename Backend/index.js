@@ -29,6 +29,7 @@ import path from "path"
 import { fileURLToPath } from "url";
 import workshopRoutes from './Routes/workShopRoutes.js'
 import offlineRoutes from './Routes/OfflineRegistrationRoutes.js'
+import { connectToDatabase } from './utils/dbConfig.js';
 // import OfflineRegistrationRoutes from './Routes/offlineRegistrations.js'
 // Load environment variables
 dotenv.config();
@@ -97,9 +98,8 @@ const verifyEmailAddress = async (emailAddress) => {
 
 
 // Database connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/Techniverse')
-  .then(() => console.log('Connected to MongoDB'))
-  .catch((err) => console.error('MongoDB connection error:', err));
+// MongoDB connection options
+await connectToDatabase();
 
 // Middleware
 app.use(helmet()); // Security headers

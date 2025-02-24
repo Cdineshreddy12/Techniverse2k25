@@ -1,786 +1,1108 @@
 // routes/paymentRoutes.js
 import express from 'express';
+import Razorpay from 'razorpay';
 import { Student } from '../Models/StudentSchema.js';
 import { Registration } from '../Models/RegistrationSchema.js';
 import Event from '../Models/eventModel.js';
 import Workshop from '../Models/workShopModel.js';
-import PaymentSecurityService from '../PaymentSecurity.js';
 import dotenv from 'dotenv';
 import { generateQRCode } from './QRRoutes.js';
 import { sendConfirmationEmail } from '../index.js';
-import initializeJuspay from '../config/justpayconfig.js';
 import crypto from 'crypto';
+import mongoose from 'mongoose'
 dotenv.config();
 
 const router = express.Router();
-const paymentSecurity = new PaymentSecurityService(process.env.HDFC_RESPONSE_KEY);
 
-// Initialize Juspay
-let juspay;
-try {
-    juspay = initializeJuspay();
-} catch (error) {
-    console.error('Failed to initialize Juspay:', error);
-    process.exit(1); // Exit if Juspay initialization fails
-}
-
-  
-
-
-  // Helper function to secure response data
-// Helper function to secure response data
-const secureResponseData = async (data) => {
-  try {
-    const crypto = await import('crypto');
-    const dataString = new URLSearchParams(data).toString();
-    const signature = crypto.createHmac('sha256', process.env.HDFC_RESPONSE_KEY)
-      .update(dataString)
-      .digest('base64');
-
-    return { ...data, signature };
-  } catch (error) {
-    console.error('Error generating secure response:', error);
-    return data;
-  }
-};
-// Payment initiation
-// Payment initiation
-// First, define package config at top level
-const PACKAGES = {
-  'rgukt-workshop': { price: 199, type: 'rgukt' },
-  'rgukt-all-events': { price: 199, type: 'rgukt' },
-  'rgukt-combo': { price: 299, type: 'rgukt' },
-  'guest-workshop': { price: 499, type: 'guest' },
-  'guest-all-events': { price: 499, type: 'guest' },
-  'guest-combo': { price: 599, type: 'guest' }
-};
-
-const detectTampering = async (req, res, next) => {
-  try {
-    const { cartItems = [], combo, kindeId, workshops = [] } = req.body;
-
-      // Add timestamp verification
-      const timestamp = Date.now();
-      const maxAge = 5 * 60 * 1000; // 5 minutes
-      if (timestamp - req.body.timestamp > maxAge) {
-        throw new Error('Request expired');
-      }
-  
-  // Generate request signature
-  const requestSignature = crypto
-  .createHmac('sha256', process.env.HDFC_RESPONSE_KEY)
-  .update(`${kindeId}:${combo.id}:${timestamp}`)
-  .digest('base64');
-
-   // Add this to sessionData later
-   req.requestSignature = requestSignature;
-
-    // 1. Verify student exists and get actual data
-    const student = await Student.findOne({ kindeId });
-    if (!student) {
-      throw new Error('Student not found');
-    }
-
-    // 2. Verify active combo matches and was actually selected
-    if (!student.activeCombo || student.activeCombo.id !== combo.id) {
-      console.error('Package tampering detected:', {
-        requestedCombo: combo.id,
-        activeCombo: student.activeCombo?.id,
-        kindeId
-      });
-      throw new Error('Invalid package selection');
-    }
-
-    // 3. Get server-side package config
-    // Add price verification
-    const packageConfig = PACKAGES[combo.id];
-    if (packageConfig.price !== student.activeCombo.price) {
-      console.error('Price mismatch:', {
-        storedPrice: student.activeCombo.price,
-        packagePrice: packageConfig.price
-      });
-      throw new Error('Invalid package price');
-    }
-    // 4. Verify cart matches database exactly
-    const dbCartIds = student.cart.map(item => item.eventId.toString()).sort();
-    const requestCartIds = cartItems.map(item => item.id.toString()).sort();
-
-    if (JSON.stringify(dbCartIds) !== JSON.stringify(requestCartIds)) {
-      console.error('Cart tampering detected:', {
-        storedCart: dbCartIds,
-        requestCart: requestCartIds,
-        kindeId
-      });
-      throw new Error('Cart verification failed');
-    }
-
-    const studentEmail = (student.email || '').toLowerCase().trim();
-    const rguktsklmRegex = /@rguktsklm\.ac\.in$/i;
-    const isRGUKTStudent = rguktsklmRegex.test(studentEmail);
-    const comboId = (combo.id || '').trim();
-    const validPrefix = isRGUKTStudent ? 'rgukt-' : 'guest-';
-    
-    console.log('Package validation (regex):', {
-      studentEmail,
-      isRGUKTStudent,
-      comboId,
-      validPrefix,
-      startsWithPrefix: comboId.startsWith(validPrefix)
-    });
-    
-    if (!comboId.startsWith(validPrefix)) {
-      console.error('Institution type mismatch:', {
-        studentEmail,
-        attemptedCombo: comboId,
-        kindeId,
-        isRGUKTStudent,
-        validPrefix
-      });
-      throw new Error('Invalid package for your institution');
-    }
-
-    // 6. Validate cart contents against package type
-    const dbWorkshops = student.workshops || [];
-    if (combo.id.includes('all-events')) {
-      if (dbWorkshops.length > 0 || workshops.length > 0) {
-        console.error('Invalid workshop in events package:', {
-          comboId: combo.id,
-          workshopCount: dbWorkshops.length,
-          kindeId
-        });
-        throw new Error('Events package cannot include workshops');
-      }
-    } 
-    else if (combo.id.includes('workshop') && !combo.id.includes('combo')) {
-      if (student.cart.length > 0 || cartItems.length > 0) {
-        throw new Error('Workshop package cannot include events');
-      }
-      if (dbWorkshops.length !== 1 || workshops.length !== 1) {
-        throw new Error('Workshop package requires exactly one workshop');
-      }
-    }
-    else if (combo.id.includes('combo')) {
-      if (dbWorkshops.length !== 1 || workshops.length !== 1) {
-        throw new Error('Combo package requires exactly one workshop');
-      }
-      if (student.cart.length === 0 || cartItems.length === 0) {
-        throw new Error('Combo package requires at least one event');
-      }
-    }
-
-    // 7. Attach validated data to request
-    req.validatedData = {
-      student,
-      packageConfig,
-      verifiedPrice: packageConfig.price,
-      cartValidation: {
-        eventsCount: student.cart.length,
-        workshopsCount: dbWorkshops.length,
-        studentType: validPrefix.slice(0, -1),
-        originalCombo: student.activeCombo
-      }
-    };
-
-    // 8. Log validation success
-    console.log('Payment validation passed:', {
-      kindeId,
-      comboId: combo.id,
-      eventCount: student.cart.length,
-      workshopCount: dbWorkshops.length,
-      price: packageConfig.price
-    });
-
-    next();
-  } catch (error) {
-    // Log detailed error for monitoring
-    console.error('Payment validation failed:', {
-      error: error.message,
-      request: {
-        combo: req.body.combo,
-        cartSize: req.body.cartItems?.length,
-        workshopSize: req.body.workshops?.length,
-        kindeId: req.body.kindeId
-      }
-    });
-
-    // Send generic error to client
-    res.status(400).json({
-      success: false,
-      error: 'Payment validation failed'
-    });
-  }
-};
-
-router.post('/payment/initiate', detectTampering,async (req, res) => {
-  try {
-
-   // Use validated data from middleware
-   const { student, packageConfig, verifiedPrice, cartValidation } = req.validatedData;
-
-    
-    // 6. Create registration with verified details
-    const registration = await Registration.create({
-      student: student._id,
-      kindeId: student.kindeId,
-      selectedEvents: student.cart.map(item => ({
-        eventId: item.eventId,
-        eventName: item.title || '',
-        status: 'pending',
-        registrationType: 'individual',
-        maxTeamSize: 1
-      })),
-      selectedWorkshops: (student.workshops || []).map(workshop => ({
-        workshopId: workshop.id,
-        workshopName: workshop.title,
-        status: 'pending'
-      })),
-      amount: verifiedPrice, // Use verified server-side price
-      paymentStatus: 'pending',
-      paymentInitiatedAt: new Date(),
-      paymentDetails: {
-        customerDetails: {
-          name: student.name,
-          email: student.email,
-          phone: student.mobileNumber
-        },
-        merchantParams: {
-          comboId: cartValidation.originalCombo.id,
-          comboName: cartValidation.originalCombo.name,
-          verificationData: cartValidation
-        },
-        orderId: `order_${Date.now()}_${student.kindeId}`
-      }
-    });
-
-    // 7. Create payment session with verified price
-    const sessionData = {
-      order_id: registration.paymentDetails.orderId,
-      amount: packageConfig.price, // Use server-side price
-      payment_page_client_id: process.env.HDFC_PAYMENT_PAGE_CLIENT_ID,
-      customer_id: student.kindeId,
-      action: 'paymentPage',
-      return_url: `${process.env.BASE_URL}/api/payment/handleResponse`,
-      webhook_url: `${process.env.BASE_URL}/api/payment/webhook`,
-      currency: 'INR',
-      customer_email: student.email,
-      customer_phone: student.mobileNumber,
-      customer_name: student.name,
-      timestamp: new Date().toISOString()
-    };
-
-    const sessionResponse = await juspay.orderSession.create(sessionData);
-
-    res.json({
-      success: true,
-      sessionData: sessionResponse
-    });
-
-  } catch (error) {
-    console.error('Payment initiation failed:', error);
-    res.status(400).json({ // Use 400 for validation errors
-      success: false,
-      error: error.message
-    });
-  }
+// Initialize Razorpay
+const razorpay = new Razorpay({
+    key_id: process.env.RAZORPAY_KEY_ID,
+    key_secret: process.env.RAZORPAY_SECRET_KEY
 });
 
-router.all('/payment/handleResponse', async (req, res) => {
-  let redirectUrl;
+// Package configuration remains the same
+const PACKAGES = {
+    'rgukt-workshop': { price: 199, type: 'rgukt' },
+    'rgukt-all-events': { price: 199, type: 'rgukt' },
+    'rgukt-combo': { price: 299, type: 'rgukt' },
+    'guest-workshop': { price: 499, type: 'guest' },
+    'guest-all-events': { price: 499, type: 'guest' },
+    'guest-combo': { price: 599, type: 'guest' }
+};
 
-  try {
-    const responseData = { ...req.body, ...req.query };
-    const { order_id } = responseData;
+// Helper function to verify Razorpay signature
+const verifyPaymentSignature = (orderId, paymentId, signature) => {
+  const body = orderId + "|" + paymentId;
+  const expectedSignature = crypto
+      .createHmac('sha256', process.env.RAZORPAY_SECRET_KEY)
+      .update(body)
+      .digest('hex');
+  return expectedSignature === signature;
+};
 
-    if (!order_id) {
-      throw new Error('order_id not present or cannot be empty');
-    }
 
-    // 1. Get payment status directly from Juspay for verification
-    const statusResponse = await juspay.order.status(order_id);
-    const orderStatus = statusResponse.status;
-    const paidAmount = parseFloat(statusResponse.amount);
+// Tampering detection middleware remains mostly the same
+const detectTampering = async (req, res, next) => {
+    try {
+        const { cartItems = [], combo, kindeId, workshops = [] } = req.body;
 
-    // 2. Find registration and verify details
-    const registration = await Registration.findOne({
-      'paymentDetails.orderId': order_id
-    }).populate('student');
+        // Timestamp verification
+        const timestamp = Date.now();
+        const maxAge = 5 * 60 * 1000; // 5 minutes
+        if (timestamp - req.body.timestamp > maxAge) {
+            throw new Error('Request expired');
+        }
 
-    if (!registration) {
-      throw new Error('Registration not found');
-    }
-
-   
-
-    // 3. Verify user type matches package type
-    const studentEmail = (registration.student.email || '').toLowerCase().trim();
-    const rguktsklmRegex = /@rguktsklm\.ac\.in$/i;
-    const isRGUKTStudent = rguktsklmRegex.test(studentEmail);
-    const expectedPrefix = isRGUKTStudent ? 'rgukt-' : 'guest-';
-    
-    // Add debug logging
-    console.log('Payment verification check:', {
-      studentEmail,
-      isRGUKTStudent,
-      comboId: registration.paymentDetails.merchantParams.comboId,
-      expectedPrefix,
-      startsWithPrefix: registration.paymentDetails.merchantParams.comboId.startsWith(expectedPrefix)
-    });
-    
-    if (!registration.paymentDetails.merchantParams.comboId.startsWith(expectedPrefix)) {
-      console.error('Institution type mismatch:', {
-        studentEmail,
-        comboId: registration.paymentDetails.merchantParams.comboId,
-        orderId: order_id,
-        isRGUKTStudent,
-        expectedPrefix
-      });
-      throw new Error('Package verification failed');
-    }
-
-     // 4. Verify payment amount against original package price
-     const originalPackage = PACKAGES[registration.paymentDetails.merchantParams.comboId];
-     if (!originalPackage || originalPackage.price !== paidAmount) {
-       console.error('Payment amount mismatch:', {
-         orderId: order_id,
-         expectedAmount: originalPackage?.price,
-         paidAmount,
-         comboId: registration.paymentDetails.merchantParams.comboId
-       });
-       throw new Error('Payment verification failed');
-     }
-
-    switch (orderStatus) {
-      case "CHARGED":
-        try {
-          if (!registration.qrCode?.dataUrl) {
-            // Verify transaction hasn't been processed before
-            if (registration.paymentStatus === 'completed') {
-              throw new Error('Payment already processed');
-            }
-
-            // Update registration
-            registration.paymentStatus = 'completed';
-            registration.paymentCompletedAt = new Date();
-            registration.paymentDetails.transactionId = statusResponse.txn_id;
-            registration.paymentDetails.paymentMethod = statusResponse.payment_method;
-            registration.paymentDetails.verificationData = {
-              originalAmount: originalPackage.price,
-              paidAmount,
-              verifiedAt: new Date()
-            };
-
-            // Generate QR code with verified data
-            const qrCodeDataUrl = await generateQRCode({
-              userId: registration.student.kindeId,
-              selectedEvents: registration.selectedEvents,
-              selectedWorkshops: registration.selectedWorkshops || [],
-              verificationHash: crypto
-                .createHmac('sha256', process.env.HDFC_RESPONSE_KEY)
-                .update(`${registration.student.kindeId}:${order_id}:${paidAmount}`)
-                .digest('base64')
-            });
-
-            // Store QR code with verification
-            registration.qrCode = {
-              dataUrl: qrCodeDataUrl,
-              generatedAt: new Date(),
-              metadata: {
-                events: registration.selectedEvents.map(e => e.eventId.toString()),
-                workshops: (registration.selectedWorkshops || []).map(w => w.workshopId.toString()),
-                verificationData: {
-                  amount: paidAmount,
-                  transactionId: statusResponse.txn_id,
-                  timestamp: new Date()
-                }
-              }
-            };
-
-            // Update event statuses atomically
-            const eventUpdates = registration.selectedEvents.map(event => 
-              Event.findByIdAndUpdate(event.eventId, {
-                $inc: { registrationCount: 1 }
-              })
-            );
-            await Promise.all(eventUpdates);
-
-            // Update workshop statuses atomically
-            if (registration.selectedWorkshops?.length) {
-              const workshopUpdates = registration.selectedWorkshops.map(workshop =>
-                Workshop.findByIdAndUpdate(workshop.workshopId, {
-                  $inc: { registrationCount: 1 }
-                })
-              );
-              await Promise.all(workshopUpdates);
-            }
-
-            await registration.save();
-
-            // Update student record
-            await Student.findByIdAndUpdate(registration.student._id, {
-              $addToSet: { registrations: registration._id },
-              $set: { cart: [] }
-            });
-          }
-
-          // Generate signed success params
-          const successData = {
-            order_id,
-            status: 'success',
-            amount: paidAmount,
-            name: registration.student.name,
-            email: registration.student.email,
-            timestamp: new Date().toISOString()
-          };
-
-          const signature = crypto
-            .createHmac('sha256', process.env.HDFC_RESPONSE_KEY)
-            .update(JSON.stringify(successData))
+        // Generate request signature
+        const requestSignature = crypto
+            .createHmac('sha256', process.env.RAZORPAY_SECRET_KEY)
+            .update(`${kindeId}:${combo.id}:${timestamp}`)
             .digest('base64');
 
-          successData.signature = signature;
-          
-          const successParams = new URLSearchParams(successData).toString();
-          redirectUrl = `${process.env.FRONTEND_URL}/payment/success?${successParams}`;
+        req.requestSignature = requestSignature;
 
-        } catch (error) {
-          console.error('Post-payment processing error:', error);
-          const errorParams = new URLSearchParams({
-            order_id,
-            error: error.message,
-            timestamp: new Date().toISOString()
-          }).toString();
-          redirectUrl = `${process.env.FRONTEND_URL}/payment/failure?${errorParams}`;
+        // 1. Verify student exists
+        const student = await Student.findOne({ kindeId });
+        if (!student) {
+            throw new Error('Student not found');
         }
-        break;
 
-      case "PENDING":
-      case "PENDING_VBV":
-        const pendingParams = new URLSearchParams({
-          order_id,
-          status: 'pending',
-          timestamp: new Date().toISOString()
-        }).toString();
-        redirectUrl = `${process.env.FRONTEND_URL}/payment/pending?${pendingParams}`;
-        break;
+        // 2. Verify active combo
+        if (!student.activeCombo || student.activeCombo.id !== combo.id) {
+            console.error('Package tampering detected:', {
+                requestedCombo: combo.id,
+                activeCombo: student.activeCombo?.id,
+                kindeId
+            });
+            throw new Error('Invalid package selection');
+        }
 
-      default:
-        const failureParams = new URLSearchParams({
-          order_id,
-          status: 'failed',
-          error: responseData.error_message || 'Payment failed',
-          timestamp: new Date().toISOString()
-        }).toString();
-        redirectUrl = `${process.env.FRONTEND_URL}/payment/failure?${failureParams}`;
-        break;
+        // 3. Price verification
+        const packageConfig = PACKAGES[combo.id];
+        if (packageConfig.price !== student.activeCombo.price) {
+            console.error('Price mismatch:', {
+                storedPrice: student.activeCombo.price,
+                packagePrice: packageConfig.price
+            });
+            throw new Error('Invalid package price');
+        }
+
+        // 4. Cart verification
+        const dbCartIds = student.cart.map(item => item.eventId.toString()).sort();
+        const requestCartIds = cartItems.map(item => item.id.toString()).sort();
+
+        if (JSON.stringify(dbCartIds) !== JSON.stringify(requestCartIds)) {
+            console.error('Cart tampering detected:', {
+                storedCart: dbCartIds,
+                requestCart: requestCartIds,
+                kindeId
+            });
+            throw new Error('Cart verification failed');
+        }
+
+        // 5. Institution verification
+        const studentEmail = (student.email || '').toLowerCase().trim();
+        const rguktsklmRegex = /@rguktsklm\.ac\.in$/i;
+        const isRGUKTStudent = rguktsklmRegex.test(studentEmail);
+        const comboId = (combo.id || '').trim();
+        const validPrefix = isRGUKTStudent ? 'rgukt-' : 'guest-';
+
+        if (!comboId.startsWith(validPrefix)) {
+            console.error('Institution type mismatch:', {
+                studentEmail,
+                attemptedCombo: comboId,
+                kindeId,
+                isRGUKTStudent,
+                validPrefix
+            });
+            throw new Error('Invalid package for your institution');
+        }
+
+        // 6. Package type validation
+        const dbWorkshops = student.workshops || [];
+        if (combo.id.includes('all-events')) {
+            if (dbWorkshops.length > 0 || workshops.length > 0) {
+                throw new Error('Events package cannot include workshops');
+            }
+        } 
+        else if (combo.id.includes('workshop') && !combo.id.includes('combo')) {
+            if (student.cart.length > 0 || cartItems.length > 0) {
+                throw new Error('Workshop package cannot include events');
+            }
+            if (dbWorkshops.length !== 1 || workshops.length !== 1) {
+                throw new Error('Workshop package requires exactly one workshop');
+            }
+        }
+        else if (combo.id.includes('combo')) {
+            if (dbWorkshops.length !== 1 || workshops.length !== 1) {
+                throw new Error('Combo package requires exactly one workshop');
+            }
+            if (student.cart.length === 0 || cartItems.length === 0) {
+                throw new Error('Combo package requires at least one event');
+            }
+        }
+
+        // 7. Attach validated data
+        req.validatedData = {
+            student,
+            packageConfig,
+            verifiedPrice: packageConfig.price,
+            cartValidation: {
+                eventsCount: student.cart.length,
+                workshopsCount: dbWorkshops.length,
+                studentType: validPrefix.slice(0, -1),
+                originalCombo: student.activeCombo
+            }
+        };
+
+        next();
+    } catch (error) {
+        console.error('Payment validation failed:', error);
+        res.status(400).json({
+            success: false,
+            error: 'Payment validation failed'
+        });
     }
+};
 
-    res.redirect(redirectUrl);
+// Transaction wrapper function
+const withTransaction = async (operations) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  
+  try {
+      const result = await operations(session);
+      await session.commitTransaction();
+      return result;
+  } catch (error) {
+      await session.abortTransaction();
+      throw error;
+  } finally {
+      session.endSession();
+  }
+};
+
+
+// Payment initiation route
+router.post('/payment/initiate', detectTampering, async (req, res) => {
+  try {
+      const { student, packageConfig, verifiedPrice, cartValidation } = req.validatedData;
+
+      const result = await withTransaction(async (session) => {
+          const timestamp = Date.now().toString(36);
+          const userIdSuffix = student.kindeId.slice(-4);
+          const orderId = `ord_${timestamp}_${userIdSuffix}`;
+
+          // Create registration record within transaction
+          const registration = await Registration.create([{
+              student: student._id,
+              kindeId: student.kindeId,
+              selectedEvents: student.cart.map(item => ({
+                  eventId: item.eventId,
+                  eventName: item.title || '',
+                  status: 'pending',
+                  registrationType: 'individual',
+                  maxTeamSize: 1
+              })),
+              selectedWorkshops: (student.workshops || []).map(workshop => ({
+                  workshopId: workshop.id,
+                  workshopName: workshop.title,
+                  status: 'pending'
+              })),
+              amount: verifiedPrice,
+              paymentStatus: 'pending',
+              paymentInitiatedAt: new Date(),
+              paymentDetails: {
+                  orderId,
+                  customerDetails: {
+                      name: student.name,
+                      email: student.email,
+                      phone: student.mobileNumber
+                  },
+                  merchantParams: {
+                      comboId: cartValidation.originalCombo.id,
+                      comboName: cartValidation.originalCombo.name,
+                      verificationData: cartValidation
+                  }
+              }
+          }], { session });
+
+          // Create Razorpay order
+          const razorpayOrder = await razorpay.orders.create({
+              amount: verifiedPrice * 100,
+              currency: 'INR',
+              receipt: orderId.slice(0, 40),
+              notes: {
+                  kindeId: student.kindeId,
+                  packageId: packageConfig.id,
+                  email: student.email
+              }
+          });
+
+          // Update registration with Razorpay order ID
+          const updatedRegistration = await Registration.findByIdAndUpdate(
+              registration[0]._id,
+              { 'paymentDetails.razorpayOrderId': razorpayOrder.id },
+              { session, new: true }
+          );
+
+          return { registration: updatedRegistration, razorpayOrder };
+      });
+
+      res.json({
+          success: true,
+          registration: {
+              ...result.registration.toObject(),
+              paymentDetails: {
+                  ...result.registration.paymentDetails,
+                  razorpayDetails: {
+                      orderId: result.razorpayOrder.id
+                  }
+              }
+          }
+      });
 
   } catch (error) {
-    console.error('Payment validation failed:', error);
-    
-    const errorParams = new URLSearchParams({
-      status: 'error',
-      message: 'Payment verification failed',  // Generic error for security
-      timestamp: new Date().toISOString()
-    }).toString();
-
-    redirectUrl = `${process.env.FRONTEND_URL}/payment/failure?${errorParams}`;
-    res.redirect(redirectUrl);
+      console.error('Payment initiation failed:', error);
+      res.status(500).json({
+          success: false,
+          error: error.message || 'Failed to initiate payment'
+      });
   }
 });
 
-  // Add this new route to handle payment verification
-// In your payment routes
-router.all('/payment/verify', async (req, res) => {
+// Get payment status with enhanced details
+router.get('/payment/status/:orderId', async (req, res) => {
     try {
-      // Get parameters from either query or body
-      const orderId = req.query.order_id || req.body.order_id;
-      const status = req.query.status || req.body.status;
-      const signature = req.query.signature || req.body.signature;
-  
-      console.log('Payment verification received:', { orderId, status });
-  
-      if (status === 'CHARGED') {
-        // Get order status from Juspay
-        const statusResponse = await juspay.order.status(orderId);
-        
-        if (statusResponse.status === 'CHARGED') {
-          // Find and update registration
-          const registration = await Registration.findOne({
-            'paymentDetails.orderId': orderId
-          });
-  
-          if (registration) {
-            // Update registration status
-            registration.paymentStatus = 'completed';
-            registration.paymentCompletedAt = new Date();
-            
-            // Update event statuses
-            for (const event of registration.selectedEvents) {
-              event.status = 'confirmed';
-              await Event.findByIdAndUpdate(event.eventId, {
-                $inc: { registrationCount: 1 }
-              });
-            }
-  
-            await registration.save();
-  
-            // Update student record
-            await Student.findByIdAndUpdate(registration.student, {
-              $addToSet: { registrations: registration._id },
-              $set: { cart: [] }
-            });
-          }
-        }
-  
-        // Redirect to success page with parameters
-        res.redirect(`${process.env.FRONTEND_URL}/payment/success?order_id=${orderId}&status=${status}&signature=${signature}`);
-      } else {
-        // Redirect to failure page with error information
-        res.redirect(`${process.env.FRONTEND_URL}/payment/failure?order_id=${orderId}&status=${status}`);
-      }
-    } catch (error) {
-      console.error('Payment verification error:', error);
-      res.redirect(`${process.env.FRONTEND_URL}/payment/failure`);
-    }
-  });
-  
+        const { orderId } = req.params;
 
-
-  router.post('/payment/webhook', express.json(), async (req, res) => {
-    try {
-      const webhookData = req.body;
-      console.log('Webhook received:', webhookData);
-  
-      // For Juspay webhooks
-      if (webhookData.event_name === 'ORDER_SUCCEEDED') {
-        const orderData = webhookData.content.order;
-        const orderId = orderData.order_id;
-  
         const registration = await Registration.findOne({
-          'paymentDetails.orderId': orderId
+            'paymentDetails.orderId': orderId
         }).populate('student');
-  
-        if (registration && !registration.qrCode?.dataUrl) {
-          try {
-            // Validate payment data
-            await paymentSecurity.validatePaymentResponse(webhookData, registration);
-  
-            // Store transaction data
-            registration.paymentDetails.transactionId = orderData.txn_id;
-            registration.paymentDetails.paymentMethod = orderData.payment_method;
-            registration.paymentStatus = 'completed';
-            registration.paymentCompletedAt = new Date();
-  
-            // Generate QR code
-            const qrCodeDataUrl = await generateQRCode({
+
+        if (!registration) {
+            throw new Error('Registration not found');
+        }
+
+        // For Razorpay orders, fetch the latest status
+        if (registration.paymentDetails.razorpayOrderId) {
+            try {
+                const razorpayOrder = await razorpay.orders.fetch(
+                    registration.paymentDetails.razorpayOrderId
+                );
+                
+                // If payment is completed but our status isn't updated
+                if (razorpayOrder.status === 'paid' && registration.paymentStatus !== 'completed') {
+                    registration.paymentStatus = 'completed';
+                    await registration.save();
+                }
+            } catch (error) {
+                console.error('Razorpay order fetch failed:', error);
+            }
+        }
+
+        res.json({
+            success: true,
+            status: registration.paymentStatus,
+            registrationId: registration._id,
+            orderDetails: {
+                orderId: registration.paymentDetails.orderId,
+                amount: registration.amount,
+                name: registration.student.name,
+                email: registration.student.email,
+                razorpayOrderId: registration.paymentDetails.razorpayOrderId,
+                razorpayPaymentId: registration.paymentDetails.razorpayPaymentId,
+                paymentMethod: registration.paymentDetails.paymentMethod,
+                timestamp: registration.paymentCompletedAt || registration.updatedAt
+            }
+        });
+
+    } catch (error) {
+        console.error('Payment status check failed:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// Refund route (if needed)
+router.post('/payment/refund/:orderId', async (req, res) => {
+  try {
+      const { orderId } = req.params;
+      const { reason } = req.body;
+
+      const result = await withTransaction(async (session) => {
+          // Find registration within transaction scope
+          const registration = await Registration.findOne({
+              'paymentDetails.orderId': orderId
+          }).populate('student').session(session);
+
+          if (!registration || !registration.paymentDetails.razorpayPaymentId) {
+              throw new Error('Invalid registration or payment details');
+          }
+
+          if (registration.paymentStatus !== 'completed') {
+              throw new Error('Payment not completed, cannot refund');
+          }
+
+          if (registration.paymentStatus === 'refunded') {
+              throw new Error('Payment already refunded');
+          }
+
+          // Create refund in Razorpay
+          const refund = await razorpay.payments.refund(
+              registration.paymentDetails.razorpayPaymentId,
+              {
+                  notes: {
+                      reason: reason || 'Customer requested refund',
+                      orderId: orderId,
+                      studentId: registration.student.kindeId
+                  }
+              }
+          );
+
+          // Update registration status
+          registration.paymentStatus = 'refunded';
+          registration.paymentDetails.refund = {
+              id: refund.id,
+              amount: refund.amount / 100,
+              status: refund.status,
+              reason: reason,
+              createdAt: new Date()
+          };
+
+          // Decrement event registration counts
+          const eventUpdatePromises = registration.selectedEvents.map(event => {
+              return Event.findByIdAndUpdate(
+                  event.eventId,
+                  {
+                      $inc: { registrationCount: -1 },
+                      $pull: { registeredStudents: registration.student._id }
+                  },
+                  { session }
+              );
+          });
+
+          // Decrement workshop registration counts
+          const workshopUpdatePromises = (registration.selectedWorkshops || []).map(workshop => {
+              return Workshop.findByIdAndUpdate(
+                  workshop.workshopId,
+                  {
+                      $inc: { registrationCount: -1 },
+                      $pull: { registeredStudents: registration.student._id }
+                  },
+                  { session }
+              );
+          });
+
+          // Update student record
+          const studentUpdatePromise = Student.findByIdAndUpdate(
+              registration.student._id,
+              {
+                  $pull: {
+                      registrations: registration._id,
+                      events: { $in: registration.selectedEvents.map(e => e.eventId) },
+                      workshops: { $in: (registration.selectedWorkshops || []).map(w => w.workshopId) }
+                  }
+              },
+              { session }
+          );
+
+          // Mark events and workshops as refunded in registration
+          registration.selectedEvents.forEach(event => {
+              event.status = 'refunded';
+          });
+          
+          (registration.selectedWorkshops || []).forEach(workshop => {
+              workshop.status = 'refunded';
+          });
+
+          // Execute all updates atomically
+          await Promise.all([
+              registration.save({ session }),
+              ...eventUpdatePromises,
+              ...workshopUpdatePromises,
+              studentUpdatePromise
+          ]);
+
+          // Try to send refund confirmation email
+          // try {
+          //     // You can create a separate email template for refunds
+          //     await sendConfirmationEmail(
+          //         registration.student.email,
+          //         null, // No QR code for refunds
+          //         {
+          //             name: registration.student.name,
+          //             isRefund: true,
+          //             amount: refund.amount / 100,
+          //             reason: reason,
+          //             transactionId: refund.id
+          //         }
+          //     );
+          // } catch (emailError) {
+          //     console.error('Failed to send refund confirmation email:', emailError);
+          //     // Don't throw error here as refund is already processed
+          // }
+
+          return {
+              refund,
+              registration: {
+                  orderId: registration.paymentDetails.orderId,
+                  studentName: registration.student.name,
+                  amount: refund.amount / 100
+              }
+          };
+      });
+
+      // Send success response
+      res.json({
+          success: true,
+          refund: {
+              id: result.refund.id,
+              amount: result.refund.amount / 100,
+              status: result.refund.status,
+              orderId: result.registration.orderId,
+              studentName: result.registration.studentName
+          }
+      });
+
+  } catch (error) {
+      console.error('Refund failed:', error);
+      
+      // Enhanced error response
+      res.status(400).json({
+          success: false,
+          error: {
+              message: error.message,
+              code: error.code || 'REFUND_FAILED',
+              details: error.response?.data || null
+          }
+      });
+  }
+});
+
+
+// Payment verification route
+// Payment verification route
+router.post('/payment/verify', async (req, res) => {
+  try {
+      const {
+          razorpay_payment_id,
+          razorpay_order_id,
+          razorpay_signature
+      } = req.body;
+
+      if (!verifyPaymentSignature(razorpay_order_id, razorpay_payment_id, razorpay_signature)) {
+          throw new Error('Invalid payment signature');
+      }
+
+      const result = await withTransaction(async (session) => {
+          // Find registration within transaction
+          const registration = await Registration.findOne({
+              'paymentDetails.razorpayOrderId': razorpay_order_id
+          }).populate('student').session(session);
+
+          if (!registration) {
+              throw new Error('Registration not found');
+          }
+
+          if (registration.paymentStatus === 'completed') {
+              throw new Error('Payment already processed');
+          }
+
+          // Verify payment amount
+          const payment = await razorpay.payments.fetch(razorpay_payment_id);
+          const paidAmount = payment.amount / 100;
+
+          // Generate QR code
+          const qrCodeDataUrl = await generateQRCode({
               userId: registration.student.kindeId,
               selectedEvents: registration.selectedEvents,
-              selectedWorkshops: registration.selectedWorkshops || []
-            });
-  
-            // Store QR code data
-            registration.qrCode = {
+              selectedWorkshops: registration.selectedWorkshops,
+              verificationHash: crypto
+                  .createHmac('sha256', process.env.RAZORPAY_SECRET_KEY)
+                  .update(`${registration.student.kindeId}:${razorpay_order_id}:${paidAmount}`)
+                  .digest('base64')
+          });
+
+          // Update registration within transaction
+          registration.paymentStatus = 'completed';
+          registration.paymentCompletedAt = new Date();
+          registration.paymentDetails.razorpayPaymentId = razorpay_payment_id;
+          registration.paymentDetails.razorpaySignature = razorpay_signature;
+          registration.paymentDetails.paymentMethod = payment.method;
+          registration.qrCode = {
               dataUrl: qrCodeDataUrl,
               generatedAt: new Date(),
               metadata: {
-                events: registration.selectedEvents.map(e => e.eventId.toString()),
-                workshops: (registration.selectedWorkshops || []).map(w => w.workshopId.toString())
+                  events: registration.selectedEvents.map(e => e.eventId.toString()),
+                  workshops: (registration.selectedWorkshops || []).map(w => w.workshopId.toString()),
+                  verificationData: {
+                      amount: paidAmount,
+                      paymentId: razorpay_payment_id,
+                      timestamp: new Date()
+                  }
               }
-            };
-  
-            // Update event statuses
-            for (const event of registration.selectedEvents) {
-              event.status = 'confirmed';
-              await Event.findByIdAndUpdate(event.eventId, {
-                $inc: { registrationCount: 1 }
-              });
-            }
-  
-            // Update workshop statuses
-            if (registration.selectedWorkshops?.length) {
-              for (const workshop of registration.selectedWorkshops) {
-                workshop.status = 'confirmed';
-                await Workshop.findByIdAndUpdate(workshop.workshopId, {
-                  $inc: { registrationCount: 1 }
-                });
-              }
-            }
-  
-            await registration.save();
-  
-            // Update student record
-            await Student.findByIdAndUpdate(registration.student._id, {
-              $addToSet: { registrations: registration._id },
-              $set: { cart: [] }
-            });
-  
-            // Send confirmation email
-            // if (!registration.emailNotification?.confirmationSent) {
-            //   await sendConfirmationEmail(
-            //     registration.student.email,
-            //     registration.qrCode.dataUrl,
-            //     {
-            //       name: registration.student.name,
-            //       combo: registration.paymentDetails.merchantParams || {},
-            //       amount: registration.amount,
-            //       transactionId: orderId
-            //     }
-            //   );
-  
-            //   registration.emailNotification = {
-            //     confirmationSent: true,
-            //     attempts: (registration.emailNotification?.attempts || 0) + 1
-            //   };
-            //   await registration.save();
-            // }
-          } catch (error) {
-            console.error('Payment processing error:', error);
-          }
-        }
-      }
-  
-      // Always acknowledge webhook
-      res.status(200).json({
-        success: true,
-        message: 'Webhook processed successfully'
-      });
-  
-    } catch (error) {
-      console.error('Webhook handling error:', error);
-      res.status(200).json({
-        success: false,
-        error: error.message
-      });
-    }
-  });
+          };
 
-
-// Add payment verification endpoint
-// In your payment routes file
-router.post('/payment/verify', async (req, res) => {
-    try {
-      const { orderId, status, signature } = req.body;
-  
-      // Get Juspay status
-      const statusResponse = await juspay.order.status(orderId);
-  
-      if (statusResponse.status === 'CHARGED') {
-        // Find registration
-        const registration = await Registration.findOne({
-          'paymentDetails.orderId': orderId
-        });
-  
-        if (registration) {
-          // Update registration status
-          registration.paymentStatus = 'completed';
-          registration.paymentCompletedAt = new Date();
-          
-          // Update event statuses
-          for (const event of registration.selectedEvents) {
-            event.status = 'confirmed';
-            await Event.findByIdAndUpdate(event.eventId, {
-              $inc: { registrationCount: 1 }
-            });
-          }
-  
-          await registration.save();
-  
-          // Update student record
-          await Student.findByIdAndUpdate(registration.student, {
-            $addToSet: { registrations: registration._id },
-            $set: { cart: [] }
+          // Update events and workshops atomically within transaction
+          const eventUpdates = registration.selectedEvents.map(event => {
+              event.status = 'completed';
+              return Event.findByIdAndUpdate(
+                  event.eventId,
+                  { $inc: { registrationCount: 1 } },
+                  { session }
+              );
           });
-        }
-  
-        res.json({
-          success: true,
-          message: 'Payment verified successfully'
-        });
-      } else {
-        throw new Error('Payment not successful');
-      }
-  
-    } catch (error) {
-      console.error('Payment verification failed:', error);
-      res.status(400).json({
-        success: false,
-        error: error.message
+
+          const workshopUpdates = registration.selectedWorkshops?.map(workshop => {
+              workshop.status = 'completed';
+              return Workshop.findByIdAndUpdate(
+                  workshop.workshopId,
+                  { $inc: { registrationCount: 1 } },
+                  { session }
+              );
+          }) || [];
+
+          // Update student record within transaction
+          await Student.findByIdAndUpdate(
+              registration.student._id,
+              {
+                  $addToSet: { registrations: registration._id },
+                  $set: { cart: [] }
+              },
+              { session }
+          );
+
+          // Execute all updates
+          await Promise.all([
+              registration.save({ session }),
+              ...eventUpdates,
+              ...workshopUpdates
+          ]);
+
+          return registration;
       });
-    }
-  });
 
- 
+      // Send confirmation email after transaction is committed
+      // await sendConfirmationEmail(
+      //     result.student.email,
+      //     result.qrCode.dataUrl,
+      //     {
+      //         name: result.student.name,
+      //         registrationType: result.paymentDetails.merchantParams.comboName,
+      //         amount: result.amount,
+      //         transactionId: result.paymentDetails.razorpayPaymentId
+      //     }
+      // );
 
-
-  
-// Get registration details with security verification
-router.get('/registrations/order/:orderId', async (req, res) => {
-  try {
-    const { orderId } = req.params;
-
-    const registration = await Registration.findOne({
-      'paymentDetails.orderId': orderId
-    }).populate('student');
-
-    if (!registration) {
-      throw new Error('Registration not found');
-    }
-
-    // Return complete payment details
-    res.json({
-      success: true,
-      registration: {
-        ...registration.toObject(),
-        studentDetails: registration.student,
-        paymentDetails: {
-          ...registration.paymentDetails,
-          amount: registration.amount,
-          status: registration.paymentStatus,
-          orderId: registration.paymentDetails.orderId,
-          customerDetails: registration.paymentDetails.customerDetails,
-          merchantParams: registration.paymentDetails.merchantParams
-        }
-      }
-    });
+      res.json({
+          success: true,
+          registration: {
+              orderId: result.paymentDetails.orderId,
+              amount: result.amount,
+              status: 'completed',
+              name: result.student.name,
+              email: result.student.email,
+              qrCode: result.qrCode.dataUrl
+          }
+      });
 
   } catch (error) {
-    console.error('Registration fetch failed:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+      console.error('Payment verification failed:', error);
+      res.status(400).json({
+          success: false,
+          error: error.message
+      });
   }
 });
 
 
-// not only the  payment status ,but also the order id ,name ,amount should be sent
-  router.get('/payment/status/:orderId', async (req, res) => {
-    try {
-      const { orderId } = req.params;
-  
-      const registration = await Registration.findOne({
-        'paymentDetails.orderId': orderId
-      });
-  
-      if (!registration) {
-        throw new Error('Registration not found');
-      }
-  
-      res.json({
-        success: true,
-        status: registration.paymentStatus,
-        registrationId: registration._id
-      });
-  
-    } catch (error) {
-      console.error('Payment status check failed:', error);
-      res.status(500).json({
-        success: false,
-        error: error.message
+// Webhook handler
+router.post('/payment/webhook', express.json(), async (req, res) => {
+  try {
+    const webhookData = req.body;
+    
+    // Verify webhook signature for Razorpay
+    const signature = req.headers['x-razorpay-signature'];
+    const isValidWebhook = crypto
+      .createHmac('sha256', process.env.RAZORPAY_WEBHOOK_SECRET)
+      .update(JSON.stringify(webhookData))
+      .digest('hex');
+
+    if (signature !== isValidWebhook) {
+      throw new Error('Invalid webhook signature');
+    }
+
+    // Handle successful payment
+    if (webhookData.event === 'payment.captured') {
+      const orderData = webhookData.payload.payment.entity;
+      
+      await withTransaction(async (session) => {
+        // Find registration within transaction scope
+        const registration = await Registration.findOne({
+          'paymentDetails.razorpayOrderId': orderData.order_id
+        }).populate('student').session(session);
+
+        if (!registration) {
+          throw new Error('Registration not found');
+        }
+
+        // Skip if already processed
+        if (registration.paymentStatus === 'completed' && registration.qrCode?.dataUrl) {
+          return;
+        }
+
+        // Generate QR code
+        const qrCodeDataUrl = await generateQRCode({
+          userId: registration.student.kindeId,
+          selectedEvents: registration.selectedEvents,
+          selectedWorkshops: registration.selectedWorkshops,
+          verificationHash: crypto
+            .createHmac('sha256', process.env.RAZORPAY_SECRET_KEY)
+            .update(`${registration.student.kindeId}:${orderData.order_id}:${orderData.amount}`)
+            .digest('base64')
+        });
+
+        // Store QR code
+        registration.qrCode = {
+          dataUrl: qrCodeDataUrl,
+          generatedAt: new Date(),
+          metadata: {
+            events: registration.selectedEvents.map(e => e.eventId.toString()),
+            workshops: (registration.selectedWorkshops || []).map(w => w.workshopId.toString()),
+            verificationData: {
+              amount: orderData.amount / 100, // Convert from paise to rupees
+              paymentId: orderData.id,
+              timestamp: new Date()
+            }
+          }
+        };
+
+        // Update registration status
+        registration.paymentStatus = 'completed';
+        registration.paymentCompletedAt = new Date();
+        registration.paymentDetails.razorpayPaymentId = orderData.id;
+        registration.paymentDetails.paymentMethod = orderData.method;
+
+        // Update event statuses and counts atomically
+        const eventUpdatePromises = registration.selectedEvents.map(event => {
+          event.status = 'completed';
+          return Event.findByIdAndUpdate(
+            event.eventId,
+            { 
+              $inc: { registrationCount: 1 },
+              $addToSet: { registeredStudents: registration.student._id }
+            },
+            { session, new: true }
+          );
+        });
+
+        // Update workshop statuses and counts atomically
+        const workshopUpdatePromises = (registration.selectedWorkshops || []).map(workshop => {
+          workshop.status = 'completed';
+          return Workshop.findByIdAndUpdate(
+            workshop.workshopId,
+            {
+              $inc: { registrationCount: 1 },
+              $addToSet: { registeredStudents: registration.student._id }
+            },
+            { session, new: true }
+          );
+        });
+
+        // Update student record atomically
+        const studentUpdatePromise = Student.findByIdAndUpdate(
+          registration.student._id,
+          {
+            $addToSet: { 
+              registrations: registration._id,
+              events: { $each: registration.selectedEvents.map(e => e.eventId) },
+              workshops: { $each: (registration.selectedWorkshops || []).map(w => w.workshopId) }
+            },
+            $set: { cart: [] }
+          },
+          { session, new: true }
+        );
+
+        // Execute all updates atomically
+        await Promise.all([
+          registration.save({ session }),
+          ...eventUpdatePromises,
+          ...workshopUpdatePromises,
+          studentUpdatePromise
+        ]);
+
+        // Send confirmation email after successful transaction
+        // try {
+        //   await sendConfirmationEmail(
+        //     registration.student.email,
+        //     qrCodeDataUrl,
+        //     {
+        //       name: registration.student.name,
+        //       registrationType: registration.paymentDetails.merchantParams?.comboName || 'Standard Registration',
+        //       amount: registration.amount,
+        //       transactionId: orderData.id,
+        //       selectedEvents: registration.selectedEvents,
+        //       selectedWorkshops: registration.selectedWorkshops
+        //     }
+        //   );
+        // } catch (emailError) {
+        //   console.error('Failed to send confirmation email:', emailError);
+        //   // Don't throw error here as payment is already processed
+        // }
       });
     }
-  });
+
+    // Always return 200 for webhook
+    res.json({ success: true });
+
+  } catch (error) {
+    console.error('Webhook handling failed:', error);
+    // Log detailed error for debugging
+    if (error.response) {
+      console.error('Error response:', error.response.data);
+    }
+    // Always return 200 for webhooks, even on error
+    res.status(200).json({ 
+      success: false, 
+      error: error.message,
+      errorCode: error.code || 'WEBHOOK_PROCESSING_ERROR'
+    });
+  }
+});
+
+// Get registration details
+router.get('/registrations/order/:orderId', async (req, res) => {
+    try {
+        const { orderId } = req.params;
+
+        const registration = await Registration.findOne({
+          'paymentDetails.orderId': orderId
+      }).populate('student');
+  
+      if (!registration) {
+          throw new Error('Registration not found');
+      }
+  
+      // For Razorpay orders, fetch the latest payment status
+      if (registration.paymentDetails.razorpayOrderId) {
+          try {
+              const razorpayOrder = await razorpay.orders.fetch(
+                  registration.paymentDetails.razorpayOrderId
+              );
+  
+              // If there's a payment ID, fetch payment details
+              if (registration.paymentDetails.razorpayPaymentId) {
+                  const payment = await razorpay.payments.fetch(
+                      registration.paymentDetails.razorpayPaymentId
+                  );
+  
+                  registration.paymentDetails.paymentMethod = payment.method;
+                  registration.paymentDetails.status = payment.status;
+              }
+  
+              // If payment is completed but our status isn't updated
+              if (razorpayOrder.status === 'paid' && registration.paymentStatus !== 'completed') {
+                  const payments = await razorpay.orders.fetchPayments(razorpayOrder.id);
+                  const successfulPayment = payments.items.find(p => p.status === 'captured');
+  
+                  if (successfulPayment) {
+                      await verifyAndProcessPayment(
+                          registration,
+                          razorpayOrder.id,
+                          successfulPayment.id,
+                          successfulPayment.razorpay_signature
+                      );
+                  }
+              }
+          } catch (error) {
+              console.error('Error fetching Razorpay details:', error);
+          }
+      }
+  
+      // Return comprehensive registration details
+      res.json({
+          success: true,
+          registration: {
+              ...registration.toObject(),
+              studentDetails: registration.student,
+              paymentDetails: {
+                  ...registration.paymentDetails,
+                  amount: registration.amount,
+                  status: registration.paymentStatus,
+                  orderId: registration.paymentDetails.orderId,
+                  razorpayOrderId: registration.paymentDetails.razorpayOrderId,
+                  razorpayPaymentId: registration.paymentDetails.razorpayPaymentId,
+                  customerDetails: registration.paymentDetails.customerDetails,
+                  merchantParams: registration.paymentDetails.merchantParams,
+                  paymentMethod: registration.paymentDetails.paymentMethod,
+                  timestamp: registration.paymentCompletedAt || registration.updatedAt
+              },
+              selectedItems: {
+                  events: registration.selectedEvents.map(event => ({
+                      id: event.eventId,
+                      name: event.eventName,
+                      status: event.status
+                  })),
+                  workshops: registration.selectedWorkshops?.map(workshop => ({
+                      id: workshop.workshopId,
+                      name: workshop.workshopName,
+                      status: workshop.status
+                  })) || []
+              },
+              qrCode: registration.qrCode ? {
+                  dataUrl: registration.qrCode.dataUrl,
+                  generatedAt: registration.qrCode.generatedAt,
+                  validUntil: registration.qrCode.validUntil
+              } : null
+          }
+      });
+  
+  } catch (error) {
+      console.error('Registration fetch failed:', error);
+      res.status(500).json({
+          success: false,
+          error: error.message
+      });
+  }
+});
+
+router.get('/payment/status/:orderId', async (req, res) => {
+  try {
+  const { orderId } = req.params;
+  const registration = await Registration.findOne({
+    'paymentDetails.orderId': orderId
+}).populate('student');
+
+if (!registration) {
+    throw new Error('Registration not found');
+}
+
+// For Razorpay orders, fetch the latest status
+if (registration.paymentDetails.razorpayOrderId) {
+    try {
+        const razorpayOrder = await razorpay.orders.fetch(
+            registration.paymentDetails.razorpayOrderId
+        );
+        
+        // Check order status and update if needed
+        if (razorpayOrder.status === 'paid' && registration.paymentStatus !== 'completed') {
+            const payments = await razorpay.orders.fetchPayments(razorpayOrder.id);
+            const successfulPayment = payments.items.find(p => p.status === 'captured');
+
+            if (successfulPayment) {
+                await verifyAndProcessPayment(
+                    registration,
+                    razorpayOrder.id,
+                    successfulPayment.id,
+                    successfulPayment.razorpay_signature
+                );
+            }
+        }
+    } catch (error) {
+        console.error('Razorpay order fetch failed:', error);
+    }
+}
+
+// Return comprehensive payment status
+res.json({
+    success: true,
+    status: registration.paymentStatus,
+    registrationId: registration._id,
+    orderDetails: {
+        orderId: registration.paymentDetails.orderId,
+        amount: registration.amount,
+        name: registration.student.name,
+        email: registration.student.email,
+        razorpayOrderId: registration.paymentDetails.razorpayOrderId,
+        razorpayPaymentId: registration.paymentDetails.razorpayPaymentId,
+        paymentMethod: registration.paymentDetails.paymentMethod,
+        timestamp: registration.paymentCompletedAt || registration.updatedAt
+    },
+    items: {
+        events: registration.selectedEvents.length,
+        workshops: registration.selectedWorkshops?.length || 0
+    }
+});
+
+} catch (error) {
+console.error('Payment status check failed:', error);
+res.status(500).json({
+    success: false,
+    error: error.message
+});
+}
+});
+
+
+router.post('/registration/update', async (req, res) => {
+  try {
+    const { kindeId, newEvents, newWorkshops } = req.body;
+    console.log('Update request with data:', { kindeId, newEvents, newWorkshops });
+
+    const result = await withTransaction(async (session) => {
+      // Find existing registration with student populated
+      const registration = await Registration.findOne({ 
+        kindeId,
+        paymentStatus: 'completed'
+      }).populate('student').session(session);
+
+      if (!registration) {
+        throw new Error('No completed registration found');
+      }
+
+      console.log('Current events:', registration.selectedEvents.length);
+
+      // Process new events
+      if (newEvents && newEvents.length > 0) {
+        const eventUpdates = newEvents.map(event => {
+          const eventId = event.id;
+          const eventName = event.eventInfo?.title;
+          
+          console.log('Processing event:', { eventId, eventName });
+          
+          return {
+            eventId: eventId,
+            eventName: eventName,
+            status: 'completed',
+            registrationType: 'individual',
+            maxTeamSize: 1
+          };
+        });
+
+        // Improved duplicate checking
+        const existingEventIds = new Set(
+          registration.selectedEvents.map(e => e.eventId.toString())
+        );
+
+        const newEventUpdates = eventUpdates.filter(update => {
+          const isNew = !existingEventIds.has(update.eventId.toString());
+          console.log(`Event ${update.eventId} is new: ${isNew}`);
+          return isNew;
+        });
+
+        console.log('New events to add:', newEventUpdates.length);
+
+        if (newEventUpdates.length > 0) {
+          // Update event counts
+          const eventPromises = newEventUpdates.map(event => 
+            Event.findByIdAndUpdate(
+              event.eventId,
+              { 
+                $inc: { registrationCount: 1 },
+                $addToSet: { registeredStudents: registration.student._id }
+              },
+              { session, new: true }
+            ).exec() // Add .exec() to ensure promise resolution
+          );
+
+          // Add new events to registration
+          registration.selectedEvents.push(...newEventUpdates);
+          
+          // Execute event updates
+          await Promise.all(eventPromises);
+        }
+      }
+
+      // Process new workshops
+      if (newWorkshops && newWorkshops.length > 0) {
+        const workshopUpdates = newWorkshops.map(workshop => ({
+          workshopId: workshop.id,
+          workshopName: workshop.title,
+          status: 'completed'
+        }));
+
+        const existingWorkshopIds = new Set(
+          registration.selectedWorkshops.map(w => w.workshopId.toString())
+        );
+
+        const newWorkshopUpdates = workshopUpdates.filter(update => {
+          const isNew = !existingWorkshopIds.has(update.workshopId.toString());
+          console.log(`Workshop ${update.workshopId} is new: ${isNew}`);
+          return isNew;
+        });
+
+        if (newWorkshopUpdates.length > 0) {
+          const workshopPromises = newWorkshopUpdates.map(workshop =>
+            Workshop.findByIdAndUpdate(
+              workshop.workshopId,
+              { 
+                $inc: { registrationCount: 1 },
+                $addToSet: { registeredStudents: registration.student._id }
+              },
+              { session, new: true }
+            ).exec()
+          );
+
+          registration.selectedWorkshops.push(...newWorkshopUpdates);
+          await Promise.all(workshopPromises);
+        }
+      }
+
+      // Update student record
+      if (newEvents.length > 0 || newWorkshops.length > 0) {
+        await Student.findByIdAndUpdate(
+          registration.student._id,
+          {
+            $addToSet: {
+              events: { $each: newEvents.map(e => e.id) },
+              workshops: { $each: (newWorkshops || []).map(w => w.id) }
+            }
+          },
+          { session }
+        ).exec();
+      }
+
+      // Save registration
+      await registration.save({ session });
+
+      console.log('Final events count:', registration.selectedEvents.length);
+      
+      return registration;
+    });
+
+    // Send detailed response
+    res.json({ 
+      success: true,
+      registration: {
+        eventsCount: result.selectedEvents.length,
+        workshopsCount: result.selectedWorkshops.length,
+        updatedAt: result.updatedAt,
+        events: result.selectedEvents.map(e => ({
+          id: e.eventId,
+          name: e.eventName,
+          status: e.status
+        })),
+        totalEvents: result.selectedEvents.length
+      }
+    });
+
+  } catch (error) {
+    console.error('Registration update failed:', error);
+    res.status(400).json({ 
+      success: false, 
+      error: error.message,
+      details: error.stack
+    });
+  }
+});
+
+router.get('/registration/status/:kindeId', async (req, res) => {
+  try {
+    const registration = await Registration.findOne({
+      kindeId: req.params.kindeId,
+      paymentStatus: 'completed'
+    });
+
+    res.json({
+      hasCompletedRegistration: !!registration,
+      registrationDetails: registration
+    });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
 
 export default router;

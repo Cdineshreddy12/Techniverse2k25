@@ -6,53 +6,58 @@ import crypto from 'crypto';
 import QRCode from 'qrcode';
 import dotenv from 'dotenv';
 import Event from '../Models/eventModel.js';
-// Ensure environment variables are loaded
+
 dotenv.config();
 
 const router = express.Router();
 
-// Add validation for required environment variables
+// Enhanced environment validation
 const validateEnvironment = () => {
-  if (!process.env.QR_SECRET) {
-    throw new Error('QR_SECRET environment variable is not set');
+  const requiredVars = ['QR_SECRET', 'HDFC_RESPONSE_KEY'];
+  const missing = requiredVars.filter(v => !process.env[v]);
+  
+  if (missing.length > 0) {
+    throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
   }
 };
 
-// QR code generation with proper error handling and validation
+// Enhanced QR code generation with payment verification
 export const generateQRCode = async (data) => {
   try {
-    // Validate environment variables first
     validateEnvironment();
 
-    // Validate input data
-    if (!data?.userId || !data?.selectedEvents) {
+    // Validate required input data
+    if (!data?.userId || !data?.selectedEvents || !data?.verificationHash) {
       throw new Error('Invalid input data for QR code generation');
     }
 
-    // Create the data object that will be signed
+    // Create the data object with enhanced verification
     const dataToSign = {
       id: data.userId,
       events: (data.selectedEvents || []).map(e => e.eventId || e.id).filter(Boolean),
-      workshops: (data.selectedWorkshops || []).map(w => w.workshopId || w.id).filter(Boolean)
+      workshops: (data.selectedWorkshops || []).map(w => w.workshopId || w.id).filter(Boolean),
+      paymentVerification: data.verificationHash // Include payment verification hash
     };
 
-    // Generate signature using the QR_SECRET with proper error handling
-    let signature;
-    try {
-      signature = crypto
-        .createHmac('sha256', process.env.QR_SECRET)
-        .update(JSON.stringify(dataToSign))
-        .digest('hex');
-    } catch (error) {
-      console.error('Error generating signature:', error);
-      throw new Error('Failed to generate QR code signature');
-    }
+    // Generate two-layer signature for enhanced security
+    const primarySignature = crypto
+      .createHmac('sha256', process.env.QR_SECRET)
+      .update(JSON.stringify(dataToSign))
+      .digest('hex');
 
-    // Combine data with signature and timestamp
+    // Additional payment verification layer
+    const paymentSignature = crypto
+      .createHmac('sha256', process.env.HDFC_RESPONSE_KEY)
+      .update(primarySignature)
+      .digest('hex');
+
+    // Combine data with dual signatures and timestamp
     const qrData = JSON.stringify({
       ...dataToSign,
-      signature,
-      timestamp: new Date().toISOString()
+      signature: primarySignature,
+      paymentSignature,
+      timestamp: new Date().toISOString(),
+      validUntil: new Date(Date.now() + (7 * 24 * 60 * 60 * 1000)).toISOString() // 7 days validity
     });
 
     const qrCodeOptions = {
@@ -70,23 +75,56 @@ export const generateQRCode = async (data) => {
   }
 };
 
+// Enhanced validation endpoint with payment verification
 router.post('/validate-registration', async (req, res) => {
   try {
     const { qrData, eventId } = req.body;
     
-    console.log('Received request:', { eventId, qrData });
-    
-    if (!eventId) {
+    if (!eventId || !qrData) {
       return res.status(400).json({
         success: false,
-        message: 'Event ID is required'
+        message: 'Event ID and QR data are required'
       });
     }
 
     let parsedData;
     try {
       parsedData = JSON.parse(qrData);
-      console.log('Parsed QR data:', parsedData);
+      
+      // Verify QR code hasn't expired
+      const validUntil = new Date(parsedData.validUntil);
+      if (validUntil < new Date()) {
+        return res.status(400).json({
+          success: false,
+          message: 'QR code has expired'
+        });
+      }
+
+      // Verify signatures
+      const dataToVerify = {
+        id: parsedData.id,
+        events: parsedData.events,
+        workshops: parsedData.workshops,
+        paymentVerification: parsedData.paymentVerification
+      };
+
+      const expectedPrimarySignature = crypto
+        .createHmac('sha256', process.env.QR_SECRET)
+        .update(JSON.stringify(dataToVerify))
+        .digest('hex');
+
+      const expectedPaymentSignature = crypto
+        .createHmac('sha256', process.env.HDFC_RESPONSE_KEY)
+        .update(expectedPrimarySignature)
+        .digest('hex');
+
+      if (parsedData.signature !== expectedPrimarySignature || 
+          parsedData.paymentSignature !== expectedPaymentSignature) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid QR code signature'
+        });
+      }
     } catch (error) {
       console.error('QR parsing error:', error);
       return res.status(400).json({
@@ -95,9 +133,8 @@ router.post('/validate-registration', async (req, res) => {
       });
     }
 
-    // First find the student
+    // Rest of the validation logic remains the same
     const student = await Student.findOne({ kindeId: parsedData.id });
-    
     if (!student) {
       return res.status(404).json({
         success: false,
@@ -105,26 +142,19 @@ router.post('/validate-registration', async (req, res) => {
       });
     }
 
-    // Then find the registration using student's _id
     const registration = await Registration.findOne({
       student: student._id,
-      kindeId: parsedData.id
+      kindeId: parsedData.id,
+      paymentStatus: 'completed' // Ensure payment is completed
     }).populate('student').populate('selectedEvents.eventId');
-
-    console.log('Registration search result:', registration ? 'Found' : 'Not found');
 
     if (!registration) {
       return res.status(404).json({
         success: false,
-        message: 'Registration not found',
-        debug: {
-          searchedId: parsedData.id,
-          timestamp: new Date().toISOString()
-        }
+        message: 'Registration not found or payment pending'
       });
     }
 
-    // Check if the event is in the registration
     const registeredEvent = registration.selectedEvents.find(
       e => e.eventId._id.toString() === eventId
     );
@@ -136,7 +166,6 @@ router.post('/validate-registration', async (req, res) => {
       });
     }
 
-    // Check for existing check-in
     const existingCheckIn = await CheckIn.findOne({
       registration: registration._id,
       event: eventId,
@@ -151,7 +180,6 @@ router.post('/validate-registration', async (req, res) => {
       });
     }
 
-    // Return success with registration and event details
     res.json({
       success: true,
       registration: {
@@ -173,10 +201,7 @@ router.post('/validate-registration', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Validation failed',
-      debug: {
-        errorMessage: error.message,
-        timestamp: new Date().toISOString()
-      }
+      error: error.message
     });
   }
 });

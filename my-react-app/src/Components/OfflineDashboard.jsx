@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { QrCode, User, Calendar, CheckCircle, Loader, X, Eye, EyeOff } from 'lucide-react';
+import { QrCode, User, Calendar, CheckCircle, Loader, X, Eye, EyeOff,Mail,School,Book } from 'lucide-react';
 import API_CONFIG from '../config/api';
 const OfflineDashboard = () => {
   const [userData, setUserData] = useState(null);
@@ -201,7 +201,7 @@ const OfflineDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white">
+    <div className="min-h-screen mt-12 bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Profile Card */}
         <div className="bg-slate-800/50 backdrop-blur-xl rounded-3xl shadow-2xl p-6 lg:p-8 mb-8 border border-white/10">
