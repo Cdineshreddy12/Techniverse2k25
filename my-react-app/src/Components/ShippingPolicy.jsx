@@ -39,12 +39,13 @@ const ShippingPolicy = () => {
           <div>
             <h3 className="text-xl font-semibold mb-2">Our Address</h3>
             <address className="not-italic">
-              Bahudha Block,<br />
+            Bahuda Block,<br />
+            RGUKT Srikakulam Campus,<br/>
               Etcherla Mandal,<br />
               S.M Puram,<br />
               Srikakulam District,<br />
               Andhra Pradesh,<br />
-              PIN: 532410
+              India -532410
             </address>
           </div>
         </div>
