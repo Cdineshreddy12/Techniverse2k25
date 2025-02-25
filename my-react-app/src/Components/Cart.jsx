@@ -121,13 +121,17 @@ const CartComponent = () => {
   
 
   const [hasExistingRegistration, setHasExistingRegistration] = useState(false);
-const [existingRegistrationDetails, setExistingRegistrationDetails] = useState(null);
+  const [existingRegistrationDetails, setExistingRegistrationDetails] = useState(null);
 
   const isHostInstitution = useMemo(() => {
     if (!user?.email) return false;
     const email = user.email.toLowerCase();
-    // Corrected domain name in regex
-    return /^s\d+@rguktsklm\.ac\.in$/.test(email.toLowerCase());
+    
+    // Check for all four RGUKT campus domains without 's' prefix requirement
+    return /@rguktsklm\.ac\.in$/.test(email) || 
+           /@rguktn\.ac\.in$/.test(email) || 
+           /@rguktrkv\.ac\.in$/.test(email) || 
+           /@rguktong\.ac\.in$/.test(email);
   }, [user?.email]);
   
   console.log('user email', user?.email);
@@ -139,7 +143,17 @@ const [existingRegistrationDetails, setExistingRegistrationDetails] = useState(n
     isHostInstitution ? packages[0] : packages[1]
   , [isHostInstitution]);
 
- 
+  // Calculate platform fee (2% of the total amount)
+  const platformFee = useMemo(() => {
+    if (!selectedCombo) return 0;
+    return Math.ceil(selectedCombo.price * 0.02); // Round up to nearest integer
+  }, [selectedCombo]);
+  
+  // Calculate total amount including platform fee
+  const totalAmount = useMemo(() => {
+    if (!selectedCombo) return 0;
+    return selectedCombo.price + platformFee;
+  }, [selectedCombo, platformFee]);
 
   // Workshop detection effect
   useEffect(() => {
@@ -261,6 +275,25 @@ const [existingRegistrationDetails, setExistingRegistrationDetails] = useState(n
       return;
     }
   
+    if (items.length === 0 && workshops.length === 0) {
+      toast.error('Your cart is empty. Add some events or a workshop first.');
+      return;
+    }
+  
+    // Check if the user is trying to update with workshops
+    const hasExistingWorkshops = existingRegistrationDetails?.selectedWorkshops?.length > 0;
+    
+    if (hasExistingWorkshops && workshops.length > 0) {
+      toast.error('You already have a workshop registered. Cannot add more workshops to an existing registration.');
+      return;
+    }
+    
+    // Allow only one workshop during registration update
+    if (workshops.length > 1) {
+      toast.error('Only one workshop is allowed for registration. Please remove one workshop from your cart.');
+      return;
+    }
+  
     try {
       const response = await fetch(API_CONFIG.getUrl('registration/update'), {
         method: 'POST',
@@ -287,8 +320,6 @@ const [existingRegistrationDetails, setExistingRegistrationDetails] = useState(n
       toast.error('Failed to update registration');
     }
   };
-
-  
 
 const getAvailableOptions = () => {
   if (!relevantPackage) return [];
@@ -430,7 +461,7 @@ const getAvailableOptions = () => {
     }
   };
 
-// Update the payment validation
+// Update the payment validation and include platform fee
 const initiatePayment = async () => {
   if (!user?.id) {
     toast.error('Please log in to continue');
@@ -454,7 +485,9 @@ const initiatePayment = async () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        amount: selectedCombo.price,
+        amount: totalAmount, // Use total amount including platform fee
+        baseAmount: selectedCombo.price, // Original package price
+        platformFee: platformFee, // Platform fee amount
         cartItems: items,
         workshops: workshops,
         kindeId: user.id,
@@ -496,7 +529,8 @@ const validateComboSelection = (combo, items, workshops) => {
       return false;
     }
     if (workshops.length > 1) {
-      toast.error('Only one workshop is allowed with this package');
+      // Allow up to 2 workshops in cart, but need to select one for package
+      toast.error('Please select only one workshop for this package');
       return false;
     }
     if (items.length > 0) {
@@ -520,7 +554,7 @@ const validateComboSelection = (combo, items, workshops) => {
       return false;
     }
     if (workshops.length > 1) {
-      toast.error('Only one workshop is allowed with this package');
+      toast.error('Please select only one workshop for this package');
       return false;
     }
   }
@@ -528,10 +562,6 @@ const validateComboSelection = (combo, items, workshops) => {
   return true;
 };
 
-
-
-
-  // Also update the check for empty cart to include both items and workshops
 // Update the empty cart check
 const isCartEmpty = useSelector(state => {
   const items = state.cart.items;
@@ -692,7 +722,7 @@ const PackageSelector = ({ packages, selectedCombo, onSelect, onClear, hasWorksh
   );
 };
   
-const BottomNav = ({ selectedCombo, onPayment, onUpdateRegistration, hasExistingRegistration }) => {
+const BottomNav = ({ selectedCombo, platformFee, totalAmount, onPayment, onUpdateRegistration, hasExistingRegistration }) => {
   return (
     <div className="fixed bottom-0 inset-x-0 bg-slate-800/95 backdrop-blur-md border-t border-slate-700 p-3 sm:p-4">
       <div className="max-w-7xl mx-auto">
@@ -707,13 +737,23 @@ const BottomNav = ({ selectedCombo, onPayment, onUpdateRegistration, hasExisting
               <span className="sm:hidden">Back</span>
             </Link>
             
-            {!hasExistingRegistration && (
+            {!hasExistingRegistration && selectedCombo && (
+              <div className="text-right sm:text-left">
+                <div className="flex flex-col">
+                  <p className="text-xs text-gray-400">Package Price: <span className="text-purple-400 font-medium">₹{selectedCombo.price}</span></p>
+                  <p className="text-xs text-gray-400">Platform Fee (2%): <span className="text-purple-400 font-medium">₹{platformFee}</span></p>
+                  <p className="text-sm font-bold text-purple-400">Total: ₹{totalAmount}</p>
+                </div>
+              </div>
+            )}
+            
+            {!hasExistingRegistration && !selectedCombo && (
               <div className="text-right sm:text-left">
                 <p className="text-xs text-gray-400">
-                  {selectedCombo ? 'Package Selected' : 'Select Package'}
+                  Select Package
                 </p>
                 <p className="text-sm font-bold text-purple-400">
-                  {selectedCombo ? `₹${selectedCombo.price}` : '₹0'}
+                  ₹0
                 </p>
               </div>
             )}
@@ -826,12 +866,13 @@ const BottomNav = ({ selectedCombo, onPayment, onUpdateRegistration, hasExisting
 
       {/* Cart Summary - Fixed at bottom */}
       <BottomNav
-      selectedCombo={selectedCombo}
-      onPayment={initiatePayment}
-      onUpdateRegistration={handleUpdateRegistration}
-      hasExistingRegistration={hasExistingRegistration}
-    />  
-
+        selectedCombo={selectedCombo}
+        platformFee={platformFee}
+        totalAmount={totalAmount}
+        onPayment={initiatePayment}
+        onUpdateRegistration={handleUpdateRegistration}
+        hasExistingRegistration={hasExistingRegistration}
+      />
       {paymentSession && (
         <PaymentHandler 
           sessionData={paymentSession}

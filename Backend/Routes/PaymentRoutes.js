@@ -108,8 +108,8 @@ const detectTampering = async (req, res, next) => {
 
         // 5. Institution verification
         const studentEmail = (student.email || '').toLowerCase().trim();
-        const rguktsklmRegex = /@rguktsklm\.ac\.in$/i;
-        const isRGUKTStudent = rguktsklmRegex.test(studentEmail);
+        const rguktRegex = /@(rguktsklm|rguktn|rguktrkv|rguktong)\.ac\.in$/i;
+        const isRGUKTStudent = rguktRegex.test(studentEmail);
         const comboId = (combo.id || '').trim();
         const validPrefix = isRGUKTStudent ? 'rgukt-' : 'guest-';
 
@@ -963,6 +963,7 @@ router.post('/registration/update', async (req, res) => {
       }
 
       console.log('Current events:', registration.selectedEvents.length);
+      console.log('Current workshops:', registration.selectedWorkshops?.length || 0);
 
       // Process new events
       if (newEvents && newEvents.length > 0) {
@@ -1015,8 +1016,22 @@ router.post('/registration/update', async (req, res) => {
         }
       }
 
-      // Process new workshops
+      // Process new workshops with restrictions
       if (newWorkshops && newWorkshops.length > 0) {
+        // Check if the user already has workshops in their registration
+        const existingWorkshopCount = registration.selectedWorkshops?.length || 0;
+        
+        if (existingWorkshopCount > 0) {
+          console.log('User already has workshops registered:', existingWorkshopCount);
+          throw new Error('You already have a workshop registered. Cannot add more workshops to an existing registration.');
+        }
+        
+        // Allow only one workshop during registration update
+        if (newWorkshops.length > 1) {
+          console.log('Too many workshops in update request:', newWorkshops.length);
+          throw new Error('Only one workshop is allowed per registration');
+        }
+
         const workshopUpdates = newWorkshops.map(workshop => ({
           workshopId: workshop.id,
           workshopName: workshop.title,
@@ -1024,7 +1039,7 @@ router.post('/registration/update', async (req, res) => {
         }));
 
         const existingWorkshopIds = new Set(
-          registration.selectedWorkshops.map(w => w.workshopId.toString())
+          (registration.selectedWorkshops || []).map(w => w.workshopId.toString())
         );
 
         const newWorkshopUpdates = workshopUpdates.filter(update => {
@@ -1045,20 +1060,33 @@ router.post('/registration/update', async (req, res) => {
             ).exec()
           );
 
+          // Initialize selectedWorkshops array if it doesn't exist
+          if (!registration.selectedWorkshops) {
+            registration.selectedWorkshops = [];
+          }
+
           registration.selectedWorkshops.push(...newWorkshopUpdates);
           await Promise.all(workshopPromises);
         }
       }
 
-      // Update student record
-      if (newEvents.length > 0 || newWorkshops.length > 0) {
+      // Update student record - FIX: Convert string IDs to ObjectIds for workshops
+      if ((newEvents && newEvents.length > 0) || (newWorkshops && newWorkshops.length > 0)) {
+        // For events
+        const eventUpdates = newEvents && newEvents.length > 0 
+          ? { $addToSet: { events: { $each: newEvents.map(e => e.id) } } }
+          : {};
+          
+        // For workshops - Using mongoose.Types.ObjectId to convert string IDs
+        const workshopUpdates = newWorkshops && newWorkshops.length > 0
+          ? { $addToSet: { workshops: { $each: newWorkshops.map(w => mongoose.Types.ObjectId(w.id)) } } }
+          : {};
+
         await Student.findByIdAndUpdate(
           registration.student._id,
           {
-            $addToSet: {
-              events: { $each: newEvents.map(e => e.id) },
-              workshops: { $each: (newWorkshops || []).map(w => w.id) }
-            }
+            ...eventUpdates,
+            ...workshopUpdates
           },
           { session }
         ).exec();
@@ -1068,7 +1096,7 @@ router.post('/registration/update', async (req, res) => {
       const qrCodeDataUrl = await generateQRCode({
         userId: registration.student.kindeId,
         selectedEvents: registration.selectedEvents,
-        selectedWorkshops: registration.selectedWorkshops,
+        selectedWorkshops: registration.selectedWorkshops || [],
         orderId: registration.paymentDetails.razorpayOrderId,
         paymentId: registration.paymentDetails.razorpayPaymentId,
         amount: registration.amount
@@ -1095,6 +1123,7 @@ router.post('/registration/update', async (req, res) => {
       await registration.save({ session });
 
       console.log('Final events count:', registration.selectedEvents.length);
+      console.log('Final workshops count:', registration.selectedWorkshops?.length || 0);
       
       return registration;
     });
@@ -1104,12 +1133,17 @@ router.post('/registration/update', async (req, res) => {
       success: true,
       registration: {
         eventsCount: result.selectedEvents.length,
-        workshopsCount: result.selectedWorkshops.length,
+        workshopsCount: result.selectedWorkshops?.length || 0,
         updatedAt: result.updatedAt,
         events: result.selectedEvents.map(e => ({
           id: e.eventId,
           name: e.eventName,
           status: e.status
+        })),
+        workshops: (result.selectedWorkshops || []).map(w => ({
+          id: w.workshopId,
+          name: w.workshopName,
+          status: w.status
         })),
         totalEvents: result.selectedEvents.length,
         qrCode: result.qrCode.dataUrl
@@ -1125,7 +1159,6 @@ router.post('/registration/update', async (req, res) => {
     });
   }
 });
-
 
 router.get('/registration/status/:kindeId', async (req, res) => {
   try {

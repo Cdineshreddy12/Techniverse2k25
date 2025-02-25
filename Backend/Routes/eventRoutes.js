@@ -31,7 +31,8 @@ const upload = multer({
 // Upload multiple images
 const uploadImages = upload.fields([
   { name: 'bannerDesktop', maxCount: 1 },
-  { name: 'bannerMobile', maxCount: 1 }
+  { name: 'bannerMobile', maxCount: 1 },
+  { name: 'coordinatorPhotos', maxCount: 10 } // Allow multiple coordinator photos
 ]);
 
 // Function to upload to Cloudinary
@@ -561,6 +562,7 @@ router.post('/departments/:departmentId/events', uploadImages, async (req, res) 
 });
 
 // Update event
+// Update event
 router.put('/departments/:departmentId/events/:eventId', uploadImages, async (req, res) => {
   try {
     const { departmentId, eventId } = req.params;
@@ -578,7 +580,7 @@ router.put('/departments/:departmentId/events/:eventId', uploadImages, async (re
       });
     }
 
-    // Handle image uploads
+    // Handle banner image uploads
     let bannerDesktopUrl = existingEvent.bannerDesktop;
     let bannerMobileUrl = existingEvent.bannerMobile;
 
@@ -605,10 +607,79 @@ router.put('/departments/:departmentId/events/:eventId', uploadImages, async (re
           'events/mobile'
         );
       }
+
+      // Handle coordinator photos if they exist
+      if (req.files.coordinatorPhotos) {
+        // Store uploaded photos by unique identifiers for later use
+        req.uploadedCoordinatorPhotos = {};
+        
+        for (const photoFile of req.files.coordinatorPhotos) {
+          if (photoFile.fieldname === 'coordinatorPhotos' && photoFile.originalname) {
+            // Use the original filename as an identifier (without extension)
+            const coordinatorId = photoFile.originalname.split('.')[0]; 
+            const photoUrl = await uploadToCloudinary(
+              photoFile, 
+              'events/coordinators'
+            );
+            req.uploadedCoordinatorPhotos[coordinatorId] = photoUrl;
+            console.log(`Uploaded photo for coordinator ${coordinatorId}: ${photoUrl}`);
+          }
+        }
+      }
     }
 
     // Parse event data
     const eventData = JSON.parse(req.body.eventData);
+    
+    // Create a mapping of existing coordinators for easy lookup
+    const existingCoordinatorsMap = {};
+    if (existingEvent.coordinators && existingEvent.coordinators.length > 0) {
+      existingEvent.coordinators.forEach(coord => {
+        // Map by both _id and string id if available
+        if (coord._id) {
+          existingCoordinatorsMap[coord._id.toString()] = coord;
+        }
+        if (coord.id) {
+          existingCoordinatorsMap[coord.id] = coord;
+        }
+      });
+    }
+    
+    // Process coordinator photos
+    if (eventData.coordinators && Array.isArray(eventData.coordinators)) {
+      eventData.coordinators = eventData.coordinators.map(coordinator => {
+        const coordId = coordinator._id || coordinator.id;
+        
+        // Case 1: If we have a newly uploaded photo for this coordinator
+        if (req.uploadedCoordinatorPhotos && coordId && req.uploadedCoordinatorPhotos[coordId]) {
+          console.log(`Using uploaded photo for coordinator ${coordId}`);
+          return {
+            ...coordinator,
+            photo: req.uploadedCoordinatorPhotos[coordId]
+          };
+        }
+        
+        // Case 2: If photo is already a string URL, keep it
+        if (typeof coordinator.photo === 'string' && coordinator.photo) {
+          return coordinator;
+        }
+        
+        // Case 3: Find existing coordinator and use their photo
+        const existingCoordinator = coordId ? existingCoordinatorsMap[coordId.toString()] : null;
+        if (existingCoordinator && existingCoordinator.photo) {
+          return {
+            ...coordinator,
+            photo: existingCoordinator.photo
+          };
+        }
+        
+        // Default case: no valid photo
+        return {
+          ...coordinator,
+          photo: null
+        };
+      });
+    }
 
     // Process rounds data with sections
     const processedRounds = eventData.rounds.map(round => ({

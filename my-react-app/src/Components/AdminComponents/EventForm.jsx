@@ -418,10 +418,10 @@ const EventForm = ({ event, onClose }) => {
       const url = event 
         ? `${baseUrl}/${departmentId}/events/${event._id}`
         : `${baseUrl}/${departmentId}/events`;
-
+  
       // Create FormData object
       const formDataToSend = new FormData();
-
+  
       // Add the images if they exist
       if (formData.bannerDesktopFile) {
         formDataToSend.append('bannerDesktop', formData.bannerDesktopFile);
@@ -429,7 +429,32 @@ const EventForm = ({ event, onClose }) => {
       if (formData.bannerMobileFile) {
         formDataToSend.append('bannerMobile', formData.bannerMobileFile);
       }
-
+  
+      // Process coordinator photos - convert blob URLs to files and append to FormData
+      if (formData.coordinators && formData.coordinators.length > 0) {
+        for (const coordinator of formData.coordinators) {
+          if (coordinator.photo && typeof coordinator.photo === 'object' && coordinator.photo.url) {
+            if (coordinator.photo.url.startsWith('blob:')) {
+              try {
+                // Fetch the blob URL
+                const response = await fetch(coordinator.photo.url);
+                const blob = await response.blob();
+                
+                // Create a file with coordinator ID as the filename
+                const filename = `${coordinator._id || coordinator.id}.jpg`;
+                const file = new File([blob], filename, { type: 'image/jpeg' });
+                
+                // Add to FormData
+                formDataToSend.append('coordinatorPhotos', file);
+                console.log(`Added photo for coordinator ${coordinator._id || coordinator.id}`);
+              } catch (error) {
+                console.error('Failed to process coordinator photo:', error);
+              }
+            }
+          }
+        }
+      }
+  
       // Process rounds data
       const processedRounds = formData.rounds.map(round => ({
         ...round,
@@ -444,6 +469,7 @@ const EventForm = ({ event, onClose }) => {
         qualificationCriteria: round.qualificationCriteria || ''
       }));
             
+      // Create a clean version of the event data for JSON
       const eventData = {
         ...formData,
         departments: [departmentId],
@@ -458,9 +484,17 @@ const EventForm = ({ event, onClose }) => {
             amount: parseFloat(prize.amount) || 0,
             position: parseFloat(prize.position) || 0
           }))
-        }
+        },
+        // Process coordinator data - replace blob URLs with nulls for JSON
+        coordinators: formData.coordinators.map(coordinator => ({
+          ...coordinator,
+          photo: typeof coordinator.photo === 'string' ? coordinator.photo : 
+                 (coordinator.photo && typeof coordinator.photo === 'object' && 
+                  coordinator.photo.url && !coordinator.photo.url.startsWith('blob:')) ?
+                 coordinator.photo.url : null
+        }))
       };
-
+  
       // Remove the file objects before stringifying
       delete eventData.bannerDesktopFile;
       delete eventData.bannerMobileFile;
@@ -471,7 +505,7 @@ const EventForm = ({ event, onClose }) => {
         method: event ? 'PUT' : 'POST',
         body: formDataToSend 
       });
-
+  
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to save event');

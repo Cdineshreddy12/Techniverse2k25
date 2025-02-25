@@ -25,7 +25,11 @@ const RegistrationForm = () => {
   // Check if user is a student based on email
   const isStudentEmail = useMemo(() => {
     const email = user?.email;
-    return email ? /^s\d{6}@rguktsklm\.ac\.in$/.test(email.toLowerCase()) : false;
+    return email ? 
+      /@rguktsklm\.ac\.in$/.test(email.toLowerCase()) || 
+      /@rguktn\.ac\.in$/.test(email.toLowerCase()) || 
+      /@rguktrkv\.ac\.in$/.test(email.toLowerCase()) || 
+      /@rguktong\.ac\.in$/.test(email.toLowerCase()) : false;
   }, [user?.email]);
 
   // Update form data when user info is available

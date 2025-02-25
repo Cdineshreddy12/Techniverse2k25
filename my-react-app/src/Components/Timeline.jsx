@@ -31,6 +31,8 @@ const CompactCard = ({ item }) => {
     upcoming: 'text-blue-400'
   };
 
+  console.log('items',item);
+
   return (
     <Link to={`/departments/${item.departments[0]._id}/${item.type}s/${item._id}`}>
       <div className="bg-gray-800/80 backdrop-blur rounded-xl p-3 hover:bg-gray-700/80 

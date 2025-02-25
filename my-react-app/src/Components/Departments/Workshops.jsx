@@ -92,7 +92,7 @@ const WorkshopCard = ({ workshop, index }) => {
                 </div>
                 
                 {/* Price Badge */}
-                <span className="absolute top-4 right-4 px-2.5 py-1 bg-slate-900/80 backdrop-blur-sm 
+                <span className="absolute top-4 line-through right-4 px-2.5 py-1 bg-slate-900/80 backdrop-blur-sm 
                                rounded-md text-xs text-green-400 border border-green-500/30">
                   ₹{workshop.price}
                 </span>
@@ -104,9 +104,9 @@ const WorkshopCard = ({ workshop, index }) => {
                   {workshop.title}
                 </h3>
 
-                <p className="text-slate-300 text-sm line-clamp-2">
+                <pre className="text-slate-300 text-sm line-clamp-2">
                   {workshop.description}
-                </p>
+                </pre>
 
                 {/* Details Section */}
                 <div className="flex items-center justify-between pt-3 border-t border-slate-800">
@@ -118,7 +118,7 @@ const WorkshopCard = ({ workshop, index }) => {
                     ))}
                   </div>
                   <div className="text-xs text-slate-300">
-                    Registrations: {formatDate(workshop.registrationEndTime)}
+                    Registrations Ends: {formatDate(workshop.registrationEndTime)}
                   </div>
                 </div>
               </div>

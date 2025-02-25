@@ -30,7 +30,7 @@ import { fileURLToPath } from "url";
 import workshopRoutes from './Routes/workShopRoutes.js'
 import offlineRoutes from './Routes/OfflineRegistrationRoutes.js'
 import { connectToDatabase } from './utils/dbConfig.js';
-
+import excelExportRoutes from './Routes/excelExportRoutes.js'
 // import OfflineRegistrationRoutes from './Routes/offlineRegistrations.js'
 // Load environment variables
 dotenv.config();
@@ -137,8 +137,50 @@ app.use('/api',comboRoutes);
 app.use('/api',PaymentRoutes);
 app.use('/api',workshopRoutes);
 app.use('/api/offline',offlineRoutes);
-
+app.use('/api', excelExportRoutes);
 // app.use('/api',OfflineRegistrationRoutes);
+
+
+const fixSelectedWorkshops = async () => {
+  try {
+    // Find all registrations with QR code workshops but empty selectedWorkshops array
+    const registrationsToFix = await Registration.find({
+      'qrCode.metadata.workshops': { $exists: true, $ne: [] },
+      'selectedWorkshops': { $size: 0 }
+    });
+
+    console.log(`Found ${registrationsToFix.length} registrations to fix`);
+
+    for (const registration of registrationsToFix) {
+      // Get workshop IDs from QR code metadata
+      const workshopIds = registration.qrCode.metadata.workshops || [];
+      
+      if (workshopIds.length === 0) {
+        console.log(`Registration ${registration._id} has no workshops in QR metadata`);
+        continue;
+      }
+
+      // Add workshops to selectedWorkshops array
+      for (const workshopId of workshopIds) {
+        registration.selectedWorkshops.push({
+          workshopId: workshopId,
+          status: 'completed', // Assume completed since it's in the QR
+        });
+      }
+
+      // Save the updated registration
+      await registration.save();
+      console.log(`Fixed registration ${registration._id} with ${workshopIds.length} workshops`);
+    }
+
+    console.log('Fix completed');
+  } catch (error) {
+    console.error('Error fixing registrations:', error);
+  }
+};
+
+// To run this function, you would call:
+// fixSelectedWorkshops();
 
 
 export const sendConfirmationEmail = async (email, qrCode, data) => {

@@ -157,66 +157,66 @@ router.post('/cart/add', async (req, res) => {
 });
 
 
-router.delete('/cart/workshop/:kindeId/:itemId', async (req, res) => {
-  try {
-    const { kindeId, itemId } = req.params;
+// router.delete('/cart/workshop/:kindeId/:itemId', async (req, res) => {
+//   try {
+//     const { kindeId, itemId } = req.params;
 
-    const student = await Student.findOneAndUpdate(
-      { kindeId },
-      { 
-        $pull: { 
-          workshops: { workshopId: itemId }
-        } 
-      },
-      { new: true }
-    )
-    .populate('cart.eventId')
-    .populate('workshops.workshopId');
+//     const student = await Student.findOneAndUpdate(
+//       { kindeId },
+//       { 
+//         $pull: { 
+//           workshops: { workshopId: itemId }
+//         } 
+//       },
+//       { new: true }
+//     )
+//     .populate('cart.eventId')
+//     .populate('workshops.workshopId');
 
-    if (!student) {
-      return res.status(404).json({
-        success: false,
-        error: 'Profile not found'
-      });
-    }
+//     if (!student) {
+//       return res.status(404).json({
+//         success: false,
+//         error: 'Profile not found'
+//       });
+//     }
 
-    // Transform the response to match the expected format
-    const transformedEvents = student.cart.map(cartItem => ({
-      id: cartItem.eventId._id,
-      type: 'event',
-      fee: cartItem.price || cartItem.eventId.registrationFee,
-      eventInfo: {
-        id: cartItem.eventId._id,
-        title: cartItem.eventId.title,
-        description: cartItem.eventId.description,
-        department: cartItem.eventId.departments[0]
-      }
-    })).filter(Boolean);
+//     // Transform the response to match the expected format
+//     const transformedEvents = student.cart.map(cartItem => ({
+//       id: cartItem.eventId._id,
+//       type: 'event',
+//       fee: cartItem.price || cartItem.eventId.registrationFee,
+//       eventInfo: {
+//         id: cartItem.eventId._id,
+//         title: cartItem.eventId.title,
+//         description: cartItem.eventId.description,
+//         department: cartItem.eventId.departments[0]
+//       }
+//     })).filter(Boolean);
 
-    const transformedWorkshops = student.workshops.map(workshopItem => ({
-      id: workshopItem.workshopId._id,
-      type: 'workshop',
-      title: workshopItem.workshopId.title,
-      price: workshopItem.price || workshopItem.workshopId.price,
-      departments: workshopItem.workshopId.departments
-    })).filter(Boolean);
+//     const transformedWorkshops = student.workshops.map(workshopItem => ({
+//       id: workshopItem.workshopId._id,
+//       type: 'workshop',
+//       title: workshopItem.workshopId.title,
+//       price: workshopItem.price || workshopItem.workshopId.price,
+//       departments: workshopItem.workshopId.departments
+//     })).filter(Boolean);
 
-    res.json({ 
-      success: true,
-      cart: {
-        events: transformedEvents,
-        workshops: transformedWorkshops,
-        activeCombo: student.activeCombo
-      }
-    });
-  } catch (error) {
-    console.error('Remove workshop error:', error);
-    res.status(500).json({ 
-      success: false,
-      error: error.message 
-    });
-  }
-});
+//     res.json({ 
+//       success: true,
+//       cart: {
+//         events: transformedEvents,
+//         workshops: transformedWorkshops,
+//         activeCombo: student.activeCombo
+//       }
+//     });
+//   } catch (error) {
+//     console.error('Remove workshop error:', error);
+//     res.status(500).json({ 
+//       success: false,
+//       error: error.message 
+//     });
+//   }
+// });
 
 // Add workshop to cart
 router.post('/cart/workshop/add', async (req, res) => {
@@ -239,15 +239,23 @@ router.post('/cart/workshop/add', async (req, res) => {
       });
     }
 
-    // Check for duplicate
+    // Check for duplicate - safely handle potential undefined workshopId
     const isDuplicate = student.workshops.some(w => 
-      w.workshopId.toString() === item.workshopId.toString()
+      w.workshopId && w.workshopId.toString() === item.workshopId.toString()
     );
 
     if (isDuplicate) {
       return res.status(400).json({
         success: false,
         error: 'This workshop is already in your cart'
+      });
+    }
+
+    // Check workshop count - limit to 2
+    if (student.workshops.length >= 2) {
+      return res.status(400).json({
+        success: false,
+        error: 'You can only add up to 2 workshops to your cart'
       });
     }
 
@@ -279,15 +287,84 @@ router.post('/cart/workshop/add', async (req, res) => {
   }
 });
 
-// Remove from cart (works for both events and workshops)
+router.delete('/cart/workshop/:kindeId/:itemId', async (req, res) => {
+  try {
+    const { kindeId, itemId } = req.params;
+
+    const student = await Student.findOneAndUpdate(
+      { kindeId },
+      { 
+        $pull: { 
+          workshops: { workshopId: itemId }
+        } 
+      },
+      { new: true }
+    )
+    .populate('cart.eventId')
+    .populate('workshops.workshopId');
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        error: 'Profile not found'
+      });
+    }
+
+    // Transform the response to match the expected format
+    const transformedEvents = student.cart.map(cartItem => {
+      if (!cartItem.eventId) return null;
+      return {
+        id: cartItem.eventId._id,
+        type: 'event',
+        fee: cartItem.price || cartItem.eventId.registrationFee,
+        eventInfo: {
+          id: cartItem.eventId._id,
+          title: cartItem.eventId.title,
+          description: cartItem.eventId.description,
+          department: cartItem.eventId.departments?.[0]
+        }
+      };
+    }).filter(Boolean);
+
+    const transformedWorkshops = student.workshops.map(workshopItem => {
+      if (!workshopItem.workshopId) return null;
+      return {
+        id: workshopItem.workshopId._id,
+        type: 'workshop',
+        title: workshopItem.workshopId.title,
+        price: workshopItem.price || workshopItem.workshopId.price,
+        departments: workshopItem.workshopId.departments
+      };
+    }).filter(Boolean);
+
+    res.json({ 
+      success: true,
+      cart: {
+        events: transformedEvents,
+        workshops: transformedWorkshops,
+        activeCombo: student.activeCombo || null
+      }
+    });
+  } catch (error) {
+    console.error('Remove workshop error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: error.message 
+    });
+  }
+});
+
 router.delete('/cart/:kindeId/:itemId', async (req, res) => {
   try {
     const { kindeId, itemId } = req.params;
     const { type } = req.query; // 'event' or 'workshop'
 
-    const updateQuery = type === 'workshop' 
-      ? { $pull: { workshops: { workshopId: itemId } } }
-      : { $pull: { cart: { eventId: itemId } } };
+    let updateQuery;
+    if (type === 'workshop') {
+      updateQuery = { $pull: { workshops: { workshopId: itemId } } };
+    } else {
+      updateQuery = { $pull: { cart: { eventId: itemId } } };
+    }
 
     const student = await Student.findOneAndUpdate(
       { kindeId },
@@ -304,12 +381,42 @@ router.delete('/cart/:kindeId/:itemId', async (req, res) => {
       });
     }
 
+    // Transform events data
+    const transformedEvents = student.cart.map(cartItem => {
+      if (!cartItem.eventId) return null; // Skip if event reference is invalid
+      
+      return {
+        id: cartItem.eventId._id,
+        type: 'event',
+        fee: cartItem.price || cartItem.eventId.registrationFee,
+        eventInfo: {
+          id: cartItem.eventId._id,
+          title: cartItem.eventId.title,
+          description: cartItem.eventId.description,
+          department: cartItem.eventId.departments?.[0]
+        }
+      };
+    }).filter(Boolean); // Remove null entries
+
+    // Transform workshops data
+    const transformedWorkshops = student.workshops.map(workshopItem => {
+      if (!workshopItem.workshopId) return null; // Skip if workshop reference is invalid
+      
+      return {
+        id: workshopItem.workshopId._id,
+        type: 'workshop',
+        title: workshopItem.workshopId.title,
+        price: workshopItem.price || workshopItem.workshopId.price,
+        departments: workshopItem.workshopId.departments
+      };
+    }).filter(Boolean); // Remove null entries
+
     res.json({ 
       success: true,
       cart: {
-        events: student.cart,
-        workshops: student.workshops,
-        activeCombo: student.activeCombo
+        events: transformedEvents,
+        workshops: transformedWorkshops,
+        activeCombo: student.activeCombo || null
       }
     });
   } catch (error) {

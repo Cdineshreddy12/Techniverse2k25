@@ -28,6 +28,9 @@ const EventCard = ({ event }) => {
         return 'bg-slate-500/20 text-slate-400';
     }
   };
+  
+  // Check if we're handling a workshop instead of an event
+  const isWorkshop = event.type === 'Workshop';
 
   return (
     <div className="bg-slate-700/50 rounded-lg p-4 hover:bg-slate-700/70 transition-colors">
@@ -43,8 +46,13 @@ const EventCard = ({ event }) => {
         </div>
       </div>
       
-      {event.details?.description && (
-        <p className="text-gray-400 text-sm mb-3 break-words">{event.details.description}</p>
+      {/* Use workshop description for workshops, event details description for events */}
+      {isWorkshop ? (
+        <p className="text-gray-400 text-sm mb-3 break-words">{event.description}</p>
+      ) : (
+        event.details?.description && (
+          <p className="text-gray-400 text-sm mb-3 break-words">{event.details.description}</p>
+        )
       )}
 
       <div className="space-y-2">
@@ -61,10 +69,11 @@ const EventCard = ({ event }) => {
           </span>
         </div>
 
-        {event.details?.venue && (
+        {/* Show venue based on whether it's a workshop or event */}
+        {(isWorkshop ? event.venue : event.details?.venue) && (
           <div className="flex items-center text-gray-400 text-sm">
             <Globe className="w-4 h-4 mr-2 flex-shrink-0" />
-            <span className="break-words">{event.details.venue}</span>
+            <span className="break-words">{isWorkshop ? event.venue : event.details.venue}</span>
           </div>
         )}
 
@@ -75,7 +84,16 @@ const EventCard = ({ event }) => {
           </div>
         )}
 
-        {event.details?.maxTeamSize && (
+        {/* For workshops, show instructor if available */}
+        {isWorkshop && event.details?.instructor && (
+          <div className="flex items-center text-gray-400 text-sm">
+            <User className="w-4 h-4 mr-2 flex-shrink-0" />
+            <span className="break-words">Instructor: {event.details.instructor}</span>
+          </div>
+        )}
+
+        {/* For events, show team size */}
+        {!isWorkshop && event.details?.maxTeamSize && (
           <div className="flex items-center text-gray-400 text-sm">
             <Users className="w-4 h-4 mr-2 flex-shrink-0" />
             <span className="break-words">Max Team Size: {event.details.maxTeamSize}</span>
@@ -83,7 +101,8 @@ const EventCard = ({ event }) => {
         )}
       </div>
 
-      {event.rounds && event.rounds.length > 0 && (
+      {/* Only show rounds for events, not workshops */}
+      {!isWorkshop && event.rounds && event.rounds.length > 0 && (
         <div className="mt-3 pt-3 border-t border-slate-600/30">
           <h4 className="text-white text-sm font-medium mb-2">Rounds</h4>
           <div className="space-y-2">
@@ -280,20 +299,53 @@ const UserProfile = () => {
     );
   }
 
-  if (error) {
+  if (error || !registrationData) {
     return (
-      <div className="min-h-screen bg-slate-900 pt-24 pb-12 px-4 text-center">
-        <div className="text-red-400 mb-4">Error: {error}</div>
-        <button 
-          onClick={() => window.location.reload()}
-          className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-        >
-          Retry
-        </button>
+      <div className="min-h-screen bg-slate-900 pt-24 pb-12 px-4">
+        <div className="max-w-6xl mx-auto">
+          <div className="bg-slate-800/50 rounded-xl p-8 text-center border border-slate-700/50">
+            <h2 className="text-2xl font-bold text-white mb-4">
+              {!registrationData ? "No Registrations Found" : "Error Loading Profile"}
+            </h2>
+            
+            {!registrationData ? (
+              <>
+                <p className="text-gray-300 mb-6">
+                  You haven't registered for any events or workshops yet. Registration is required to set up your Tech Pass profile.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                  <a 
+                    href="/departments" 
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                  >
+                    Browse Events
+                  </a>
+                  <a 
+                    href="/departments" 
+                    className="px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors"
+                  >
+                    Browse Workshops
+                  </a>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-red-400 mb-6">
+                  {error || "Unable to load your profile at this time."}
+                </p>
+                <button 
+                  onClick={() => window.location.reload()}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                >
+                  Retry
+                </button>
+              </>
+            )}
+          </div>
+        </div>
       </div>
     );
   }
-
   return (
     <div className="min-h-screen bg-slate-900 pt-16 pb-12 px-4">
       <div className="max-w-6xl mx-auto">
@@ -360,7 +412,7 @@ const UserProfile = () => {
           <div className="p-4 sm:p-6">
             <h2 className="text-xl text-white font-semibold mb-4">Your Registrations</h2>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {registrationData?.selectedEvents?.map((event) => (
+            {registrationData?.selectedEvents?.map((event) => (
                 <EventCard key={event.eventId} event={event} />
               ))}
               {registrationData?.selectedWorkshops?.map((workshop) => (

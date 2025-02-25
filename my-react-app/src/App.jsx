@@ -68,7 +68,7 @@ import CancellationPolicy from './Components/CancellationPolicy';
 import PrivacyPolicy from './Components/PrivacyPolicy';
 import TermsAndConditions from './Components/TermsAndConditions.jsx';
 import Timeline from './Components/Timeline.jsx';
-
+import ExportDashboard from './Components/AdminComponents/ExportDashboard.jsx';
 // Optimized loading spinner
 const LoadingSpinner = () => (
   <div className="fixed inset-0 bg-slate-950/80 flex items-center justify-center">
@@ -255,12 +255,12 @@ const RegisteredRoute = React.memo(({ children }) => {
 });
 
 
-console.log("Kinde Env Variables...:");
-console.log("VITE_KINDE_CLIENT_ID:", import.meta.env.VITE_APP_KINDE_CLIENT_ID);
-console.log("VITE_KINDE_ISSUER_URL:", import.meta.env.VITE_APP_KINDE_ISSUER_URL);
-console.log("VITE_KINDE_REDIRECT_URL:", import.meta.env.VITE_APP_KINDE_REDIRECT_URL);
-console.log("VITE_APP_KINDE_POST_LOGOUT_URL:", import.meta.env.VITE_APP_KINDE_POST_LOGOUT_URL);
-console.log("VITE_APP_API_BASE_URL:", import.meta.env.VITE_APP_API_BASE_URL);
+// console.log("Kinde Env Variables...:");
+// console.log("VITE_KINDE_CLIENT_ID:", import.meta.env.VITE_APP_KINDE_CLIENT_ID);
+// console.log("VITE_KINDE_ISSUER_URL:", import.meta.env.VITE_APP_KINDE_ISSUER_URL);
+// console.log("VITE_KINDE_REDIRECT_URL:", import.meta.env.VITE_APP_KINDE_REDIRECT_URL);
+// console.log("VITE_APP_KINDE_POST_LOGOUT_URL:", import.meta.env.VITE_APP_KINDE_POST_LOGOUT_URL);
+// console.log("VITE_APP_API_BASE_URL:", import.meta.env.VITE_APP_API_BASE_URL);
 
 
 
@@ -507,7 +507,7 @@ function App() {
                     <Route path="registerOffline" element={<OfflineRegistrationSystem/>} />
                     <Route path="validateOffline" element={<OfflineValidation />} />
                     <Route path="stats" element={<StatsDashboard />} />
-                
+                    <Route path='coordinator' element={<ExportDashboard/>} />
                      <Route path="validation" element={
                         <Suspense fallback={<LoadingSpinner />}>
                           <ProtectedRoute requireRegistration={false}>
