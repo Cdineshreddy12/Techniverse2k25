@@ -177,6 +177,8 @@ const RegistrationForm = () => {
                       <option value="EEE" className="bg-slate-800">EEE</option>
                       <option value="MECH" className="bg-slate-800">Mechanical</option>
                       <option value="CIVIL" className="bg-slate-800">Civil</option>
+                      <option value="METALLURGY" className="bg-slate-800">METALLURGY</option>
+                      <option value="CHEMICAL" className="bg-slate-800">CHEMICAL</option>
                       
                     </select>
                   </div>

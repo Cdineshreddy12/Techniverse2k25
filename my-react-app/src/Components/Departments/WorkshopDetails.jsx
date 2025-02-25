@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Users, Calendar, Clock, Tag, Loader, 
   IndianRupee, CalendarClock, ShoppingCart, 
-  GraduationCap, Star, ArrowLeft, Mail, Link as LinkIcon
+  GraduationCap, Star, ArrowLeft, Mail, Link as LinkIcon,
+  Image as ImageIcon
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useDispatch } from 'react-redux';
@@ -21,6 +22,7 @@ const WorkshopDetails = () => {
   const [workshop, setWorkshop] = useState(null);
   const [loading, setLoading] = useState(true);
   const [addingToCart, setAddingToCart] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
   // Handle add to cart
   const handleAddToCart = async () => {
@@ -76,7 +78,6 @@ const WorkshopDetails = () => {
     }
   };
   
-
   useEffect(() => {
     const fetchWorkshopDetails = async () => {
       try {
@@ -101,45 +102,47 @@ const WorkshopDetails = () => {
     fetchWorkshopDetails();
   }, [departmentId, workshopId]);
 
-
-  // First, add a helper function to determine if registration is allowed
-const isRegistrationAllowed = (workshop) => {
-  return workshop.registrationStatus === 'open' && 
-         workshop.registration.registeredCount < workshop.registration.totalSlots;
-};
-
-
-const addToBackendCart = async (kindeId, workshop) => {
-  if (!workshop?._id) {
-    throw new Error('Invalid workshop data...');
-  }
-  
-  const workshopItem = {
-    workshopId: workshop._id,
-    price: workshop.price
+  // Helper function to determine if registration is allowed
+  const isRegistrationAllowed = (workshop) => {
+    return workshop.registrationStatus === 'open' && 
+           workshop.registration.registeredCount < workshop.registration.totalSlots;
   };
 
-  const url = API_CONFIG.getUrl('cart/workshop/add');
-  
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      kindeId,
-      item: workshopItem
-    })
-  });
+  const addToBackendCart = async (kindeId, workshop) => {
+    if (!workshop?._id) {
+      throw new Error('Invalid workshop data...');
+    }
+    
+    const workshopItem = {
+      workshopId: workshop._id,
+      price: workshop.price
+    };
 
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error || 'Failed to add workshop to cart');
-  }
-  
-  return response.json();
-};
+    const url = API_CONFIG.getUrl('cart/workshop/add');
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        kindeId,
+        item: workshopItem
+      })
+    });
 
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to add workshop to cart');
+    }
+    
+    return response.json();
+  };
+
+  // Handle image loading errors
+  const handleImageError = () => {
+    setImageError(true);
+  };
 
   if (loading) {
     return (
@@ -165,45 +168,63 @@ const addToBackendCart = async (kindeId, workshop) => {
     );
   }
 
-  const LecturerCard = ({ lecturer }) => (
-    <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
-      <div className="flex gap-6">
-        <div className="w-24 h-24 rounded-xl overflow-hidden bg-slate-700 shrink-0">
-          <img 
-            src={lecturer.photo || "/api/placeholder/200/200"} 
-            alt={lecturer.name}
-            className="w-full h-full object-cover"
-          />
-        </div>
-        <div className="flex-1 min-w-0">
-          <h3 className="text-lg font-semibold text-white mb-1">{lecturer.name}</h3>
-          <p className="text-indigo-400 text-sm mb-2">{lecturer.title}</p>
-          <p className="text-gray-400 text-sm mb-3">{lecturer.role}</p>
-          {lecturer.specifications?.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {lecturer.specifications.map((spec, idx) => (
-                <span key={idx} className="px-2 py-1 bg-slate-700 rounded-lg text-xs text-gray-300">
-                  {spec}
-                </span>
-              ))}
-            </div>
-          )}
+  const LecturerCard = ({ lecturer }) => {
+    const [lecturerImageError, setLecturerImageError] = useState(false);
+    
+    return (
+      <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+        <div className="flex gap-6">
+          <div className="w-24 h-24 rounded-xl overflow-hidden bg-slate-700 shrink-0 flex items-center justify-center">
+            {!lecturer.photo || lecturerImageError ? (
+              <div className="w-full h-full bg-indigo-900/30 flex flex-col items-center justify-center">
+                <ImageIcon className="w-8 h-8 text-indigo-400 mb-1" />
+                <span className="text-xs text-indigo-300">{lecturer.name?.charAt(0) || "L"}</span>
+              </div>
+            ) : (
+              <img 
+                src={lecturer.photo}
+                alt={lecturer.name}
+                className="w-full h-full object-cover"
+                onError={() => setLecturerImageError(true)}
+              />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-lg font-semibold text-white mb-1">{lecturer.name}</h3>
+            <p className="text-indigo-400 text-sm mb-2">{lecturer.title}</p>
+            <p className="text-gray-400 text-sm mb-3">{lecturer.role}</p>
+            {lecturer.specifications?.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {lecturer.specifications.map((spec, idx) => (
+                  <span key={idx} className="px-2 py-1 bg-slate-700 rounded-lg text-xs text-gray-300">
+                    {spec}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
-  console.log('worshop status',workshop.registrationStatus );
-  console.log('worshop status type ',typeof workshop.registrationStatus );
   return (
     <div className="min-h-screen bg-slate-900 pb-24">
       {/* Hero Section */}
       <div className="h-[40vh] relative">
-        <img 
-          src={workshop.bannerDesktop || "/api/placeholder/1920/1080"} 
-          alt={workshop.title}
-          className="w-full h-full object-cover"
-        />
+        {imageError || !workshop.bannerDesktop ? (
+          <div className="w-full h-full bg-gradient-to-br from-indigo-900 to-violet-800 flex flex-col items-center justify-center">
+            <ImageIcon className="w-16 h-16 text-indigo-300 mb-4 opacity-60" />
+            <h1 className="text-2xl md:text-3xl font-bold text-white text-center px-4">{workshop.title}</h1>
+          </div>
+        ) : (
+          <img 
+            src={workshop.bannerDesktop} 
+            alt={workshop.title}
+            className="w-full h-full object-cover"
+            onError={handleImageError}
+          />
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent" />
       </div>
 
@@ -278,31 +299,31 @@ const addToBackendCart = async (kindeId, workshop) => {
         </div>
 
         <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700 mb-6">
-            <h2 className="text-xl font-semibold text-white mb-4">Workshop Timing</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex items-center gap-3">
-                <Calendar className="w-5 h-5 text-indigo-400" />
-                <div>
-                  <p className="text-sm text-gray-400">Duration</p>
-                  <p className="text-white">
-                    {new Date(workshop.workshopTiming.startDate).toLocaleDateString()} - 
-                    {new Date(workshop.workshopTiming.endDate).toLocaleDateString()}
-                  </p>
-                </div>
+          <h2 className="text-xl font-semibold text-white mb-4">Workshop Timing</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex items-center gap-3">
+              <Calendar className="w-5 h-5 text-indigo-400" />
+              <div>
+                <p className="text-sm text-gray-400">Duration</p>
+                <p className="text-white">
+                  {new Date(workshop.workshopTiming.startDate).toLocaleDateString()} - 
+                  {new Date(workshop.workshopTiming.endDate).toLocaleDateString()}
+                </p>
               </div>
-              <div className="flex items-center gap-3">
-                <Clock className="w-5 h-5 text-indigo-400" />
-                <div>
-                  <p className="text-sm text-gray-400">Daily Schedule</p>
-                  <p className="text-white">
-                    {workshop.workshopTiming.dailyStartTime} - 
-                    {workshop.workshopTiming.dailyEndTime} 
-                    ({workshop.workshopTiming.timeZone})
-                  </p>
-                </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Clock className="w-5 h-5 text-indigo-400" />
+              <div>
+                <p className="text-sm text-gray-400">Daily Schedule</p>
+                <p className="text-white">
+                  {workshop.workshopTiming.dailyStartTime} - 
+                  {workshop.workshopTiming.dailyEndTime} 
+                  ({workshop.workshopTiming.timeZone})
+                </p>
               </div>
             </div>
           </div>
+        </div>
 
         {/* Lecturers */}
         <div className="mb-12">
@@ -354,24 +375,26 @@ const addToBackendCart = async (kindeId, workshop) => {
             </div>
 
             <button
-                  onClick={handleAddToCart}
-                  disabled={!isRegistrationAllowed(workshop) || addingToCart}
-                  className={`flex items-center gap-2 px-6 py-3 rounded-lg text-white font-medium
-                          ${isRegistrationAllowed(workshop) && !addingToCart
-                            ? 'bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500'
-                            : 'bg-slate-700 cursor-not-allowed'}`}
-                >
-                  {addingToCart ? (
-                    <Loader className="w-5 h-5 animate-spin" />
-                  ) : (
-                    <ShoppingCart className="w-5 h-5" />
-                  )}
-                  <span>
-                    {addingToCart ? 'Adding to Cart...' : 
-                    !workshop.registration.isOpen ? 'Registration Closed' :
-                    workshop.registration.registeredCount >= workshop.registration.totalSlots??'Add to Cart'}
-                  </span>
-                </button>
+              onClick={handleAddToCart}
+              disabled={!isRegistrationAllowed(workshop) || addingToCart}
+              className={`flex items-center gap-2 px-6 py-3 rounded-lg text-white font-medium
+                      ${isRegistrationAllowed(workshop) && !addingToCart
+                        ? 'bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500'
+                        : 'bg-slate-700 cursor-not-allowed'}`}
+            >
+              {addingToCart ? (
+                <Loader className="w-5 h-5 animate-spin" />
+              ) : (
+                <ShoppingCart className="w-5 h-5" />
+              )}
+              <span>
+                {addingToCart ? 'Adding to Cart...' : 
+                !isRegistrationAllowed(workshop) ? 
+                  (workshop.registration.registeredCount >= workshop.registration.totalSlots ? 
+                    'Sold Out' : 'Registration Closed') : 
+                  'Add to Cart'}
+              </span>
+            </button>
           </div>
         </div>
       </div>

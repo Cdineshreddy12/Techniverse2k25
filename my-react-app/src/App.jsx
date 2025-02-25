@@ -68,6 +68,7 @@ import CancellationPolicy from './Components/CancellationPolicy';
 import PrivacyPolicy from './Components/PrivacyPolicy';
 import TermsAndConditions from './Components/TermsAndConditions.jsx';
 import Timeline from './Components/Timeline.jsx';
+
 // Optimized loading spinner
 const LoadingSpinner = () => (
   <div className="fixed inset-0 bg-slate-950/80 flex items-center justify-center">
@@ -506,7 +507,7 @@ function App() {
                     <Route path="registerOffline" element={<OfflineRegistrationSystem/>} />
                     <Route path="validateOffline" element={<OfflineValidation />} />
                     <Route path="stats" element={<StatsDashboard />} />
-
+                
                      <Route path="validation" element={
                         <Suspense fallback={<LoadingSpinner />}>
                           <ProtectedRoute requireRegistration={false}>

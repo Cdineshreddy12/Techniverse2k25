@@ -3,6 +3,8 @@ import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { workshopService } from '../../../services/workshopService';
 import { useMemo } from 'react';
+import { Image as ImageIcon } from 'lucide-react';
+
 const useScrollAnimation = () => {
   const [isVisible, setIsVisible] = useState(false);
   const elementRef = useRef(null);
@@ -35,14 +37,21 @@ const useScrollAnimation = () => {
   return [elementRef, isVisible];
 };
 
-const WorkshopCard = ({ workshop, index,deptId }) => {
+const WorkshopCard = ({ workshop, index }) => {
   const [cardRef, isVisible] = useScrollAnimation();
+  const [imageError, setImageError] = useState(false);
   const isEven = index % 2 === 0;
-    // Extract department ID from the workshop's departments array
-    const departmentId = workshop.departments?.[0]?._id;
-  console.log('deptID in workshop card',departmentId )
+  
+  // Extract department ID from the workshop's departments array
+  const departmentId = workshop.departments?.[0]?._id;
+
+  // Handle image loading errors
+  const handleImageError = () => {
+    setImageError(true);
+  };
 
   if (!workshop || !departmentId) return null;
+  
   return (
     <div ref={cardRef} className="relative h-full w-full overflow-hidden">
       <div className={`transition-all duration-500 ease-out ${
@@ -59,11 +68,19 @@ const WorkshopCard = ({ workshop, index,deptId }) => {
             <div className="flex flex-col h-full">
               {/* Image Section */}
               <div className="w-full h-48 relative">
-                <img
-                  src={workshop.bannerDesktop || workshop.bannerMobile || "/api/placeholder/400/300"}
-                  alt={workshop.title}
-                  className="w-full h-full object-cover"
-                />
+                {imageError || (!workshop.bannerDesktop && !workshop.bannerMobile) ? (
+                  <div className="w-full h-full bg-gradient-to-br from-indigo-900 to-violet-800 flex flex-col items-center justify-center">
+                    <ImageIcon className="w-10 h-10 text-indigo-300 mb-2 opacity-60" />
+                    <p className="text-sm text-indigo-300 font-medium text-center px-4 line-clamp-1">{workshop.title}</p>
+                  </div>
+                ) : (
+                  <img
+                    src={workshop.bannerDesktop || workshop.bannerMobile}
+                    alt={workshop.title}
+                    className="w-full h-full object-cover"
+                    onError={handleImageError}
+                  />
+                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/50 to-transparent" />
                 
                 {/* Status Badge */}
@@ -101,7 +118,7 @@ const WorkshopCard = ({ workshop, index,deptId }) => {
                     ))}
                   </div>
                   <div className="text-xs text-slate-300">
-                    {formatDate(workshop.registrationEndTime)}
+                    Registrations: {formatDate(workshop.registrationEndTime)}
                   </div>
                 </div>
               </div>
@@ -159,9 +176,7 @@ const Workshops = () => {
   const [page, setPage] = useState(1);
   const limit = 10;
 
-
-  console.log('deptID', departmentId);
-   // Updated query with proper options
+  // Updated query with proper options
   const { data: workshopsData, isLoading, error } = useQuery({
     queryKey: ['workshops', departmentId, page, searchQuery],
     queryFn: () => workshopService.getWorkshopsByDepartment(departmentId, {

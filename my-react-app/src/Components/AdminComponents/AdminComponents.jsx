@@ -36,6 +36,7 @@ const AdminDashboard = () => {
   
         { name: "Departments", icon: <GraduationCap size={20} />, path: "/adminDashboard/departments" },
         { name: "Stats", icon: <GraduationCap size={20} />, path: "/adminDashboard/stats"},
+        { name: "Coordinator Dashboard", icon: <GraduationCap size={20} />, path: "/adminDashboard/coordinator"},
       ]
     },
     {

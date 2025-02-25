@@ -30,6 +30,7 @@ import { fileURLToPath } from "url";
 import workshopRoutes from './Routes/workShopRoutes.js'
 import offlineRoutes from './Routes/OfflineRegistrationRoutes.js'
 import { connectToDatabase } from './utils/dbConfig.js';
+
 // import OfflineRegistrationRoutes from './Routes/offlineRegistrations.js'
 // Load environment variables
 dotenv.config();
@@ -136,6 +137,7 @@ app.use('/api',comboRoutes);
 app.use('/api',PaymentRoutes);
 app.use('/api',workshopRoutes);
 app.use('/api/offline',offlineRoutes);
+
 // app.use('/api',OfflineRegistrationRoutes);
 
 

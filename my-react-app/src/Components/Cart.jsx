@@ -21,7 +21,7 @@ const packages = [
       {
         id: 'rgukt-workshop',
         name: "Single Workshop",
-        price: 199,
+        price: 1,
         features: [
           "1 Workshop Registration",
           "Workshop Certificate",
@@ -32,7 +32,7 @@ const packages = [
       {
         id: 'rgukt-all-events',
         name: "All Events",
-        price: 199,
+        price: 1,
         features: [
           "Access to All Technical Events",
           "Access to All Non-Technical Events",
@@ -44,7 +44,7 @@ const packages = [
       {
         id: 'rgukt-combo',
         name: "All Events + Workshop",
-        price: 299,
+        price: 2,
         features: [
           "Access to All Technical Events",
           "Access to All Non-Technical Events",
