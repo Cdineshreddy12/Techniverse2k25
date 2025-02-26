@@ -6,7 +6,7 @@ import crypto from 'crypto';
 import QRCode from 'qrcode';
 import dotenv from 'dotenv';
 import Event from '../Models/eventModel.js';
-
+import mongoose from 'mongoose'
 dotenv.config();
 
 const router = express.Router();
@@ -385,10 +385,15 @@ router.post('/check-in', async (req, res) => {
       });
     }
 
-    // Create check-in record
+    // Create check-in record with student field properly populated
     const checkIn = new CheckIn({
       registration: registration._id,
       event: eventId,
+      student: {
+        _id: student._id,
+        kindeId: student.kindeId, // This is the missing required field
+        name: student.name
+      },
       status: 'completed',
       timestamp: new Date(),
       verificationMethod: 'qr_only'
@@ -450,6 +455,196 @@ router.post('/check-in', async (req, res) => {
         errorMessage: error.message,
         timestamp: new Date().toISOString()
       }
+    });
+  }
+});
+
+
+router.post('/validate-workshop-registration', async (req, res) => {
+  try {
+    const { qrData, workshopId } = req.body;
+    
+    if (!workshopId || !qrData) {
+      return res.status(400).json({
+        success: false,
+        message: 'Workshop ID and QR data are required'
+      });
+    }
+
+    let parsedData;
+    try {
+      parsedData = JSON.parse(qrData);
+      console.log('Parsed QR data:', JSON.stringify(parsedData, null, 2));
+      
+      // Verify QR code hasn't expired
+      const validUntil = new Date(parsedData.validUntil);
+      if (validUntil < new Date()) {
+        return res.status(400).json({
+          success: false,
+          message: 'QR code has expired'
+        });
+      }
+
+      // Check if we have workshops data
+      if (!parsedData.workshops || !Array.isArray(parsedData.workshops) || parsedData.workshops.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'No workshop data found in QR code'
+        });
+      }
+
+      // Check if workshop is included in QR data
+      if (!parsedData.workshops.includes(workshopId) && 
+          !parsedData.workshops.some(w => w.toString() === workshopId.toString())) {
+        return res.status(400).json({
+          success: false,
+          message: 'This ticket is not valid for this workshop'
+        });
+      }
+
+      // Different validation paths based on QR code type
+      if (parsedData.orderId && parsedData.paymentId) {
+        // Normal payment flow QR
+        const dataToVerify = {
+          id: parsedData.id,
+          events: parsedData.events,
+          workshops: parsedData.workshops,
+          orderId: parsedData.orderId,
+          paymentId: parsedData.paymentId,
+          amount: parsedData.amount
+        };
+
+        const expectedSignature = crypto
+          .createHmac('sha256', process.env.RAZORPAY_SECRET_KEY)
+          .update(JSON.stringify(dataToVerify))
+          .digest('hex');
+
+        if (parsedData.signature !== expectedSignature) {
+          console.error('QR validation failed - signature mismatch:', {
+            expected: expectedSignature,
+            received: parsedData.signature
+          });
+          
+          return res.status(400).json({
+            success: false,
+            message: 'Invalid QR code signature'
+          });
+        }
+      } else if (parsedData.signature) {
+        // Legacy or custom signature flow
+        console.log('Using legacy/custom signature validation');
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid QR code format - missing signature data'
+        });
+      }
+
+    } catch (error) {
+      console.error('QR parsing error:', error);
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid QR code format'
+      });
+    }
+
+    // Validate student and registration
+    const student = await Student.findOne({ kindeId: parsedData.id });
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found'
+      });
+    }
+
+    // Different query strategies based on QR type
+    let registrationQuery = {
+      student: student._id,
+      kindeId: parsedData.id,
+      paymentStatus: 'completed',
+      'selectedWorkshops.workshopId': workshopId
+    };
+
+    // Add additional filters for payment-based QRs
+    if (parsedData.orderId && parsedData.paymentId) {
+      registrationQuery['paymentDetails.razorpayOrderId'] = parsedData.orderId;
+      registrationQuery['paymentDetails.razorpayPaymentId'] = parsedData.paymentId;
+    }
+
+    const Workshop = mongoose.model('Workshop');
+    const registration = await Registration.findOne(registrationQuery)
+      .populate('student')
+      .populate({
+        path: 'selectedWorkshops.workshopId',
+        model: Workshop
+      });
+
+    if (!registration) {
+      return res.status(404).json({
+        success: false,
+        message: 'Registration not found or payment pending'
+      });
+    }
+
+    // Verify amount matches only if amount is provided
+    if (parsedData.amount && registration.amount !== parsedData.amount) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid payment amount'
+      });
+    }
+
+    // Find the workshop in registration data
+    const registeredWorkshop = registration.selectedWorkshops.find(
+      w => w.workshopId && w.workshopId._id && w.workshopId._id.toString() === workshopId
+    );
+
+    if (!registeredWorkshop) {
+      return res.status(400).json({
+        success: false,
+        message: 'Not registered for this workshop'
+      });
+    }
+
+    const existingCheckIn = await CheckIn.findOne({
+      registration: registration._id,
+      event: workshopId, // Using event field for workshop too
+      status: 'completed'
+    });
+
+    if (existingCheckIn) {
+      return res.status(400).json({
+        success: false,
+        message: 'Already checked in for this workshop',
+        checkInTime: existingCheckIn.timestamp
+      });
+    }
+
+    res.json({
+      success: true,
+      isWorkshop: true,
+      registration: {
+        _id: registration._id,
+        name: registration.student.name,
+        email: registration.student.email,
+        studentId: registration.student.studentId,
+        workshopName: registeredWorkshop.workshopName,
+        workshop: {
+          _id: registeredWorkshop.workshopId._id,
+          name: registeredWorkshop.workshopId.title,
+          date: registeredWorkshop.workshopId.date,
+          venue: registeredWorkshop.workshopId.venue,
+          instructor: registeredWorkshop.workshopId.instructor
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Workshop registration validation error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Validation failed',
+      error: error.message
     });
   }
 });

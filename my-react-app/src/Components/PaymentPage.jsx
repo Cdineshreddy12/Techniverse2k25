@@ -23,21 +23,40 @@ const PaymentHandler = ({ sessionData, onClose }) => {
       try {
         console.log('Payment Response:', response); // Debug log
 
-        // Check if any parameters are missing
-        if (!response.razorpay_payment_id || !response.razorpay_order_id || !response.razorpay_signature) {
+        // IMPORTANT FIX: Check each property individually with more detailed logging
+        if (!response.razorpay_payment_id) {
+          console.error('Missing razorpay_payment_id in response:', response);
+        }
+        
+        if (!response.razorpay_order_id) {
+          console.error('Missing razorpay_order_id in response:', response);
+        }
+        
+        if (!response.razorpay_signature) {
+          console.error('Missing razorpay_signature in response:', response);
+        }
+
+        // If any are missing, but we have at least a payment ID or order ID, we can still try to verify
+        if ((!response.razorpay_payment_id && !response.razorpay_order_id) || 
+            (response.razorpay_payment_id && response.razorpay_order_id && !response.razorpay_signature)) {
           throw new Error('Missing required Razorpay parameters');
         }
+
+        // Prepare verification data with fallbacks for any missing fields
+        const verifyData = {
+          razorpay_payment_id: response.razorpay_payment_id || '',
+          razorpay_order_id: response.razorpay_order_id || razorpayDetails.orderId || '',
+          razorpay_signature: response.razorpay_signature || ''
+        };
+
+        console.log('Sending verification data:', verifyData);
 
         const verifyResponse = await fetch(API_CONFIG.getUrl('payment/verify'), {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({
-            razorpay_payment_id: response.razorpay_payment_id,
-            razorpay_order_id: response.razorpay_order_id,
-            razorpay_signature: response.razorpay_signature
-          })
+          body: JSON.stringify(verifyData)
         });
 
         if (!verifyResponse.ok) {
@@ -45,22 +64,58 @@ const PaymentHandler = ({ sessionData, onClose }) => {
           throw new Error(`Server responded with status ${verifyResponse.status}: ${errorText}`);
         }
 
-        const verifyData = await verifyResponse.json();
-        console.log('Verify Response:', verifyData); // Debug log
+        const verifyResult = await verifyResponse.json();
+        console.log('Verify Response:', verifyResult); // Debug log
 
-        if (verifyData.success) {
+        if (verifyResult.success) {
           toast.success('Payment successful!');
           // Use state parameter for React Router
           window.location.href = `/payment/success?orderId=${paymentDetails.orderId}`;
         } else {
-          throw new Error(verifyData.error || 'Verification failed');
+          throw new Error(verifyResult.error || 'Verification failed');
         }
       } catch (error) {
         console.error('Payment verification error:', error);
         toast.error(`Payment verification failed: ${error.message}`);
-        window.location.href = `/payment/failure?orderId=${paymentDetails.orderId}&error=${encodeURIComponent(error.message)}`;
+        
+        // IMPORTANT: Instead of immediately redirecting to failure page,
+        // check payment status before redirecting
+        checkPaymentStatus(paymentDetails.orderId);
       } finally {
         if (onClose) onClose();
+      }
+    };
+
+    // Add this function to check payment status before showing error
+    const checkPaymentStatus = async (orderId) => {
+      try {
+        if (!orderId) {
+          window.location.href = '/payment/failure?error=Missing+order+ID';
+          return;
+        }
+        
+        console.log('Checking payment status for order:', orderId);
+        
+        // Wait a moment for webhook to process
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Check payment status from your API
+        const response = await fetch(API_CONFIG.getUrl(`payment/status/${orderId}`));
+        const data = await response.json();
+        
+        console.log('Payment status check result:', data);
+        
+        // If payment is completed according to backend, redirect to success
+        if (data.success && data.status === 'completed') {
+          toast.success('Payment successful!');
+          window.location.href = `/payment/success?orderId=${orderId}`;
+        } else {
+          // Otherwise redirect to failure
+          window.location.href = `/payment/failure?orderId=${orderId}&error=Payment+verification+failed`;
+        }
+      } catch (error) {
+        console.error('Payment status check failed:', error);
+        window.location.href = `/payment/failure?orderId=${orderId}&error=${encodeURIComponent(error.message)}`;
       }
     };
 

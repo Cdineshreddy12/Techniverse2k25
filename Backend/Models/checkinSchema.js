@@ -1,3 +1,4 @@
+// Update your checkinSchema.js file
 import mongoose from 'mongoose';
 
 const checkInSchema = new mongoose.Schema({
@@ -15,7 +16,8 @@ const checkInSchema = new mongoose.Schema({
     student: {
         _id: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: 'Student'
+            ref: 'Student',
+            required: true
         },
         kindeId: {
             type: String,
