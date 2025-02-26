@@ -1197,8 +1197,22 @@ router.post('/registration/update', async (req, res) => {
       console.log('Current events:', registration.selectedEvents.length);
       console.log('Current workshops:', registration.selectedWorkshops?.length || 0);
 
-      // Process new events
+      // Get the package ID from the registration
+      const packageId = registration.paymentDetails?.merchantParams?.comboId || '';
+      console.log('User package type:', packageId);
+
+      // Determine package type for permission checks
+      const isWorkshopPackage = packageId.includes('workshop') && !packageId.includes('combo');
+      const isEventPackage = packageId.includes('all-events');
+      const isComboPackage = packageId.includes('combo');
+
+      // Process new events based on package permissions
       if (newEvents && newEvents.length > 0) {
+        // Check if the user can add events based on their package
+        if (isWorkshopPackage && !isComboPackage) {
+          throw new Error('Your workshop package does not allow adding events. Please upgrade to a combo package.');
+        }
+
         const eventUpdates = newEvents.map(event => {
           const eventId = event.id;
           const eventName = event.eventInfo?.title || event.title || 'Event';
@@ -1250,12 +1264,54 @@ router.post('/registration/update', async (req, res) => {
 
       // Process new workshops with restrictions
       if (newWorkshops && newWorkshops.length > 0) {
+        // Check if user can add workshops based on their package
+        if (isEventPackage) {
+          throw new Error('Your events package does not allow adding workshops. Please upgrade to a combo package.');
+        }
+
         // Check if the user already has workshops in their registration
         const existingWorkshopCount = registration.selectedWorkshops?.length || 0;
         
         if (existingWorkshopCount > 0) {
-          console.log('User already has workshops registered:', existingWorkshopCount);
-          throw new Error('You already have a workshop registered. Cannot add more workshops to an existing registration.');
+          // Allow workshop changes only if this is a new workshop (replacement) for workshop-only packages
+          if (isWorkshopPackage) {
+            // Remove existing workshop first
+            console.log('Replacing existing workshop for workshop-only package');
+
+            // Get existing workshop ID
+            const existingWorkshopId = registration.selectedWorkshops[0].workshopId;
+            
+            // Decrement registration count in workshop
+            await Workshop.findByIdAndUpdate(
+              existingWorkshopId,
+              { 
+                $inc: { 
+                  registrationCount: -1,
+                  'registration.registeredCount': -1 
+                },
+                $pull: { registeredStudents: registration.student._id }
+              },
+              { session }
+            ).exec();
+            
+            // Remove from student record
+            await Student.findByIdAndUpdate(
+              registration.student._id,
+              { 
+                $pull: { 
+                  workshops: { workshopId: existingWorkshopId } 
+                } 
+              },
+              { session }
+            ).exec();
+            
+            // Clear existing workshops
+            registration.selectedWorkshops = [];
+          } else {
+            // For combo packages, don't allow changing workshops
+            console.log('User already has workshops registered:', existingWorkshopCount);
+            throw new Error('You already have a workshop registered. Cannot change workshops in a combo package.');
+          }
         }
         
         // Allow only one workshop during registration update
@@ -1281,7 +1337,7 @@ router.post('/registration/update', async (req, res) => {
         });
 
         if (newWorkshopUpdates.length > 0) {
-          // FIX: Update both registrationCount and registration.registeredCount
+          // Update both registrationCount and registration.registeredCount
           const workshopPromises = newWorkshopUpdates.map(workshop => {
             const workshopId = mongoose.Types.ObjectId(workshop.workshopId);
             console.log('Updating workshop count for ID:', workshopId);
@@ -1310,7 +1366,7 @@ router.post('/registration/update', async (req, res) => {
         }
       }
 
-      // Update student record - FIX: Convert string IDs to ObjectIds for workshops
+      // Update student record - Convert string IDs to ObjectIds for workshops
       if ((newEvents && newEvents.length > 0) || (newWorkshops && newWorkshops.length > 0)) {
         // For events
         const eventUpdates = newEvents && newEvents.length > 0 

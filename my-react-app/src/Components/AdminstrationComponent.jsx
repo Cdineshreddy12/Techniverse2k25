@@ -55,7 +55,7 @@ const AdministrationComponent = () => {
       },
       {
         name: "Mr. Gedela Ravi", 
-        role: "Dean, Student Welfare", 
+        role: "Dean, Student Welfare(Convenor)", 
         designation: "Advisory Member",
         image: "https://res.cloudinary.com/dxsupdl3t/image/upload/v1740575608/WhatsApp_Image_2025-02-26_at_16.05.11_f25a7e4f_jtbdbz.jpg"
       }

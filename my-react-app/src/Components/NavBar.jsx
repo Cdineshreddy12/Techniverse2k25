@@ -93,7 +93,7 @@ const Navbar = ({ onScrollToSection }) => {
       dropdown: true,
       items: [
         { title: 'Administration', icon: <Users2 className="w-4 h-4" />, path: '/administration' },
-        { title: 'Core Commities', icon: <Users2 className="w-4 h-4" />, path: '/commities' },
+        { title: 'Core Committees', icon: <Users2 className="w-4 h-4" />, path: '/commities' },
       ]
     },
     { 
