@@ -200,17 +200,33 @@ const withTransaction = async (operations) => {
 router.post('/payment/initiate', detectTampering, async (req, res) => {
   try {
       const { student, packageConfig, verifiedPrice, cartValidation } = req.validatedData;
-      const { workshops = [] } = req.body; // Get workshops directly from request body
+      const { workshops = [], platformFee = 0, totalAmount = 0 } = req.body; // Get platform fee from request
 
-      console.log('Payment initiation with frontend workshops:', workshops);
+      // Validate platform fee calculation (should be approximately 2% of baseAmount)
+      const expectedPlatformFee = Math.ceil(verifiedPrice * 0.02); // 2% rounded up
+      
+      // Use the platform fee from the request if it's close to the expected value
+      // Otherwise use our server-calculated value for security
+      const finalPlatformFee = Math.abs(platformFee - expectedPlatformFee) <= 1 ? 
+                               platformFee : expectedPlatformFee;
+
+      // Calculate the final total amount
+      const finalTotalAmount = verifiedPrice + finalPlatformFee;
+      
+      console.log('Payment initiation with frontend workshops and fees:', {
+          workshops,
+          baseAmount: verifiedPrice,
+          requestPlatformFee: platformFee,
+          finalPlatformFee,
+          finalTotalAmount
+      });
 
       const result = await withTransaction(async (session) => {
           const timestamp = Date.now().toString(36);
           const userIdSuffix = student.kindeId.slice(-4);
           const orderId = `ord_${timestamp}_${userIdSuffix}`;
 
-          // Use workshops from the request body instead of student.workshops
-          // This ensures we use what the user selected in the UI right now
+          // Use workshops from the request body
           const selectedWorkshops = workshops.map(workshop => ({
               workshopId: workshop.id,
               workshopName: workshop.title,
@@ -219,7 +235,7 @@ router.post('/payment/initiate', detectTampering, async (req, res) => {
 
           console.log('Selected workshops for registration:', selectedWorkshops);
 
-          // Create registration record within transaction
+          // Create registration record with platform fee details
           const registration = await Registration.create([{
               student: student._id,
               kindeId: student.kindeId,
@@ -230,8 +246,10 @@ router.post('/payment/initiate', detectTampering, async (req, res) => {
                   registrationType: 'individual',
                   maxTeamSize: 1
               })),
-              selectedWorkshops: selectedWorkshops, // Use request workshops instead of student.workshops
-              amount: verifiedPrice,
+              selectedWorkshops: selectedWorkshops,
+              amount: verifiedPrice, // Base package price
+              platformFee: finalPlatformFee, // Store platform fee separately
+              totalAmount: finalTotalAmount, // Total including platform fee
               paymentStatus: 'pending',
               paymentInitiatedAt: new Date(),
               paymentDetails: {
@@ -245,23 +263,25 @@ router.post('/payment/initiate', detectTampering, async (req, res) => {
                       comboId: cartValidation.originalCombo.id,
                       comboName: cartValidation.originalCombo.name,
                       verificationData: cartValidation,
-                      // Store selected workshop IDs for verification
-                      selectedWorkshopIds: selectedWorkshops.map(w => w.workshopId)
+                      selectedWorkshopIds: selectedWorkshops.map(w => w.workshopId),
+                      baseAmount: verifiedPrice,
+                      platformFee: finalPlatformFee
                   }
               }
           }], { session });
 
-          // Create Razorpay order
+          // Create Razorpay order with total amount (base price + platform fee)
           const razorpayOrder = await razorpay.orders.create({
-              amount: verifiedPrice * 100,
+              amount: finalTotalAmount * 100, // Convert to paise
               currency: 'INR',
               receipt: orderId.slice(0, 40),
               notes: {
                   kindeId: student.kindeId,
                   packageId: packageConfig.id,
                   email: student.email,
-                  // Store workshop IDs in the order notes for verification
-                  workshops: JSON.stringify(selectedWorkshops.map(w => w.workshopId))
+                  workshops: JSON.stringify(selectedWorkshops.map(w => w.workshopId)),
+                  baseAmount: verifiedPrice,
+                  platformFee: finalPlatformFee
               }
           });
 
@@ -526,6 +546,7 @@ router.post('/payment/verify', async (req, res) => {
       });
 
       if (!razorpay_payment_id || !razorpay_order_id || !razorpay_signature) {
+          console.error('Missing required payment parameters:', req.body);
           throw new Error('Missing required payment parameters');
       }
 
@@ -564,29 +585,24 @@ router.post('/payment/verify', async (req, res) => {
               return registration;
           }
           
-          // Retrieve original order to verify workshop data
+          // Retrieve original order to verify workshop and payment data
           const razorpayOrder = await razorpay.orders.fetch(razorpay_order_id);
           console.log('Razorpay order:', {
               id: razorpay_order_id,
-              notes: razorpayOrder.notes
+              notes: razorpayOrder.notes,
+              amount: razorpayOrder.amount
           });
           
-          // Check if we need to validate workshop selection from order notes
+          // Handle workshop validation from order notes
           if (razorpayOrder.notes && razorpayOrder.notes.workshops) {
               try {
                   const workshopIdsFromNotes = JSON.parse(razorpayOrder.notes.workshops);
                   console.log('Workshops from order notes:', workshopIdsFromNotes);
                   
-                  // If there are workshop IDs in the notes, verify registration has correct ones
                   if (workshopIdsFromNotes && workshopIdsFromNotes.length > 0) {
                       const registrationWorkshopIds = registration.selectedWorkshops.map(w => 
                           w.workshopId.toString()
                       );
-                      
-                      console.log('Workshop comparison:', {
-                          fromNotes: workshopIdsFromNotes,
-                          fromRegistration: registrationWorkshopIds
-                      });
                       
                       // Check if there's a mismatch that needs correction
                       const needsCorrection = !arraysEqual(workshopIdsFromNotes, registrationWorkshopIds);
@@ -613,8 +629,6 @@ router.post('/payment/verify', async (req, res) => {
                                   status: 'pending'
                               };
                           });
-                          
-                          console.log('Workshops corrected to:', registration.selectedWorkshops);
                       }
                   }
               } catch (e) {
@@ -623,19 +637,43 @@ router.post('/payment/verify', async (req, res) => {
               }
           }
 
-          // Verify payment amount
+          // Verify payment amount with platform fee
           const payment = await razorpay.payments.fetch(razorpay_payment_id);
-          const paidAmount = payment.amount / 100;
+          const paidAmount = payment.amount / 100; // Convert from paise to rupees
+          
+          // Get base amount and platform fee from registration or order notes
+          const baseAmount = registration.amount;
+          const platformFee = registration.platformFee || 
+                             (razorpayOrder.notes && parseFloat(razorpayOrder.notes.platformFee)) || 
+                             Math.ceil(baseAmount * 0.02);
+          
+          // Calculate expected total (with allowance for rounding)
+          const expectedTotal = registration.totalAmount || (baseAmount + platformFee);
+          
+          // Log payment amount verification
+          console.log('Payment amount verification:', {
+              paidAmount,
+              expectedTotal,
+              baseAmount,
+              platformFee
+          });
+          
+          // Check if total amount is correct (with small tolerance)
+          if (Math.abs(paidAmount - expectedTotal) > 1) {
+              console.warn('Payment amount mismatch but continuing. Paid: ' + 
+                          paidAmount + ', Expected: ' + expectedTotal);
+          }
 
-          // Generate QR code
+          // Generate QR code with platform fee information
           const qrCodeDataUrl = await generateQRCode({
               userId: registration.student.kindeId,
               selectedEvents: registration.selectedEvents,
               selectedWorkshops: registration.selectedWorkshops,
-              verificationHash: crypto
-                  .createHmac('sha256', process.env.RAZORPAY_SECRET_KEY)
-                  .update(`${registration.student.kindeId}:${razorpay_order_id}:${paidAmount}`)
-                  .digest('base64')
+              orderId: razorpay_order_id,
+              paymentId: razorpay_payment_id,
+              amount: baseAmount,
+              platformFee: platformFee,
+              totalAmount: paidAmount
           });
 
           // Update registration within transaction
@@ -644,21 +682,30 @@ router.post('/payment/verify', async (req, res) => {
           registration.paymentDetails.razorpayPaymentId = razorpay_payment_id;
           registration.paymentDetails.razorpaySignature = razorpay_signature;
           registration.paymentDetails.paymentMethod = payment.method;
+          registration.paymentDetails.status = 'completed';
+          
+          // Ensure platform fee fields are set correctly
+          registration.platformFee = platformFee;
+          registration.totalAmount = paidAmount;
+          
           registration.qrCode = {
               dataUrl: qrCodeDataUrl,
               generatedAt: new Date(),
+              validUntil: new Date('2025-04-09T23:59:59.999Z'),
               metadata: {
                   events: registration.selectedEvents.map(e => e.eventId.toString()),
                   workshops: (registration.selectedWorkshops || []).map(w => w.workshopId.toString()),
                   verificationData: {
-                      amount: paidAmount,
+                      baseAmount: baseAmount,
+                      platformFee: platformFee,
+                      totalAmount: paidAmount,
                       paymentId: razorpay_payment_id,
                       timestamp: new Date()
                   }
               }
           };
 
-          // Update events and workshops atomically within transaction
+          // Update events atomically within transaction
           const eventUpdates = registration.selectedEvents.map(event => {
               event.status = 'completed';
               return Event.findByIdAndUpdate(
@@ -671,30 +718,53 @@ router.post('/payment/verify', async (req, res) => {
               );
           });
 
-          const workshopUpdates = registration.selectedWorkshops?.map(workshop => {
-              workshop.status = 'completed';
-              return Workshop.findByIdAndUpdate(
-                  workshop.workshopId,
-                  { 
-                    $inc: { registrationCount: 1 },
-                    $addToSet: { registeredStudents: registration.student._id }
-                  },
-                  { session }
-              );
-          }) || [];
+          // Update workshops atomically within transaction - FIX WORKSHOP REGISTRATION COUNT
+          const workshopUpdatePromises = [];
+          
+          if (registration.selectedWorkshops && registration.selectedWorkshops.length > 0) {
+              console.log('Processing workshop registrations:', registration.selectedWorkshops);
+              
+              for (const workshop of registration.selectedWorkshops) {
+                  workshop.status = 'completed';
+                  
+                  // Ensure workshopId is correctly handled as ObjectId
+                  const workshopId = typeof workshop.workshopId === 'object' 
+                      ? workshop.workshopId 
+                      : mongoose.Types.ObjectId(workshop.workshopId.toString());
+                  
+                  // Log the workshop update
+                  console.log('Updating workshop registration count for:', workshopId);
+                  
+                  // Three updates for workshop:
+                  // 1. Increment registrationCount
+                  // 2. Increment registration.registeredCount
+                  // 3. Add student to registeredStudents
+                  const workshopUpdate = Workshop.findByIdAndUpdate(
+                      workshopId,
+                      { 
+                          $inc: { 
+                              registrationCount: 1,
+                              'registration.registeredCount': 1
+                          },
+                          $addToSet: { registeredStudents: registration.student._id }
+                      },
+                      { session, new: true }
+                  );
+                  
+                  workshopUpdatePromises.push(workshopUpdate);
+              }
+          }
 
-          // Update student record within transaction with the correct workshops
-          // This ensures the student record matches the registration
+          // Update student record within transaction
           await Student.findByIdAndUpdate(
               registration.student._id,
               {
                   $addToSet: { 
                     registrations: registration._id,
                     events: { $each: registration.selectedEvents.map(e => e.eventId) },
-                    // Use the workshops from the registration to update the student
                     workshops: { $each: (registration.selectedWorkshops || []).map(w => ({
                         id: w.workshopId,
-                        workshopId: w.workshopId, // For compatibility
+                        workshopId: w.workshopId,
                         title: w.workshopName
                     }))}
                   },
@@ -704,33 +774,29 @@ router.post('/payment/verify', async (req, res) => {
           );
 
           // Execute all updates
-          await Promise.all([
+          const updateResults = await Promise.all([
               registration.save({ session }),
               ...eventUpdates,
-              ...workshopUpdates
+              ...workshopUpdatePromises
           ]);
+          
+          // Log update results for debugging
+          console.log('Workshop update results:', updateResults.slice(eventUpdates.length + 1));
 
           return registration;
       });
 
-      // Send confirmation email after transaction is committed
-      // Uncomment this if you want to send emails
-      // await sendConfirmationEmail(
-      //     result.student.email,
-      //     result.qrCode.dataUrl,
-      //     {
-      //         name: result.student.name,
-      //         registrationType: result.paymentDetails.merchantParams.comboName,
-      //         amount: result.amount,
-      //         transactionId: result.paymentDetails.razorpayPaymentId
-      //     }
-      // );
+      // Send confirmation email if needed
+      // await sendConfirmationEmail(...);
 
+      // Return success response with fee information
       res.json({
           success: true,
           registration: {
               orderId: result.paymentDetails.orderId,
               amount: result.amount,
+              platformFee: result.platformFee,
+              totalAmount: result.totalAmount,
               status: 'completed',
               name: result.student.name,
               email: result.student.email,
@@ -802,26 +868,39 @@ router.post('/payment/webhook', express.json(), async (req, res) => {
           return;
         }
 
-        // Generate QR code
+        // Get the paid amount and calculate/set platform fee
+        const paidAmount = orderData.amount / 100; // Convert from paise to rupees
+        const baseAmount = registration.amount;
+        const platformFee = registration.platformFee || Math.ceil(baseAmount * 0.02);
+        
+        // Update fee information
+        registration.platformFee = platformFee;
+        registration.totalAmount = paidAmount;
+
+        // Generate QR code with platform fee information
         const qrCodeDataUrl = await generateQRCode({
           userId: registration.student.kindeId,
           selectedEvents: registration.selectedEvents,
           selectedWorkshops: registration.selectedWorkshops,
-          verificationHash: crypto
-            .createHmac('sha256', process.env.RAZORPAY_SECRET_KEY)
-            .update(`${registration.student.kindeId}:${orderData.order_id}:${orderData.amount}`)
-            .digest('base64')
+          orderId: orderData.order_id,
+          paymentId: orderData.id,
+          amount: baseAmount,
+          platformFee: platformFee,
+          totalAmount: paidAmount
         });
 
         // Store QR code
         registration.qrCode = {
           dataUrl: qrCodeDataUrl,
           generatedAt: new Date(),
+          validUntil: new Date('2025-04-09T23:59:59.999Z'),
           metadata: {
             events: registration.selectedEvents.map(e => e.eventId.toString()),
             workshops: (registration.selectedWorkshops || []).map(w => w.workshopId.toString()),
             verificationData: {
-              amount: orderData.amount / 100, // Convert from paise to rupees
+              baseAmount: baseAmount,
+              platformFee: platformFee,
+              totalAmount: paidAmount,
               paymentId: orderData.id,
               timestamp: new Date()
             }
@@ -833,6 +912,7 @@ router.post('/payment/webhook', express.json(), async (req, res) => {
         registration.paymentCompletedAt = new Date();
         registration.paymentDetails.razorpayPaymentId = orderData.id;
         registration.paymentDetails.paymentMethod = orderData.method;
+        registration.paymentDetails.status = 'completed';
 
         // Update event statuses and counts atomically
         const eventUpdatePromises = registration.selectedEvents.map(event => {
@@ -847,18 +927,39 @@ router.post('/payment/webhook', express.json(), async (req, res) => {
           );
         });
 
-        // Update workshop statuses and counts atomically
-        const workshopUpdatePromises = (registration.selectedWorkshops || []).map(workshop => {
-          workshop.status = 'completed';
-          return Workshop.findByIdAndUpdate(
-            workshop.workshopId,
-            {
-              $inc: { registrationCount: 1 },
-              $addToSet: { registeredStudents: registration.student._id }
-            },
-            { session, new: true }
-          );
-        });
+        // Fix: Update workshop statuses and counts atomically
+        const workshopUpdatePromises = [];
+        
+        if (registration.selectedWorkshops && registration.selectedWorkshops.length > 0) {
+            console.log('Webhook processing workshop registrations:', registration.selectedWorkshops);
+            
+            for (const workshop of registration.selectedWorkshops) {
+                workshop.status = 'completed';
+                
+                // Ensure workshopId is correctly handled as ObjectId
+                const workshopId = typeof workshop.workshopId === 'object' 
+                    ? workshop.workshopId 
+                    : mongoose.Types.ObjectId(workshop.workshopId.toString());
+                
+                // Log the workshop update
+                console.log('Webhook updating workshop registration count for:', workshopId);
+                
+                // Update both registrationCount and registration.registeredCount
+                const workshopUpdate = Workshop.findByIdAndUpdate(
+                    workshopId,
+                    { 
+                        $inc: { 
+                            registrationCount: 1,
+                            'registration.registeredCount': 1
+                        },
+                        $addToSet: { registeredStudents: registration.student._id }
+                    },
+                    { session, new: true }
+                );
+                
+                workshopUpdatePromises.push(workshopUpdate);
+            }
+        }
 
         // Update student record atomically
         const studentUpdatePromise = Student.findByIdAndUpdate(
@@ -867,7 +968,11 @@ router.post('/payment/webhook', express.json(), async (req, res) => {
             $addToSet: { 
               registrations: registration._id,
               events: { $each: registration.selectedEvents.map(e => e.eventId) },
-              workshops: { $each: (registration.selectedWorkshops || []).map(w => w.workshopId) }
+              workshops: { $each: (registration.selectedWorkshops || []).map(w => ({
+                id: w.workshopId,
+                workshopId: w.workshopId,
+                title: w.workshopName
+              }))}
             },
             $set: { cart: [] }
           },
@@ -875,31 +980,17 @@ router.post('/payment/webhook', express.json(), async (req, res) => {
         );
 
         // Execute all updates atomically
-        await Promise.all([
+        const updateResults = await Promise.all([
           registration.save({ session }),
           ...eventUpdatePromises,
           ...workshopUpdatePromises,
           studentUpdatePromise
         ]);
-
-        // Send confirmation email after successful transaction
-        // try {
-        //   await sendConfirmationEmail(
-        //     registration.student.email,
-        //     qrCodeDataUrl,
-        //     {
-        //       name: registration.student.name,
-        //       registrationType: registration.paymentDetails.merchantParams?.comboName || 'Standard Registration',
-        //       amount: registration.amount,
-        //       transactionId: orderData.id,
-        //       selectedEvents: registration.selectedEvents,
-        //       selectedWorkshops: registration.selectedWorkshops
-        //     }
-        //   );
-        // } catch (emailError) {
-        //   console.error('Failed to send confirmation email:', emailError);
-        //   // Don't throw error here as payment is already processed
-        // }
+        
+        // Log workshop update results for debugging
+        console.log('Webhook workshop update results:', 
+                    updateResults.slice(eventUpdatePromises.length + 1, 
+                                       -1)); // Exclude the last one (student update)
       });
     }
 
@@ -920,7 +1011,6 @@ router.post('/payment/webhook', express.json(), async (req, res) => {
     });
   }
 });
-
 // Get registration details
 router.get('/registrations/order/:orderId', async (req, res) => {
     try {
@@ -1111,7 +1201,7 @@ router.post('/registration/update', async (req, res) => {
       if (newEvents && newEvents.length > 0) {
         const eventUpdates = newEvents.map(event => {
           const eventId = event.id;
-          const eventName = event.eventInfo?.title;
+          const eventName = event.eventInfo?.title || event.title || 'Event';
           
           console.log('Processing event:', { eventId, eventName });
           
@@ -1176,7 +1266,7 @@ router.post('/registration/update', async (req, res) => {
 
         const workshopUpdates = newWorkshops.map(workshop => ({
           workshopId: workshop.id,
-          workshopName: workshop.title,
+          workshopName: workshop.title || 'Workshop',
           status: 'completed'
         }));
 
@@ -1191,16 +1281,23 @@ router.post('/registration/update', async (req, res) => {
         });
 
         if (newWorkshopUpdates.length > 0) {
-          const workshopPromises = newWorkshopUpdates.map(workshop =>
-            Workshop.findByIdAndUpdate(
-              workshop.workshopId,
+          // FIX: Update both registrationCount and registration.registeredCount
+          const workshopPromises = newWorkshopUpdates.map(workshop => {
+            const workshopId = mongoose.Types.ObjectId(workshop.workshopId);
+            console.log('Updating workshop count for ID:', workshopId);
+            
+            return Workshop.findByIdAndUpdate(
+              workshopId,
               { 
-                $inc: { registrationCount: 1 },
+                $inc: { 
+                  registrationCount: 1,
+                  'registration.registeredCount': 1 
+                },
                 $addToSet: { registeredStudents: registration.student._id }
               },
               { session, new: true }
-            ).exec()
-          );
+            ).exec();
+          });
 
           // Initialize selectedWorkshops array if it doesn't exist
           if (!registration.selectedWorkshops) {
@@ -1208,7 +1305,8 @@ router.post('/registration/update', async (req, res) => {
           }
 
           registration.selectedWorkshops.push(...newWorkshopUpdates);
-          await Promise.all(workshopPromises);
+          const workshopResults = await Promise.all(workshopPromises);
+          console.log('Workshop update results:', workshopResults);
         }
       }
 
@@ -1221,7 +1319,15 @@ router.post('/registration/update', async (req, res) => {
           
         // For workshops - Using mongoose.Types.ObjectId to convert string IDs
         const workshopUpdates = newWorkshops && newWorkshops.length > 0
-          ? { $addToSet: { workshops: { $each: newWorkshops.map(w => mongoose.Types.ObjectId(w.id)) } } }
+          ? { $addToSet: { 
+              workshops: { 
+                $each: newWorkshops.map(w => ({
+                  id: mongoose.Types.ObjectId(w.id),
+                  workshopId: mongoose.Types.ObjectId(w.id),
+                  title: w.title || 'Workshop'
+                }))
+              } 
+            }}
           : {};
 
         await Student.findByIdAndUpdate(
@@ -1241,21 +1347,25 @@ router.post('/registration/update', async (req, res) => {
         selectedWorkshops: registration.selectedWorkshops || [],
         orderId: registration.paymentDetails.razorpayOrderId,
         paymentId: registration.paymentDetails.razorpayPaymentId,
-        amount: registration.amount
+        amount: registration.amount,
+        platformFee: registration.platformFee || Math.ceil(registration.amount * 0.02),
+        totalAmount: registration.totalAmount || (registration.amount + (registration.platformFee || Math.ceil(registration.amount * 0.02)))
       });
 
       // Update QR code in registration
       registration.qrCode = {
         dataUrl: qrCodeDataUrl,
         generatedAt: new Date(),
-        validUntil: new Date(Date.now() + (7 * 24 * 60 * 60 * 1000)),
+        validUntil: new Date('2025-04-09T23:59:59.999Z'),
         metadata: {
           events: registration.selectedEvents.map(e => e.eventId.toString()),
           workshops: (registration.selectedWorkshops || []).map(w => w.workshopId.toString()),
           verificationData: {
+            baseAmount: registration.amount,
+            platformFee: registration.platformFee || Math.ceil(registration.amount * 0.02),
+            totalAmount: registration.totalAmount || (registration.amount + (registration.platformFee || Math.ceil(registration.amount * 0.02))),
             orderId: registration.paymentDetails.razorpayOrderId,
             paymentId: registration.paymentDetails.razorpayPaymentId,
-            amount: registration.amount,
             timestamp: new Date()
           }
         }

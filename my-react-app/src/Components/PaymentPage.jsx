@@ -12,9 +12,21 @@ const PaymentHandler = ({ sessionData, onClose }) => {
     const customerDetails = paymentDetails?.customerDetails || {};
     const razorpayDetails = paymentDetails?.razorpayDetails || {};
 
+    // Extract fee information
+    const baseAmount = sessionData.amount || 0;
+    const platformFee = sessionData.platformFee || Math.ceil(baseAmount * 0.02) || 0;
+    const totalAmount = sessionData.totalAmount || (baseAmount + platformFee);
+
+    console.log('Payment amounts:', { baseAmount, platformFee, totalAmount });
+
     const handlePaymentVerification = async (response) => {
       try {
         console.log('Payment Response:', response); // Debug log
+
+        // Check if any parameters are missing
+        if (!response.razorpay_payment_id || !response.razorpay_order_id || !response.razorpay_signature) {
+          throw new Error('Missing required Razorpay parameters');
+        }
 
         const verifyResponse = await fetch(API_CONFIG.getUrl('payment/verify'), {
           method: 'POST',
@@ -28,6 +40,11 @@ const PaymentHandler = ({ sessionData, onClose }) => {
           })
         });
 
+        if (!verifyResponse.ok) {
+          const errorText = await verifyResponse.text();
+          throw new Error(`Server responded with status ${verifyResponse.status}: ${errorText}`);
+        }
+
         const verifyData = await verifyResponse.json();
         console.log('Verify Response:', verifyData); // Debug log
 
@@ -40,7 +57,7 @@ const PaymentHandler = ({ sessionData, onClose }) => {
         }
       } catch (error) {
         console.error('Payment verification error:', error);
-        toast.error('Payment verification failed');
+        toast.error(`Payment verification failed: ${error.message}`);
         window.location.href = `/payment/failure?orderId=${paymentDetails.orderId}&error=${encodeURIComponent(error.message)}`;
       } finally {
         if (onClose) onClose();
@@ -49,7 +66,7 @@ const PaymentHandler = ({ sessionData, onClose }) => {
 
     const options = {
       key: import.meta.env.VITE_APP_RAZORPAY_KEY_ID,
-      amount: (paymentDetails.amount || 0) * 100, // Convert to paise
+      amount: totalAmount * 100, // Convert to paise (including platform fee)
       currency: "INR",
       name: "Techniverse2k25",
       description: "Event Registration Payment",
@@ -62,6 +79,11 @@ const PaymentHandler = ({ sessionData, onClose }) => {
       },
       theme: {
         color: "#7e22ce"
+      },
+      notes: {
+        orderId: paymentDetails.orderId,
+        baseAmount: baseAmount,
+        platformFee: platformFee
       },
       terms: {
         show: true,
@@ -84,9 +106,6 @@ const PaymentHandler = ({ sessionData, onClose }) => {
           window.location.href = `/payment/failure?orderId=${paymentDetails.orderId}&error=cancelled`;
           if (onClose) onClose();
         }
-      },
-      notes: {
-        orderId: paymentDetails.orderId
       }
     };
 
@@ -102,7 +121,7 @@ const PaymentHandler = ({ sessionData, onClose }) => {
       // Add payment events
       rzp.on('payment.failed', function (response) {
         console.error('Payment failed:', response.error);
-        toast.error('Payment failed. Please try again.');
+        toast.error(`Payment failed: ${response.error.description}`);
         window.location.href = `/payment/failure?orderId=${paymentDetails.orderId}&error=${encodeURIComponent(response.error.description)}`;
         if (onClose) onClose();
       });
@@ -110,7 +129,7 @@ const PaymentHandler = ({ sessionData, onClose }) => {
       rzp.open();
     } catch (error) {
       console.error('Razorpay initialization error:', error);
-      toast.error('Failed to initialize payment');
+      toast.error(`Failed to initialize payment: ${error.message}`);
       window.location.href = `/payment/failure?orderId=${paymentDetails.orderId}&error=initialization_failed`;
       if (onClose) onClose();
     }

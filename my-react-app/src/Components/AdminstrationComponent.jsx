@@ -20,7 +20,9 @@ const AdministrationPage = () => {
       title: "Administrative Body",
       icon: Users2,
       members: [
-        { name: "Prof. K.V. G.D. Balaji", role: "Director" },
+        {name:"prof .M.Vijaya Kumar",role: "Vice Chancellor,RGUKT-AP"},
+        {name:"prof .Amarendra Kumar Sandra",role: "Registrar,RGUKT-AP"},
+        { name: "Prof. K.V. G.D. Balaji", role: "Director,RGUKT-SKLM" },
         { name: "Mr. Muni Rama Krishna", role: "Administrative Officer" },
         { name: "Mr. K Mohana Krishna Chowdary", role: "Dean of Academics" },
         { name: "Mr. Ch Vasu", role: "Finance Officer" },
@@ -31,7 +33,6 @@ const AdministrationPage = () => {
       title: "Core Committee",
       icon: Brain,
       members: [
-        { name: "Mr. Gedela Ravi", role: "Convener, Asst. Professor, Biosciences" },
         { name: "Mr. Ch Teja Kiran", role: "Co-convener, HOD, CE" },
         { name: "Mr. Ch Vasu", role: "Treasurer, Asst. Professor, ME" },
         { name: "Dr. M P Suri Ganesh", role: "Treasurer, Asst. Professor, Management" },

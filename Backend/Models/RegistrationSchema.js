@@ -17,7 +17,9 @@ const registrationSchema = new mongoose.Schema({
             events: [String],
             workshops: [String],
             verificationData: {
-                amount: Number,
+                baseAmount: Number,
+                platformFee: Number,
+                totalAmount: Number,
                 paymentId: String,
                 timestamp: Date,
                 verificationHash: String
@@ -63,10 +65,28 @@ const registrationSchema = new mongoose.Schema({
         }
     }],
 
+    // Base amount (package price only)
     amount: {
         type: Number,
         required: true
     },
+    
+    // Platform fee (calculated at 2% of base amount)
+    platformFee: {
+        type: Number,
+        default: function() {
+            return Math.ceil(this.amount * 0.02);
+        }
+    },
+    
+    // Total amount (base amount + platform fee)
+    totalAmount: {
+        type: Number,
+        default: function() {
+            return this.amount + (this.platformFee || Math.ceil(this.amount * 0.02));
+        }
+    },
+    
     paymentStatus: {
         type: String,
         enum: ['pending', 'completed', 'failed', 'cancelled', 'refunded'],
@@ -84,7 +104,14 @@ const registrationSchema = new mongoose.Schema({
             email: String,
             phone: String
         },
-        merchantParams: mongoose.Schema.Types.Mixed,
+        merchantParams: {
+            comboId: String,
+            comboName: String,
+            verificationData: Object,
+            selectedWorkshopIds: [String],
+            baseAmount: Number,
+            platformFee: Number
+        },
         refund: {
             id: String,
             amount: Number,
@@ -116,11 +143,25 @@ const registrationSchema = new mongoose.Schema({
         type: Date,
         default: Date.now
     }
+}, {
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
 });
 
 // Pre-save middleware
 registrationSchema.pre('save', function(next) {
     this.updatedAt = new Date();
+    
+    // Calculate platformFee if not set
+    if (!this.platformFee) {
+        this.platformFee = Math.ceil(this.amount * 0.02);
+    }
+    
+    // Calculate totalAmount if not set
+    if (!this.totalAmount) {
+        this.totalAmount = this.amount + this.platformFee;
+    }
+    
     if (this.isModified('selectedEvents') || this.isModified('selectedWorkshops')) {
         this.version += 1;
         this.updateHistory.push({
@@ -139,6 +180,16 @@ registrationSchema.pre('save', function(next) {
         });
     }
     next();
+});
+
+// Virtual for calculating platform fee if not set
+registrationSchema.virtual('calculatedPlatformFee').get(function() {
+    return this.platformFee || Math.ceil(this.amount * 0.02);
+});
+
+// Virtual for calculating total amount if not set
+registrationSchema.virtual('calculatedTotalAmount').get(function() {
+    return this.totalAmount || (this.amount + this.calculatedPlatformFee);
 });
 
 // Method to update registration with new items
@@ -185,11 +236,21 @@ registrationSchema.methods.addItems = async function(newEvents = [], newWorkshop
     }
 };
 
-// Method to handle successful payment
-registrationSchema.methods.handleSuccessfulPayment = async function(razorpayResponse) {
+// Method to handle successful payment including platform fee
+registrationSchema.methods.handleSuccessfulPayment = async function(razorpayResponse, paidAmount) {
     try {
+        // Set payment status and details
         this.paymentStatus = 'completed';
         this.paymentCompletedAt = new Date();
+        
+        // Ensure platform fee is set
+        if (!this.platformFee) {
+            this.platformFee = Math.ceil(this.amount * 0.02);
+        }
+        
+        // Set the total amount from the actual paid amount
+        this.totalAmount = paidAmount || (this.amount + this.platformFee);
+        
         this.paymentDetails = {
             ...this.paymentDetails,
             status: 'completed',
@@ -246,5 +307,12 @@ registrationSchema.methods.handleRefund = async function(refundData) {
         session.endSession();
     }
 };
+
+// Indices for better query performance
+registrationSchema.index({ kindeId: 1 });
+registrationSchema.index({ 'paymentDetails.orderId': 1 });
+registrationSchema.index({ 'paymentDetails.razorpayOrderId': 1 });
+registrationSchema.index({ 'paymentDetails.razorpayPaymentId': 1 });
+registrationSchema.index({ paymentStatus: 1 });
 
 export const Registration = mongoose.model('Registration', registrationSchema);

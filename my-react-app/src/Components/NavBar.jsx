@@ -85,8 +85,7 @@ const Navbar = ({ onScrollToSection }) => {
     { title: 'Administration', icon: <Users2 className="w-4 h-4" />, path: '/administration' },
     { title: 'Events', icon: <BotIcon className="w-4 h-4" />, path: '/departments' },
     { title: 'Timeline', icon: <TimerIcon className="w-4 h-4" />, path: '/timeline' },
-    { title: 'News', icon: <Newspaper className="w-4 h-4" />, path: '/news' },
-    { title: 'Teams', icon: <TableColumnsSplit className="w-4 h-4" />, path: '/teams' },
+    { title: 'Student-Coordinators', icon: <TableColumnsSplit className="w-4 h-4" />, path: '/teams' },
     { title: 'Offline', icon: <LogIn className="w-4 h-4" />, path: '/offlineLogin' }
   ];
 

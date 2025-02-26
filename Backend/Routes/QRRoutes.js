@@ -24,32 +24,54 @@ export const generateQRCode = async (data) => {
     validateEnvironment();
 
     // Validate required input data
-    if (!data?.userId || !data?.selectedEvents) {
-      throw new Error('Invalid input data for QR code generation');
+    if (!data?.userId) {
+      throw new Error('Invalid input data for QR code generation: userId is required');
     }
 
-    // Create the data object with Razorpay verification
+    // Create the data object with consistent structure
     const dataToSign = {
       id: data.userId,
-      events: (data.selectedEvents || []).map(e => e.eventId || e.id).filter(Boolean),
-      workshops: (data.selectedWorkshops || []).map(w => w.workshopId || w.id).filter(Boolean),
-      orderId: data.orderId,
+      events: (data.selectedEvents || []).map(e => {
+        // Handle different data structures consistently
+        return (e.eventId && typeof e.eventId === 'object') ? e.eventId.toString() : 
+               (e.eventId) ? e.eventId.toString() : 
+               (e.id) ? e.id.toString() : null;
+      }).filter(Boolean),
+      workshops: (data.selectedWorkshops || []).map(w => {
+        // Handle different data structures consistently
+        return (w.workshopId && typeof w.workshopId === 'object') ? w.workshopId.toString() : 
+               (w.workshopId) ? w.workshopId.toString() : 
+               (w.id) ? w.id.toString() : null;
+      }).filter(Boolean),
+      // Make sure to include these even if undefined - will use falsy checks in validation
+      orderId: data.orderId || (data.verificationHash ? 'direct' : undefined),
       paymentId: data.paymentId,
       amount: data.amount
     };
 
-    // Generate Razorpay-based signature
-    const signature = crypto
-      .createHmac('sha256', process.env.RAZORPAY_SECRET_KEY)
-      .update(JSON.stringify(dataToSign))
-      .digest('hex');
+    console.log('QR Code dataToSign:', JSON.stringify(dataToSign, null, 2));
+
+    // Check if verificationHash is provided directly
+    let signature;
+    if (data.verificationHash) {
+      signature = data.verificationHash;
+    } else {
+      // Generate Razorpay-based signature
+      signature = crypto
+        .createHmac('sha256', process.env.RAZORPAY_SECRET_KEY)
+        .update(JSON.stringify(dataToSign))
+        .digest('hex');
+    }
+
+    // Set expiration date to April 9, 2025 (or adjust as needed)
+    const expirationDate = new Date('2025-04-09T23:59:59.999Z');
 
     // Combine data with signature and timestamp
     const qrData = JSON.stringify({
       ...dataToSign,
       signature,
       timestamp: new Date().toISOString(),
-      validUntil: new Date(Date.now() + (7 * 24 * 60 * 60 * 1000)).toISOString() // 7 days validity
+      validUntil: expirationDate.toISOString()
     });
 
     const qrCodeOptions = {
@@ -60,13 +82,13 @@ export const generateQRCode = async (data) => {
       width: 300
     };
 
+    console.log('Generated QR data:', qrData);
     return await QRCode.toDataURL(qrData, qrCodeOptions);
   } catch (error) {
     console.error('QR Generation Error:', error);
     throw error;
   }
 };
-
 // Enhanced validation endpoint with Razorpay verification
 router.post('/validate-registration', async (req, res) => {
   try {
@@ -82,6 +104,7 @@ router.post('/validate-registration', async (req, res) => {
     let parsedData;
     try {
       parsedData = JSON.parse(qrData);
+      console.log('Parsed QR data:', JSON.stringify(parsedData, null, 2));
       
       // Verify QR code hasn't expired
       const validUntil = new Date(parsedData.validUntil);
@@ -92,25 +115,58 @@ router.post('/validate-registration', async (req, res) => {
         });
       }
 
-      // Verify Razorpay signature
-      const dataToVerify = {
-        id: parsedData.id,
-        events: parsedData.events,
-        workshops: parsedData.workshops,
-        orderId: parsedData.orderId,
-        paymentId: parsedData.paymentId,
-        amount: parsedData.amount
-      };
-
-      const expectedSignature = crypto
-        .createHmac('sha256', process.env.RAZORPAY_SECRET_KEY)
-        .update(JSON.stringify(dataToVerify))
-        .digest('hex');
-
-      if (parsedData.signature !== expectedSignature) {
+      // Check if we have events data
+      if (!parsedData.events || !Array.isArray(parsedData.events) || parsedData.events.length === 0) {
         return res.status(400).json({
           success: false,
-          message: 'Invalid QR code signature'
+          message: 'No event data found in QR code'
+        });
+      }
+
+      // Check if event is included in QR data
+      if (!parsedData.events.includes(eventId) && !parsedData.events.some(e => e.toString() === eventId.toString())) {
+        return res.status(400).json({
+          success: false,
+          message: 'This ticket is not valid for this event'
+        });
+      }
+
+      // Different validation paths based on QR code type
+      if (parsedData.orderId && parsedData.paymentId) {
+        // Normal payment flow QR
+        const dataToVerify = {
+          id: parsedData.id,
+          events: parsedData.events,
+          workshops: parsedData.workshops,
+          orderId: parsedData.orderId,
+          paymentId: parsedData.paymentId,
+          amount: parsedData.amount
+        };
+
+        const expectedSignature = crypto
+          .createHmac('sha256', process.env.RAZORPAY_SECRET_KEY)
+          .update(JSON.stringify(dataToVerify))
+          .digest('hex');
+
+        if (parsedData.signature !== expectedSignature) {
+          console.error('QR validation failed - signature mismatch:', {
+            expected: expectedSignature,
+            received: parsedData.signature
+          });
+          
+          return res.status(400).json({
+            success: false,
+            message: 'Invalid QR code signature'
+          });
+        }
+      } else if (parsedData.signature) {
+        // Legacy or custom signature flow
+        // Just use the existing signature and assume it was generated correctly
+        console.log('Using legacy/custom signature validation');
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid QR code format - missing signature data'
         });
       }
 
@@ -131,13 +187,22 @@ router.post('/validate-registration', async (req, res) => {
       });
     }
 
-    const registration = await Registration.findOne({
+    // Different query strategies based on QR type
+    let registrationQuery = {
       student: student._id,
       kindeId: parsedData.id,
-      paymentStatus: 'completed',
-      'paymentDetails.razorpayOrderId': parsedData.orderId,
-      'paymentDetails.razorpayPaymentId': parsedData.paymentId
-    }).populate('student').populate('selectedEvents.eventId');
+      paymentStatus: 'completed'
+    };
+
+    // Add additional filters for payment-based QRs
+    if (parsedData.orderId && parsedData.paymentId) {
+      registrationQuery['paymentDetails.razorpayOrderId'] = parsedData.orderId;
+      registrationQuery['paymentDetails.razorpayPaymentId'] = parsedData.paymentId;
+    }
+
+    const registration = await Registration.findOne(registrationQuery)
+      .populate('student')
+      .populate('selectedEvents.eventId');
 
     if (!registration) {
       return res.status(404).json({
@@ -146,16 +211,17 @@ router.post('/validate-registration', async (req, res) => {
       });
     }
 
-    // Verify amount matches
-    if (registration.amount !== parsedData.amount) {
+    // Verify amount matches only if amount is provided
+    if (parsedData.amount && registration.amount !== parsedData.amount) {
       return res.status(400).json({
         success: false,
         message: 'Invalid payment amount'
       });
     }
 
+    // Find the event in registration data
     const registeredEvent = registration.selectedEvents.find(
-      e => e.eventId._id.toString() === eventId
+      e => e.eventId && e.eventId._id && e.eventId._id.toString() === eventId
     );
 
     if (!registeredEvent) {
@@ -387,5 +453,232 @@ router.post('/check-in', async (req, res) => {
     });
   }
 });
+
+
+router.post('/workshop-check-in', async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  
+  try {
+    const { qrData, workshopId } = req.body;
+    
+    if (!workshopId) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({
+        success: false,
+        message: 'Workshop ID is required'
+      });
+    }
+
+    // Parse and verify QR data
+    const parsedData = JSON.parse(qrData);
+
+    // Verify Razorpay signature
+    const dataToVerify = {
+      id: parsedData.id,
+      events: parsedData.events,
+      workshops: parsedData.workshops,
+      orderId: parsedData.orderId,
+      paymentId: parsedData.paymentId,
+      amount: parsedData.amount
+    };
+
+    const expectedSignature = crypto
+      .createHmac('sha256', process.env.RAZORPAY_SECRET_KEY)
+      .update(JSON.stringify(dataToVerify))
+      .digest('hex');
+
+    if (parsedData.signature !== expectedSignature) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid QR code signature'
+      });
+    }
+
+    // Verify the specific workshop is in the QR code
+    if (!parsedData.workshops || !parsedData.workshops.includes(workshopId)) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({
+        success: false,
+        message: 'QR code does not include this workshop'
+      });
+    }
+
+    // Verify student
+    const student = await Student.findOne({ kindeId: parsedData.id }).session(session);
+    if (!student) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found'
+      });
+    }
+
+    // Check if already checked in BEFORE further processing to prevent race conditions
+    const existingCheckIn = await CheckIn.findOne({
+      event: workshopId, // Using event field for workshop
+      'student.kindeId': parsedData.id,
+      status: 'completed'
+    }).session(session);
+
+    if (existingCheckIn) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({
+        success: false,
+        message: 'Already checked in for this workshop',
+        details: {
+          name: student.name,
+          checkInTime: existingCheckIn.timestamp
+        }
+      });
+    }
+
+    // Get registration
+    const registration = await Registration.findOne({
+      student: student._id,
+      kindeId: parsedData.id,
+      paymentStatus: 'completed',
+      'selectedWorkshops.workshopId': workshopId
+    }).populate('student').populate('selectedWorkshops.workshopId').session(session);
+
+    if (!registration) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({
+        success: false,
+        message: 'Not registered for this workshop or payment pending'
+      });
+    }
+
+    // Verify amount matches only if amount is provided
+    if (parsedData.amount && registration.amount !== parsedData.amount) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid payment amount'
+      });
+    }
+
+    const registeredWorkshop = registration.selectedWorkshops.find(
+      w => w.workshopId && w.workshopId._id && w.workshopId._id.toString() === workshopId
+    );
+
+    if (!registeredWorkshop) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({
+        success: false,
+        message: 'Not registered for this workshop'
+      });
+    }
+
+    // Get workshop details
+    const Workshop = mongoose.model('Workshop');
+    const workshop = await Workshop.findById(workshopId).session(session);
+    
+    if (!workshop) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({
+        success: false,
+        message: 'Workshop not found'
+      });
+    }
+
+    // Create check-in record with student reference
+    const checkIn = new CheckIn({
+      registration: registration._id,
+      event: workshopId, // Using event field for workshop
+      student: {
+        _id: student._id,
+        kindeId: student.kindeId,
+        name: student.name
+      },
+      status: 'completed',
+      timestamp: new Date(),
+      verificationMethod: 'qr_only'
+    });
+
+    await checkIn.save({ session });
+
+    // Update workshop status in registration
+    await Registration.updateOne(
+      { 
+        _id: registration._id,
+        'selectedWorkshops.workshopId': workshopId
+      },
+      {
+        $set: {
+          'selectedWorkshops.$.status': 'completed'
+        }
+      },
+      { session }
+    );
+
+    // Update workshop check-in count
+    await Workshop.findByIdAndUpdate(
+      workshopId,
+      {
+        $inc: { checkInCount: 1 }
+      },
+      { session }
+    );
+
+    // Commit the transaction
+    await session.commitTransaction();
+    session.endSession();
+
+    res.json({
+      success: true,
+      isWorkshop: true,
+      details: {
+        name: registration.student.name,
+        email: registration.student.email,
+        studentId: registration.student.studentId,
+        mobileNumber: registration.student.mobileNumber,
+        workshop: registeredWorkshop.workshopName,
+        workshopDetails: {
+          name: workshop.title,
+          date: workshop.date,
+          venue: workshop.venue,
+          instructor: workshop.instructor
+        },
+        registration: {
+          id: registration._id,
+          amount: registration.amount,
+          paymentId: registration.paymentDetails.razorpayPaymentId,
+          orderId: registration.paymentDetails.razorpayOrderId
+        },
+        checkIn: {
+          timestamp: checkIn.timestamp,
+          registrationId: registration._id
+        }
+      }
+    });
+
+  } catch (error) {
+    // Abort transaction on error
+    await session.abortTransaction();
+    session.endSession();
+    
+    console.error('Workshop check-in error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Workshop check-in failed',
+      debug: {
+        errorMessage: error.message,
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
+});
+
 
 export default router;

@@ -11,6 +11,20 @@ const checkInSchema = new mongoose.Schema({
         ref: 'Event',
         required: true
     },
+    // Add student reference to improve lookup efficiency
+    student: {
+        _id: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Student'
+        },
+        kindeId: {
+            type: String,
+            required: true
+        },
+        name: {
+            type: String
+        }
+    },
     status: {
         type: String,
         enum: ['completed', 'failed'],
@@ -31,5 +45,7 @@ const checkInSchema = new mongoose.Schema({
 
 // Index for quick lookups and preventing duplicate check-ins
 checkInSchema.index({ registration: 1, event: 1 }, { unique: true });
+// Add index for student lookup
+checkInSchema.index({ 'student.kindeId': 1, event: 1 }, { unique: true });
 
 export const CheckIn = mongoose.model('CheckIn', checkInSchema);
