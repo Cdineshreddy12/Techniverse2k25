@@ -177,65 +177,35 @@ router.get('/users/:kindeId/registrations/latest', kindeMiddleware, async (req, 
         }
 
         // Find latest registration
-        const rawRegistration = await Registration.findOne({ 
+        const registration = await Registration.findOne({ 
             student: student._id 
         }).sort({ createdAt: -1 });
 
-        if (!rawRegistration) {
+        if (!registration) {
             return res.status(404).json({
                 success: false,
                 error: 'No registration found'
             });
         }
 
-
-        const ObjectId = mongoose.Types.ObjectId;
-        
-        // Find actual workshops in the database
-        // Instead of filtering by department/branch, just get the most recent workshops
-        let realWorkshops = [];
-        try {
-            // Just get the DGPS workshop we know exists
-            realWorkshops = await Workshop.find({ 
-                _id: new ObjectId("67bc5d5f3aa60c94978180e5") 
-            });
-            
-            // If that specific workshop isn't found, get any recent workshops
-            if (realWorkshops.length === 0) {
-                realWorkshops = await Workshop.find().sort({ createdAt: -1 }).limit(5);
-            }
-            
-            console.log(`Found ${realWorkshops.length} real workshops`);
-        } catch (workshopError) {
-            console.error('Error finding real workshops:', workshopError);
-            // Continue execution even if this fails
-        }
-        
-        // If we have real workshops but the registration has a placeholder,
-        // update the registration to point to a real workshop instead
-        if (realWorkshops.length > 0 && rawRegistration.selectedWorkshops.length > 0) {
-            try {
-                // Get the first real workshop to replace the placeholder
-                const realWorkshopId = realWorkshops[0]._id;
+        // Verify all workshop references are valid
+        if (registration.selectedWorkshops && registration.selectedWorkshops.length > 0) {
+            for (let i = 0; i < registration.selectedWorkshops.length; i++) {
+                const workshop = registration.selectedWorkshops[i];
                 
-                // Update the registration to point to the real workshop
-                await Registration.updateOne(
-                    { _id: rawRegistration._id, 'selectedWorkshops._id': rawRegistration.selectedWorkshops[0]._id },
-                    { $set: { 'selectedWorkshops.$.workshopId': realWorkshopId } }
-                );
+                // Check if workshop reference exists in the database
+                const workshopExists = await Workshop.exists({ _id: workshop.workshopId });
                 
-                console.log(`Updated registration to point to real workshop: ${realWorkshopId}`);
-            } catch (updateError) {
-                console.error('Error updating registration:', updateError);
-                // Continue execution even if this fails
+                if (!workshopExists) {
+                    console.log(`Invalid workshop reference detected: ${workshop.workshopId}`);
+                    // Here you could implement logic to fix the reference
+                    // For now, we'll just log it and continue
+                }
             }
         }
 
-        // Now populate with related data - using the updated registration
-        const registration = await Registration.findOne({ 
-            student: student._id 
-        })
-        .sort({ createdAt: -1 })
+        // Now populate with related data
+        const populatedRegistration = await Registration.findById(registration._id)
         .populate([
             {
                 path: 'selectedEvents.eventId',
@@ -248,11 +218,19 @@ router.get('/users/:kindeId/registrations/latest', kindeMiddleware, async (req, 
             }
         ]);
 
-        console.log('Workshop data from latest registration:', registration.selectedWorkshops);
+        // Add an additional verification step for populated data
+        const selectedWorkshops = populatedRegistration.selectedWorkshops
+            .filter(workshop => workshop.workshopId); // Only include workshops with valid references
+        
+        const selectedEvents = populatedRegistration.selectedEvents
+            .filter(event => event.eventId); // Only include events with valid references
 
-        // Transform data with complete event information
+        console.log(`Found ${selectedWorkshops.length} valid workshops in registration`);
+        console.log(`Found ${selectedEvents.length} valid events in registration`);
+
+        // Transform data with complete information
         const transformedRegistration = {
-            ...registration.toObject(),
+            ...populatedRegistration.toObject(),
             student: {
                 name: student.name,
                 email: student.email,
@@ -261,9 +239,7 @@ router.get('/users/:kindeId/registrations/latest', kindeMiddleware, async (req, 
                 collegeName: student.collegeName,
                 registrationType: student.registrationType
             },
-            selectedEvents: registration.selectedEvents
-            .filter(event => event.eventId) // Ensure eventId is not null
-            .map(event => ({
+            selectedEvents: selectedEvents.map(event => ({
                 eventId: event.eventId._id,
                 eventName: event.eventId.title,
                 type: event.eventId.tag,
@@ -275,24 +251,17 @@ router.get('/users/:kindeId/registrations/latest', kindeMiddleware, async (req, 
                 details: event.eventId.details,
                 rounds: event.eventId.rounds
             })),
-            selectedWorkshops: registration.selectedWorkshops
-            .filter(workshop => workshop.workshopId) // Ensure workshopId is not null
-            .map(workshop => ({
+            selectedWorkshops: selectedWorkshops.map(workshop => ({
                 workshopId: workshop.workshopId._id,
-                // Use title as workshop name (matches the schema)
                 eventName: workshop.workshopId.title,
-                // Add a type field for UI rendering
                 type: 'Workshop',
                 status: workshop.status,
                 venue: workshop.workshopId.venue,
-                // Use workshopTiming.startDate if available, otherwise current date
                 eventDate: workshop.workshopId.workshopTiming?.startDate || new Date(),
                 description: workshop.workshopId.description,
-                // Format duration based on workshopTiming
                 duration: workshop.workshopId.workshopTiming ? 
                     `${workshop.workshopId.workshopTiming.dailyStartTime} - ${workshop.workshopId.workshopTiming.dailyEndTime}` : 
                     'TBD',
-                // Include other fields consistent with event structure for UI rendering
                 details: {
                     venue: workshop.workshopId.venue,
                     maxTeamSize: 1,
@@ -305,7 +274,28 @@ router.get('/users/:kindeId/registrations/latest', kindeMiddleware, async (req, 
             }))
         };
 
-        console.log('Final workshops in response:', transformedRegistration.selectedWorkshops.length);
+        // Include payment and combo information from the original registration
+        if (registration.paymentDetails) {
+            transformedRegistration.payment = {
+                status: registration.paymentStatus,
+                amount: registration.amount,
+                orderId: registration.paymentDetails.orderId,
+                paymentMethod: registration.paymentDetails.paymentMethod,
+                paymentId: registration.paymentDetails.razorpayPaymentId,
+                completedAt: registration.paymentCompletedAt
+            };
+            
+            // Include combo information if available
+            if (registration.paymentDetails.comboId) {
+                transformedRegistration.combo = {
+                    id: registration.paymentDetails.comboId,
+                    name: registration.paymentDetails.comboName,
+                    eventsCount: registration.paymentDetails.eventsCount || 0,
+                    workshopsCount: registration.paymentDetails.workshopsCount || 0,
+                    studentType: registration.paymentDetails.studentType
+                };
+            }
+        }
 
         res.json({
             success: true,
