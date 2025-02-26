@@ -77,7 +77,7 @@ const WorkshopCard = ({ workshop, index }) => {
                   <img
                     src={workshop.bannerDesktop || workshop.bannerMobile}
                     alt={workshop.title}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-contain"
                     onError={handleImageError}
                   />
                 )}

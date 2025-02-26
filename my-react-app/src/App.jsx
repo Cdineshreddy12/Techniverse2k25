@@ -69,6 +69,11 @@ import PrivacyPolicy from './Components/PrivacyPolicy';
 import TermsAndConditions from './Components/TermsAndConditions.jsx';
 import Timeline from './Components/Timeline.jsx';
 import ExportDashboard from './Components/AdminComponents/ExportDashboard.jsx';
+import WeaponExpo from './Components/WeaponExpo.jsx';
+import TechExpo from './Components/TechExpo.jsx';
+import LectureSeries from './Components/LectureSeries.jsx';
+import CommitteesComponent from './Components/CoreCommities.jsx';
+import RegistrationExportDashboard from './Components/AdminComponents/RegistrationExportDashboard.jsx';
 // Optimized loading spinner
 const LoadingSpinner = () => (
   <div className="fixed inset-0 bg-slate-950/80 flex items-center justify-center">
@@ -384,6 +389,10 @@ function App() {
                     <Route path="/departments" element={<DepartmentCards />} />
                     <Route path="/sponsors" element={<SponsorScroll/>} />
                     <Route path="/teams" element={<TeamShowcase/>} />
+                    <Route path="/WeaponExpo" element={<WeaponExpo/>} />
+                    <Route path="/TechExpo" element={<TechExpo/>} />
+                    <Route path="/lectures" element={<LectureSeries/>} />
+                    <Route path="/commities" element={<CommitteesComponent />} />
                     <Route path="/news/:newsId" element={<NewsDetail />} />
                     <Route path='/offlineLogin' element={<OfflineLogin/>}/>
                     <Route path='/offlineDashboard' element={<OfflineDashboard/>}/>
@@ -506,6 +515,7 @@ function App() {
 
                     <Route path="registerOffline" element={<OfflineRegistrationSystem/>} />
                     <Route path="validateOffline" element={<OfflineValidation />} />
+                    <Route path="exportOffline" element={<RegistrationExportDashboard />} />
                     <Route path="stats" element={<StatsDashboard />} />
                     <Route path='coordinator' element={<ExportDashboard/>} />
                      <Route path="validation" element={

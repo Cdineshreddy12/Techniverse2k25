@@ -31,6 +31,7 @@ import workshopRoutes from './Routes/workShopRoutes.js'
 import offlineRoutes from './Routes/OfflineRegistrationRoutes.js'
 import { connectToDatabase } from './utils/dbConfig.js';
 import excelExportRoutes from './Routes/excelExportRoutes.js'
+import offlineExportRoutes from './Routes/OfflineExports.js'
 // import OfflineRegistrationRoutes from './Routes/offlineRegistrations.js'
 // Load environment variables
 dotenv.config();
@@ -138,6 +139,7 @@ app.use('/api',PaymentRoutes);
 app.use('/api',workshopRoutes);
 app.use('/api/offline',offlineRoutes);
 app.use('/api', excelExportRoutes);
+app.use('/api/registrations', offlineExportRoutes );
 // app.use('/api',OfflineRegistrationRoutes);
 
 

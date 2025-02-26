@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Trophy, Users, Calendar, Clock,
   Phone, Tag, Check, ArrowLeft, Loader,
-  IndianRupee, CalendarClock, MapPin,ShoppingCart,Info,X, ChevronDown, ChevronUp
+  IndianRupee, CalendarClock, MapPin,ShoppingCart,Info,X, ChevronDown, ChevronUp,Mail
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useDispatch } from 'react-redux';
@@ -484,38 +484,54 @@ const {user}=useKindeAuth();
 
 {/* Coordinators Section */}
 {event.coordinators.length > 0 && (
-  <div className="bg-slate-800 rounded-xl p-6 sm:p-8 border border-slate-700 mb-12" data-scroll>
-    <h2 className="text-2xl font-bold text-white mb-6">Event Coordinators</h2>
-    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-      {event.coordinators.map((coordinator, index) => (
-        <div key={index} className="bg-slate-900 rounded-lg p-6 border border-slate-700">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-slate-800 border-2 border-slate-700 overflow-hidden">
-              <img
-                src={coordinator.photo || "/api/placeholder/100/100"}
-                alt={coordinator.name}
-                className="w-full h-full object-cover"
-              />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-white">{coordinator.name}</h3>
-              <div className="space-y-1 mt-1">
-                <a href={`mailto:${coordinator.email}`} 
-                   className="flex items-center gap-1.5 text-sm text-indigo-400 hover:text-indigo-300">
-                  {coordinator.email}
-                </a>
-                <a href={`tel:${coordinator.phone}`}
-                   className="flex items-center gap-1.5 text-sm text-indigo-400 hover:text-indigo-300">
-                  <Phone className="w-3.5 h-3.5" />
-                  {coordinator.phone}
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  </div>
+     <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 sm:p-8 border border-indigo-800/30 mb-12 shadow-lg" data-scroll>
+     <h2 className="text-3xl font-bold text-white mb-8 text-center relative">
+       <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-purple-400">
+         Event Coordinators
+       </span>
+       <span className="block h-1 w-24 bg-gradient-to-r from-indigo-500 to-purple-500 mt-2 mx-auto rounded-full"></span>
+     </h2>
+     
+     <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+       {event.coordinators.map((coordinator, index) => (
+         <div 
+           key={index} 
+           className="bg-slate-900/80 backdrop-blur rounded-xl border border-indigo-700/20 overflow-hidden transform transition-all duration-300 hover:scale-103 hover:shadow-xl hover:shadow-indigo-500/10 group"
+         >
+           <div className="p-4">
+             <div className="flex flex-col items-center text-center">
+               <div className="w-44 h-44  mb-4  border-2 border-indigo-500 p-1 overflow-hidden bg-slate-800 shadow-lg">
+                 <img
+                   src={coordinator.photo || "/api/placeholder/100/100"}
+                   alt={coordinator.name}
+                   className="w-full h-full  object-contain transition-all duration-300 group-hover:scale-110"
+                 />
+               </div>
+               
+               <h3 className="text-xl font-bold text-white mb-1 group-hover:text-indigo-400 transition-colors">
+                 {coordinator.name}
+               </h3>
+               
+               <div className="space-y-2 mt-3 w-full">
+                 <a href={`mailto:${coordinator.email}`} 
+                    className="flex items-center justify-center gap-2 py-2 px-3 text-sm rounded-lg text-indigo-300 hover:text-white bg-slate-800/50 hover:bg-indigo-700/30 transition-all duration-200 w-full">
+                   <Mail className="w-4 h-4" />
+                   <span className="truncate">{coordinator.email}</span>
+                 </a>
+                 
+                 <a href={`tel:${coordinator.phone}`}
+                    className="flex items-center justify-center gap-2 py-2 px-3 text-sm rounded-lg text-indigo-300 hover:text-white bg-slate-800/50 hover:bg-indigo-700/30 transition-all duration-200 w-full">
+                   <Phone className="w-4 h-4" />
+                   <span>{coordinator.phone}</span>
+                 </a>
+               </div>
+             </div>
+           </div>
+         </div>
+       ))}
+     </div>
+   </div>
+
 )}
 
       {/* Fixed Bottom Registration Bar */}

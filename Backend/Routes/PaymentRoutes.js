@@ -28,9 +28,9 @@ const razorpay = new Razorpay({
 
 // Package configuration remains the same
 const PACKAGES = {
-    'rgukt-workshop': { price: 1, type: 'rgukt' },
-    'rgukt-all-events': { price: 1, type: 'rgukt' },
-    'rgukt-combo': { price: 2, type: 'rgukt' },
+    'rgukt-workshop': { price: 199, type: 'rgukt' },
+    'rgukt-all-events': { price: 199, type: 'rgukt' },
+    'rgukt-combo': { price: 299, type: 'rgukt' },
     'guest-workshop': { price: 499, type: 'guest' },
     'guest-all-events': { price: 499, type: 'guest' },
     'guest-combo': { price: 599, type: 'guest' }

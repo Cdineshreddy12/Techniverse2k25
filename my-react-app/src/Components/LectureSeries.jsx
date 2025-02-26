@@ -9,10 +9,10 @@ const speakers = [
         image: "https://res.cloudinary.com/dxsupdl3t/image/upload/v1740020572/9_hcn52n.png",
         department: "Dept of Chemistry",
         institution: "IIT Hyderabad",
-        topic: "Catalysis, Nanomaterials and Energy Systems",
-        description: "Catalysis, Nanomaterials and Energy Systems",
-        date: "March 8, 2025",
-        time: "09:00 AM - 10:00 AM",
+        topic: "Nano the new paradigm",
+        description: "Nano the new paradigm",
+        date: "March 9, 2025",
+        time: "10:30 AM - 11:30 AM",
         venue: "Seminar Hall"
     },
     {
@@ -21,8 +21,8 @@ const speakers = [
         image: "https://res.cloudinary.com/dxsupdl3t/image/upload/v1740020569/10_vcekwc.png",
         department: "Dept of CSE",
         institution: "IIT Guwahati",
-        topic: "Machine Learning, Kernel Methods, Data Mining and their applications",
-        description: "Machine Learning, Kernel Methods, Data Mining and their applications",
+        topic: "Learning player strategies using Cricket Text Commentary",
+        description: "Learning player strategies using Cricket Text Commentary",
         date: "March 8, 2025",
         time: "10:00 AM - 11:00 AM",
         venue: "Workshop Building"
@@ -34,8 +34,8 @@ const speakers = [
         image: "https://res.cloudinary.com/dxsupdl3t/image/upload/v1740020571/11_onbonf.png",
         department: "Dept of Mathematics",
         institution: "IIT Jodhpur",
-        topic: "Financial Risk Analysis, Categorical Data Analysis and Regression",
-        description: "Financial Risk Analysis, Categorical Data Analysis and Regression",
+        topic: "Financial engineering- valuation& management",
+        description: "Financial engineering- valuation& management",
         date: "March 7, 2025",
         time: "11:30 AM - 12:30 PM",
         venue: "Workshop Building"
@@ -46,8 +46,8 @@ const speakers = [
         image: "https://res.cloudinary.com/dxsupdl3t/image/upload/v1740020568/12_xjyvkz.png",
         department: "National Remote Sensing Center",
         institution: "ISRO-Dept of Space, Hyderabad",
-        topic: "Data Processing Area",
-        description: "Data Processing Area",
+        topic: "From vision to reality”:Indian space innovations and their societal implications",
+        description: "From vision to reality”:Indian space innovations and their societal implications",
         date: "March 7, 2025",
         time: "03:00 PM - 04:00 PM",
         venue: "Workshop Building"
@@ -58,8 +58,8 @@ const speakers = [
         image: "https://res.cloudinary.com/dxsupdl3t/image/upload/v1740020567/1_e31qrp.png",
         department: "Dept of Metallurgical & Material Engineering",
         institution: "VNIT Nagpur",
-        topic: "Mechanical Metallurgy, Ceramic Engineering and Fuel Cells",
-        description: "Mechanical Metallurgy, Ceramic Engineering and Fuel Cells",
+        topic: "Advances in miniature sample testing",
+        description: "Advances in miniature sample testing",
         date: "March 8, 2025",
         time: "10:00 AM - 11:00 AM",
         venue: "Seminar Hall"
@@ -70,7 +70,7 @@ const speakers = [
         image: "https://res.cloudinary.com/dxsupdl3t/image/upload/v1740020566/3_xq9vxd.png",
         department: "Dept of Electrical Engineering",
         institution: "IIT Tirupati",
-        topic: "Medical Imaging, Machine Learning / Deep Learning, Computer Vision and Signal Processing",
+        topic: "How to master AI",
         description: "Medical Imaging, Machine Learning / Deep Learning, Computer Vision and Signal Processing",
         date: "March 8, 2025",
         time: "11:30 AM - 12:30 PM",
@@ -82,10 +82,10 @@ const speakers = [
         image: "https://res.cloudinary.com/dxsupdl3t/image/upload/v1740020567/4_rhwaay.png",
         department: "Harvard Medical School",
         institution: "Massachusetts General Hospital, Boston, USA",
-        topic: "Cancer Metabolism",
+        topic: "Lecture on Cancer metabolism;therapeutic opportunities",
         description: "Cancer Metabolism",
-        date: "March 8, 2025",
-        time: "09:00 AM - 10:00 AM",
+        date: "March 9, 2025",
+        time: "11:40 AM - 12:40 AM",
         venue: "Workshop Building"
     },
     {
@@ -94,7 +94,7 @@ const speakers = [
         image: "https://res.cloudinary.com/dxsupdl3t/image/upload/v1740020570/5_ecgil6.png",
         department: "School of Electrical & Computer Science",
         institution: "IIT Bhubaneswar",
-        topic: "Power quality, Power Electronics and applications in Power Systems",
+        topic: "Challenges in developing isolated microgrids – A case study on a rural microgrid established in India ",
         description: "Power quality, Power Electronics and applications in Power Systems",
         date: "March 8, 2025",
         time: "11:30 AM - 12:30 PM",
@@ -107,7 +107,7 @@ const speakers = [
         image: "https://res.cloudinary.com/dxsupdl3t/image/upload/v1740020566/2_c3jhbn.png",
         department: "Dept of Civil Engineering",
         institution: "IIT Madras",
-        topic: "Hydroclimatology and Hydrological Extreme Climate Change",
+        topic: "Water resource management and opportunities",
         description: "Hydroclimatology and Hydrological Extreme Climate Change",
         date: "March 8, 2025",
         time: "03:00 PM - 04:00 PM",
@@ -119,10 +119,10 @@ const speakers = [
         image: "https://res.cloudinary.com/dxsupdl3t/image/upload/v1740020568/8_zgi1zk.png",
         department: "Leo Global Overseas",
         institution: "London",
-        topic: "Overseas Education consultants",
+        topic: "Beyond borders: A strategic pathway for overseas education",
         description: "Overseas Education consultants",
         date: "March 9, 2025",
-        time: "02:00 PM - 03:00 PM",
+        time: "09:00 AM - 10:00 AM",
         venue: "Workshop Building"
     },
   
@@ -133,10 +133,10 @@ const speakers = [
         image: "https://res.cloudinary.com/dxsupdl3t/image/upload/v1740020567/7_exdmx9.png",
         department: "Sense Semi Conductor & IT Solutions PVT LTD",
         institution: "Amaravathi",
-        topic: "Entrepreneurship",
+        topic: "Turning passion into reality: a startup journey",
         description: "Entrepreneurship",
         date: "March 9, 2025",
-        time: "11:30 AM - 12:30 PM",
+        time: "2:00 PM - 3:00 PM",
         venue: "Workshop Building"
     },
     {
@@ -212,7 +212,7 @@ const SpeakerCard = ({ speaker, index }) => {
                 <p className="text-sm font-semibold">{speaker.topic}</p>
               </div>
               
-              <p className="text-gray-400 text-xs mb-3">{speaker.description}</p>
+          
               
               <div className="space-y-2 text-xs">
                 <div className="flex items-center gap-2 text-gray-300">
@@ -239,7 +239,7 @@ const SpeakerCard = ({ speaker, index }) => {
 const LectureSeries = () => {
   return (
     <div className="bg-gray-950 p-8">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-7xl mt-12 mx-auto">
         <motion.div 
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}

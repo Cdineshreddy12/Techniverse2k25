@@ -301,6 +301,7 @@ const RegistrationGuide = () => {
     }
   };
 
+  
   return (
     <div className="bg-gradient-to-r from-slate-900/90 to-slate-800/90 backdrop-blur-sm rounded-xl border border-cyan-500/20 p-4 mb-8">
       <h3 className="text-xl font-semibold text-cyan-400 mb-3">How to Register</h3>
@@ -466,7 +467,7 @@ const HomePage = () => {
                       <DepartmentEvents/>
                    </section>
 
-                   <section>
+                   <section section id='Lecture-section'>
                       <LectureSeries/> 
                    </section>
 

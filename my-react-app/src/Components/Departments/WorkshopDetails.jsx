@@ -221,7 +221,7 @@ const WorkshopDetails = () => {
           <img 
             src={workshop.bannerDesktop} 
             alt={workshop.title}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain"
             onError={handleImageError}
           />
         )}
