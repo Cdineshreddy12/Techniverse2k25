@@ -105,6 +105,8 @@ const packages = [
   }
 ];
 
+
+
 const CartComponent = () => {
   const { user } = useKindeAuth();
   const [paymentSession, setPaymentSession] = useState(null);
@@ -461,6 +463,65 @@ const getAvailableOptions = () => {
     }
   };
 
+  const PackageValidationMessage = ({ selectedCombo, items, workshops }) => {
+    if (!selectedCombo) return null;
+    
+    // Check for package/cart mismatches
+    const hasEvents = Array.isArray(items) && items.length > 0;
+    const hasWorkshops = Array.isArray(workshops) && workshops.length > 0;
+    const comboName = selectedCombo?.name?.toLowerCase?.() || '';
+    
+    // Logic for different package types
+    const isSingleWorkshopPackage = comboName?.includes('single workshop');
+    const isAllEventsPackage = comboName === 'all events';
+    const isComboPackage = comboName?.includes('all events + workshop');
+    
+    // Validation messages
+    let message = null;
+    let messageType = "warning"; // "warning" or "info"
+    
+    if (isSingleWorkshopPackage && hasEvents) {
+      message = "Your selected package is for workshop only. Events in your cart will not be included.";
+      messageType = "warning";
+    } else if (isAllEventsPackage && hasWorkshops) {
+      message = "Your selected package doesn't include workshops. Workshops in your cart will not be included.";
+      messageType = "warning";
+    } else if (isComboPackage && !hasWorkshops) {
+      message = "Your package includes workshop access. You can add a workshop to maximize your package value.";
+      messageType = "info";
+    } else if (isComboPackage && !hasEvents) {
+      message = "Your package includes access to all events. You can add events at no extra cost.";
+      messageType = "info";
+    } else if (isSingleWorkshopPackage && workshops.length > 1) {
+      message = "Your package includes only one workshop. Additional workshops will need separate registration.";
+      messageType = "warning";
+    }
+    
+    if (!message) return null;
+    
+    return (
+      <div className={`mt-4 p-3 rounded-lg text-sm ${
+        messageType === "warning" 
+          ? "bg-amber-500/10 border border-amber-500/30 text-amber-400" 
+          : "bg-blue-500/10 border border-blue-500/30 text-blue-400"
+      }`}>
+        <div className="flex items-start gap-2">
+          {messageType === "warning" ? (
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-5 h-5 flex-shrink-0">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-5 h-5 flex-shrink-0">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          )}
+          <p>{message}</p>
+        </div>
+      </div>
+    );
+  };
+  
+
 // Update the payment validation and include platform fee
 const initiatePayment = async () => {
   if (!user?.id) {
@@ -468,26 +529,120 @@ const initiatePayment = async () => {
     return;
   }
 
-  if (!selectedCombo) {
-    toast.error('Please select a package to proceed');
-    setShowComboDetails(true);
+  // Enhanced package selection validation - MUST HAVE a valid selected combo
+  if (!selectedCombo || !selectedCombo.id || !selectedCombo.price) {
+    // Most prominent error for the most common case
+    toast.error('You must select a package before proceeding to payment', {
+      duration: 3000,
+      icon: '🛑',
+      style: {
+        border: '2px solid #ef4444',
+        padding: '16px',
+        fontWeight: 'bold',
+      },
+    });
+    
+    // Visual highlight of package section
+    const packageSection = document.querySelector('.package-section');
+    if (packageSection) {
+      packageSection.scrollIntoView({ behavior: 'smooth' });
+      packageSection.classList.add('highlight-pulse');
+      setTimeout(() => {
+        packageSection.classList.remove('highlight-pulse');
+      }, 2000);
+    }
+    
     return;
   }
 
-  if (!validateComboSelection(selectedCombo, items, workshops)) {
+  // More robust price validation
+  if (!totalAmount || totalAmount <= 0) {
+    toast.error('Invalid package amount. Please select a different package.');
     return;
   }
 
+  // Rest of the validation and payment processing logic...
+  // Validate package selection against cart contents
+  // Single Workshop package validations
+  if (selectedCombo?.name?.toLowerCase?.()?.includes('single workshop')) {
+    if (workshops.length === 0) {
+      toast.error('Your "Single Workshop" package requires a workshop. Please add a workshop to your cart.', {
+        duration: 3000,
+        icon: '⚠️',
+      });
+      return;
+    }
+    if (workshops.length > 1) {
+      toast.error('Your "Single Workshop" package allows only one workshop. Please remove additional workshops.', {
+        duration: 3000,
+        icon: '⚠️',
+      });
+      return;
+    }
+    if (items.length > 0) {
+      toast.error('Your "Single Workshop" package is for workshop only. Events in your cart will not be included in your registration.', {
+        duration: 3000,
+        icon: '⚠️',
+      });
+      return;
+    
+      // Continue with payment after warning and confirmation
+    }
+  }
+
+  // All Events package validations
+  if (selectedCombo?.name?.toLowerCase?.() === 'all events') {
+    if (workshops.length > 0) {
+      toast.error('Your "All Events" package does not include workshops. Workshops in your cart will not be included in your registration.', {
+        duration: 3000,
+        icon: '⚠️',
+      });
+      return;
+      // Continue with payment after warning and confirmation
+    }
+  }
+
+  // All Events + Workshop package validations
+  if (selectedCombo?.name?.toLowerCase?.()?.includes('all events + workshop')) {
+    if (workshops.length === 0) {
+      toast.error('Your "All Events + Workshop" package includes a workshop. Please add a workshop to maximize your package value.', {
+        duration: 3000,
+        icon: '⚠️',
+      });
+      return;
+    }
+    if (workshops.length > 1) {
+      toast.error('Your "All Events + Workshop" package allows only one workshop. Please remove additional workshops.', {
+        duration: 3000,
+        icon: '⚠️',
+      });
+      return;
+    }
+  }
+
+  // All validations passed, proceed with payment
   try {
     const timestamp = Date.now();
+    
+    // Show loading toast
+    const loadingToast = toast.loading('Processing payment request...');
+    
+    // Log the payment request for debugging
+    console.log('Payment Request:', {
+      amount: totalAmount,
+      baseAmount: selectedCombo.price,
+      platformFee,
+      combo: selectedCombo,
+      timestamp
+    });
     
     const response = await fetch(API_CONFIG.getUrl('payment/initiate'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        amount: totalAmount, // Use total amount including platform fee
-        baseAmount: selectedCombo.price, // Original package price
-        platformFee: platformFee, // Platform fee amount
+        amount: totalAmount,
+        baseAmount: selectedCombo.price,
+        platformFee: platformFee,
         cartItems: items,
         workshops: workshops,
         kindeId: user.id,
@@ -498,20 +653,47 @@ const initiatePayment = async () => {
 
     const data = await response.json();
     
+    // Dismiss loading toast
+    toast.dismiss(loadingToast);
+    
     if (data.success) {
-      // The session data structure should match what comes from the server
-      setPaymentSession(data.registration); // Make sure this matches your backend response
-      
-      // Debug log to verify the data structure
+      toast.success('Payment session created successfully!');
+      setPaymentSession(data.registration);
       console.log('Payment Session Data:', data.registration);
     } else {
-      toast.error(data.error || 'Payment initiation failed');
+      // More descriptive error based on the response
+      if (data.error) {
+        toast.error(`Payment failed: ${data.error}`);
+      } else if (!selectedCombo) {
+        toast.error('Payment failed: No package selected');
+      } else if (totalAmount <= 0) {
+        toast.error('Payment failed: Invalid amount');
+      } else {
+        toast.error('Payment initiation failed. Please try again.');
+      }
     }
   } catch (error) {
     console.error('Payment error:', error);
-    toast.error('Failed to initiate payment');
+    toast.error('Failed to initiate payment. Please check your connection and try again.');
   }
 };
+
+// Add this function to initialize package highlight on page load
+useEffect(() => {
+  // Add highlight to package section on initial load if cart has items but no package
+  const hasItems = (Array.isArray(items) && items.length > 0) || 
+                  (Array.isArray(workshops) && workshops.length > 0);
+                  
+  if (!loading && hasItems && !selectedCombo) {
+    const packageSection = document.querySelector('.package-section');
+    if (packageSection) {
+      // Add a slight delay to ensure the element is fully rendered
+      setTimeout(() => {
+        packageSection.classList.add('initial-highlight');
+      }, 500);
+    }
+  }
+}, [loading, items, workshops, selectedCombo]);
 
 // Update the initial cart check
 useEffect(() => {
@@ -663,69 +845,29 @@ const CartItem = ({ item, type, onRemove }) => {
 };
 
 
-// Package Selection Component
-const PackageSelector = ({ packages, selectedCombo, onSelect, onClear, hasWorkshop }) => {
-  return (
-    <div className="space-y-4 px-2 pb-32 sm:px-4">
-      {packages.map((combo) => (
-        <div key={combo.id} 
-             className={`p-4 rounded-lg border-2 transition-all ${
-               selectedCombo?.id === combo.id 
-                 ? 'border-purple-500 bg-purple-500/10' 
-                 : 'border-slate-700'
-             }`}>
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h4 className="text-base font-semibold text-white">{combo.name}</h4>
-              <p className="text-lg font-bold text-purple-400 mt-1">₹{combo.price}</p>
-            </div>
-            
-            <div className="flex items-center gap-2">
-              {selectedCombo?.id === combo.id && (
-                <button
-                  onClick={() => onClear()}
-                  className="px-3 py-1.5 text-sm rounded bg-red-500/20 text-red-400"
-                >
-                  Clear
-                </button>
-              )}
-              <button
-                onClick={() => onSelect(combo)}
-                disabled={combo.name.toLowerCase().includes('workshop') && !hasWorkshop}
-                className={`px-4 py-1.5 text-sm rounded-lg transition-all ${
-                  selectedCombo?.id === combo.id
-                    ? 'bg-purple-500 text-white'
-                    : combo.name.toLowerCase().includes('workshop') && !hasWorkshop
-                      ? 'bg-slate-600 text-gray-400 cursor-not-allowed'
-                      : 'bg-slate-700 hover:bg-purple-500/50'
-                }`}
-              >
-                {selectedCombo?.id === combo.id ? 'Selected' : 'Select'}
-              </button>
-            </div>
-          </div>
 
-          {/* Features */}
-          <div className="mt-3 text-xs text-gray-400">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {combo.features.map((feature, idx) => (
-                <div key={idx} className="flex items-center gap-2">
-                  <CheckCircle className="w-3 h-3 text-purple-400" />
-                  <span>{feature}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-};
+
   
-const BottomNav = ({ selectedCombo, platformFee, totalAmount, onPayment, onUpdateRegistration, hasExistingRegistration }) => {
+const BottomNav = ({ selectedCombo, platformFee, totalAmount, onPayment, onUpdateRegistration, hasExistingRegistration, items, workshops }) => {
+  // Determine if user needs to select a package
+  const needsPackage = !selectedCombo && !hasExistingRegistration;
+  const hasItems = (Array.isArray(items) && items.length > 0) || (Array.isArray(workshops) && workshops.length > 0);
+  
   return (
     <div className="fixed bottom-0 inset-x-0 bg-slate-800/95 backdrop-blur-md border-t border-slate-700 p-3 sm:p-4">
       <div className="max-w-7xl mx-auto">
+        {/* Enhanced message when no package is selected */}
+        {needsPackage && hasItems && (
+          <div className="mb-3 px-3 py-2 bg-amber-500/15 border border-amber-500/30 rounded-lg">
+            <p className="text-amber-400 text-sm font-medium flex items-center justify-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-5 h-5">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <span className="animate-pulse">You must select a package to proceed with payment</span>
+            </p>
+          </div>
+        )}
+      
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="w-full sm:w-auto flex items-center justify-between sm:justify-start gap-4">
             <Link 
@@ -749,10 +891,13 @@ const BottomNav = ({ selectedCombo, platformFee, totalAmount, onPayment, onUpdat
             
             {!hasExistingRegistration && !selectedCombo && (
               <div className="text-right sm:text-left">
-                <p className="text-xs text-gray-400">
-                  Select Package
+                <p className="text-xs text-gray-400 flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-3 h-3 mr-1 text-amber-400">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  Package Required
                 </p>
-                <p className="text-sm font-bold text-purple-400">
+                <p className="text-sm font-bold text-amber-400">
                   ₹0
                 </p>
               </div>
@@ -774,10 +919,12 @@ const BottomNav = ({ selectedCombo, platformFee, totalAmount, onPayment, onUpdat
               className={`w-full sm:w-auto px-6 py-2 rounded text-sm font-medium transition-all ${
                 selectedCombo 
                   ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500' 
-                  : 'bg-slate-700 cursor-not-allowed'
+                  : 'bg-amber-500/20 text-amber-400 cursor-not-allowed border border-amber-500/30'
+              } ${
+                !selectedCombo && hasItems ? 'relative overflow-hidden after:absolute after:inset-0 after:bg-amber-500/10 after:animate-pulse' : ''
               }`}
             >
-              {selectedCombo ? 'Proceed to Payment' : 'Select Package'}
+              {selectedCombo ? 'Proceed to Payment' : 'Select a Package First'}
             </button>
           )}
         </div>
@@ -786,10 +933,153 @@ const BottomNav = ({ selectedCombo, platformFee, totalAmount, onPayment, onUpdat
   );
 };
 
+// Enhanced Package Selection component with improved highlighting
+const PackageSelector = ({ packages, selectedCombo, onSelect, onClear, hasWorkshop, items, workshops }) => {
+  return (
+    <div className="space-y-4 px-2 pb-32 sm:px-4 package-section">
+      <div className="mb-6">
+        <h2 className="text-xl font-semibold text-white mb-2 flex items-center">
+          <span className="bg-purple-500 w-2 h-6 rounded mr-2"></span> 
+          Select Your Package
+          {!selectedCombo && (items.length > 0 || workshops.length > 0) && (
+            <span className="ml-2 px-2 py-0.5 text-xs bg-amber-500/20 text-amber-400 rounded-full animate-pulse">
+              Required
+            </span>
+          )}
+        </h2>
+        <p className="text-gray-400 text-sm">Choose the package that best fits your participation needs</p>
+        
+        {/* Alert when no package is selected but cart has items */}
+        {!selectedCombo && (items.length > 0 || workshops.length > 0) && (
+          <div className="mt-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm">
+            <div className="flex items-start gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-5 h-5 flex-shrink-0">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <p><strong>Please select a package</strong> to proceed with payment for your selected items.</p>
+            </div>
+          </div>
+        )}
+        
+        {/* Display validation message if a package is selected */}
+        {selectedCombo && (
+          <PackageValidationMessage 
+            selectedCombo={selectedCombo} 
+            items={items} 
+            workshops={workshops} 
+          />
+        )}
+      </div>
+      
+      {packages.map((combo) => (
+        <div key={combo.id} 
+             className={`p-4 rounded-lg border-2 transition-all ${
+               selectedCombo?.id === combo.id 
+                 ? 'border-purple-500 bg-purple-500/10' 
+                 : !selectedCombo && (items.length > 0 || workshops.length > 0)
+                   ? 'border-amber-500/30 hover:border-purple-500/50'
+                   : 'border-slate-700 hover:border-slate-600'
+             }`}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h4 className="text-base font-semibold text-white">{combo.name}</h4>
+              <p className="text-lg font-bold text-purple-400 mt-1">₹{combo.price}</p>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              {selectedCombo?.id === combo.id && (
+                <button
+                  onClick={() => onClear()}
+                  className="px-3 py-1.5 text-sm rounded bg-red-500/20 text-red-400"
+                >
+                  Clear
+                </button>
+              )}
+              <button
+                onClick={() => onSelect(combo)}
+                disabled={combo?.name?.toLowerCase?.()?.includes('workshop') && !hasWorkshop}
+                className={`px-4 py-1.5 text-sm rounded-lg transition-all ${
+                  selectedCombo?.id === combo.id
+                    ? 'bg-purple-500 text-white'
+                    : combo?.name?.toLowerCase?.()?.includes('workshop') && !hasWorkshop
+                      ? 'bg-slate-600 text-gray-400 cursor-not-allowed'
+                      : !selectedCombo && (items.length > 0 || workshops.length > 0)
+                        ? 'bg-slate-700 hover:bg-purple-500 text-white'
+                        : 'bg-slate-700 hover:bg-purple-500/50'
+                }`}
+              >
+                {selectedCombo?.id === combo.id ? 'Selected' : 'Select'}
+              </button>
+            </div>
+          </div>
+          
+          {/* Package description based on type */}
+          <div className="mt-2 text-xs text-gray-400">
+            {combo?.name?.toLowerCase?.()?.includes('single workshop') && (
+              <p>Access to a single workshop of your choice</p>
+            )}
+            {combo?.name?.toLowerCase?.() === 'all events' && (
+              <p>Access to all technical and non-technical events (workshops not included)</p>
+            )}
+            {combo?.name?.toLowerCase?.()?.includes('all events + workshop') && (
+              <p>Access to all events plus one workshop of your choice</p>
+            )}
+          </div>
+
+          {/* Features */}
+          <div className="mt-3 text-xs text-gray-400">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {combo.features.map((feature, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <CheckCircle className="w-3 h-3 text-purple-400" />
+                  <span>{feature}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+
+
+// Add a CSS style element for the highlight effect
+const HighlightEffect = () => (
+  <style jsx>{`
+    @keyframes highlight-pulse {
+      0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.6); }
+      50% { box-shadow: 0 0 0 15px rgba(245, 158, 11, 0.1); }
+      100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+    }
+    
+    .highlight-pulse {
+      animation: highlight-pulse 1.5s ease-out;
+      border-color: rgba(245, 158, 11, 0.8) !important;
+    }
+    
+    .initial-highlight {
+      border: 2px solid rgba(245, 158, 11, 0.5);
+      box-shadow: 0 0 10px rgba(245, 158, 11, 0.3);
+    }
+    
+    @keyframes text-pulse {
+      0% { opacity: 0.6; }
+      50% { opacity: 1; }
+      100% { opacity: 0.6; }
+    }
+    
+    .animate-pulse {
+      animation: text-pulse 1.5s ease-in-out infinite;
+    }
+  `}</style>
+);
+
   return (
     <div className="min-h-screen mt-16 bg-gradient-to-b from-[#0A0A1B] to-[#1a1a3a] text-white">
       {/* Header and Cart Items sections remain the same */}
-
+      <HighlightEffect />
       <div className="h-16 pt-16 md:pt-24 border-b border-slate-700/50">
                 <div className="max-w-7xl mx-auto h-full px-4">
                     <div className="flex items-center justify-center h-full">
@@ -860,25 +1150,29 @@ const BottomNav = ({ selectedCombo, platformFee, totalAmount, onPayment, onUpdat
         onSelect={handleComboSelect}
         onClear={handleClearCombo}
         hasWorkshop={hasWorkshop}
+        items={items}
+        workshops={workshops}
       />
     )}
 
 
       {/* Cart Summary - Fixed at bottom */}
       <BottomNav
-        selectedCombo={selectedCombo}
-        platformFee={platformFee}
-        totalAmount={totalAmount}
-        onPayment={initiatePayment}
-        onUpdateRegistration={handleUpdateRegistration}
-        hasExistingRegistration={hasExistingRegistration}
+      selectedCombo={selectedCombo}
+      platformFee={platformFee}
+      totalAmount={totalAmount}
+      onPayment={initiatePayment}
+      onUpdateRegistration={handleUpdateRegistration}
+      hasExistingRegistration={hasExistingRegistration}
+      items={items}
+      workshops={workshops}
+    />
+          {paymentSession && (
+      <PaymentHandler 
+        sessionData={paymentSession}
+        onClose={() => setPaymentSession(null)}
       />
-      {paymentSession && (
-        <PaymentHandler 
-          sessionData={paymentSession}
-          onClose={() => setPaymentSession(null)}
-        />
-      )}
+    )}
     </div>
   );
 };

@@ -1,11 +1,17 @@
 const EventList = ({ events, onEdit, onDelete }) => {
   // Helper function to format dates
-  const formatDate = (dateString) => {
-    if (!dateString) return 'Not specified';
-    return new Date(dateString).toLocaleDateString('en-US', {
+  const formatDateIST = (dateString) => {
+    if (!dateString || isNaN(Date.parse(dateString))) return 'Not specified';
+  
+    return new Date(dateString).toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
       year: 'numeric',
       month: 'long',
-      day: 'numeric'
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
     });
   };
 
@@ -40,7 +46,7 @@ const EventList = ({ events, onEdit, onDelete }) => {
                           d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" 
                         />
                       </svg>
-                      {formatDate(event.details?.eventDate || event.startTime)}
+                      {formatDateIST(event.startTime)}
                     </div>
                     {event.rounds && event.rounds[0] && (
                       <div className="text-gray-400 text-sm flex items-center">
@@ -138,7 +144,7 @@ const EventList = ({ events, onEdit, onDelete }) => {
                 <div className="text-sm">
                   <span className="text-gray-400">Registration Ends: </span>
                   <span className="text-sky-400">
-                    {formatDate(event.registrationEndTime)}
+                    {formatDateIST(event.registrationEndTime)}
                   </span>
                 </div>
               </div>

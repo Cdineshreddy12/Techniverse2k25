@@ -1,13 +1,35 @@
 import React, { useEffect } from 'react';
 import { 
   Shield, Target, Crosshair, Calendar, Clock, MapPin, 
-  Users, Award, Eye, AlertTriangle, Info
+  Users, Award, Eye, AlertTriangle, Info, Phone, Mail, User
 } from 'lucide-react';
 
 const WeaponExpo = () => {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
+
+  // Coordinator data
+  const coordinators = [
+    {
+      name: "Jaisheel",
+      studentId: "S220015",
+      email: "s220015@rguktsklm.ac.in",
+      phone: "9618906525",
+      photo: "https://res.cloudinary.com/dxsupdl3t/image/upload/v1740712051/WhatsApp_Image_2025-02-28_at_01.04.54_050718da_ag6vpp.jpg",
+      department: "Weapon Expo(POC)",
+      class: "E1"
+    },
+    {
+      name: "Capt. Priya Singh",
+      studentId: "S221048",
+      email: "s221048@rguktsklm.ac.in",
+      phone: "9494521368",
+      photo: "https://res.cloudinary.com/dxsupdl3t/image/upload/v1740712072/WhatsApp_Image_2025-02-28_at_01.04.55_cfc675c7_bet8s8.jpg",
+      department: "Weapon Expo Coordinator",
+      class: "E1"
+    }
+  ];
 
   return (
     <div className="min-h-screen bg-slate-950 text-white pt-24 pb-20">
@@ -177,6 +199,54 @@ const WeaponExpo = () => {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+        
+        {/* Coordinators Section */}
+        <div className="mb-12">
+          <h2 className="text-2xl font-bold text-red-400 mb-6 flex items-center">
+            <Users className="w-5 h-5 mr-2" />
+            Event Coordinators
+          </h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {coordinators.map((coordinator, index) => (
+              <div key={index} className="bg-slate-900/70 backdrop-blur-sm rounded-xl border border-red-500/20 p-6 shadow-xl">
+                <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
+                  {/* Coordinator Image */}
+                  <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-red-500/30 flex-shrink-0">
+                    <img 
+                      src={coordinator.photo} 
+                      alt={coordinator.name} 
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  
+                  {/* Coordinator Details */}
+                  <div className="flex-1 text-center sm:text-left">
+                    <h3 className="text-xl font-bold text-white">{coordinator.name}</h3>
+                    <p className="text-red-400">{coordinator.department}</p>
+                    
+                    <div className="mt-4 space-y-2">
+                      <div className="flex items-center justify-center sm:justify-start text-gray-300">
+                        <User className="w-4 h-4 text-red-500 mr-2" />
+                        <span>ID: {coordinator.studentId}</span>
+                      </div>
+                      
+                      <div className="flex items-center justify-center sm:justify-start text-gray-300">
+                        <Phone className="w-4 h-4 text-red-500 mr-2" />
+                        <span>{coordinator.phone}</span>
+                      </div>
+                      
+                      <div className="flex items-center justify-center sm:justify-start text-gray-300">
+                        <Mail className="w-4 h-4 text-red-500 mr-2" />
+                        <span>{coordinator.email}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
         

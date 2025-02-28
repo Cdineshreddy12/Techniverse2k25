@@ -75,7 +75,27 @@ const {user}=useKindeAuth();
   
       if (data.success) {
         console.log('Event data:', data.event);
-        setEvent(data.event);
+        
+        // Calculate total prize money from the structure if totalPrizeMoney is 0
+        if (data.event.prizes && data.event.prizes.totalPrizeMoney === 0 && 
+            data.event.prizes.structure && data.event.prizes.structure.length > 0) {
+          const calculatedTotal = data.event.prizes.structure.reduce(
+            (total, prize) => total + (prize.amount || 0), 0
+          );
+          
+          // Create a new event object with the updated totalPrizeMoney
+          const updatedEvent = {
+            ...data.event,
+            prizes: {
+              ...data.event.prizes,
+              totalPrizeMoney: calculatedTotal
+            }
+          };
+          
+          setEvent(updatedEvent);
+        } else {
+          setEvent(data.event);
+        }
       } else {
         throw new Error(data.error || 'Failed to fetch event details');
       }
@@ -410,7 +430,7 @@ const {user}=useKindeAuth();
             <p className="text-xl font-bold text-white">₹{event.prizes.totalPrizeMoney.toLocaleString()}</p>
           </div>
 
-          {/* <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+          <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
             <div className="flex items-center justify-between mb-4">
               <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 p-2.5">
                 <Users className="w-full h-full text-white" />
@@ -425,7 +445,7 @@ const {user}=useKindeAuth();
                 `Teams (max ${event.registration.maxTeamSize} members)` : 
                 'Individual'}
             </p>
-          </div> */}
+          </div>
 
           <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
             <div className="flex items-center justify-between mb-4">

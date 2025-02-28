@@ -313,13 +313,21 @@ const PrizeStructureInput = ({ prizes, onChange }) => {
 const EventForm = ({ event, onClose }) => {
 
   const [activeTab, setActiveTab] = useState('basic');
+
   const formatDateForInput = (dateString) => {
     if (!dateString) return '';
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return ''; // Return empty string if invalid date
-    return date.toISOString().slice(0, 16); // Format as YYYY-MM-DDThh:mm
+    
+    // Convert to local timezone for input
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
   };
-
   const defaultRound = {
     roundNumber: 1,
     name: '',
@@ -399,6 +407,15 @@ const EventForm = ({ event, onClose }) => {
     return defaultValues;
   });
   
+const formatDateForSubmit = (dateTimeString) => {
+  if (!dateTimeString) return null;
+  // Create date object (browser will interpret as local time)
+  const date = new Date(dateTimeString);
+  if (isNaN(date.getTime())) return null;
+  // Return ISO string (which is in UTC)
+  return date.toISOString();
+};
+
 
   
   const handleSubmit = async (e) => {
@@ -473,9 +490,26 @@ const EventForm = ({ event, onClose }) => {
       const eventData = {
         ...formData,
         departments: [departmentId],
+        startTime: formatDateForSubmit(formData.startTime),
+        registrationEndTime: formatDateForSubmit(formData.registrationEndTime),
         registrationFee: parseFloat(formData.registrationFee) || 0,
         maxRegistrations: parseFloat(formData.maxRegistrations) || null,
-        rounds: processedRounds,
+        
+        // Process rounds data with properly formatted dates
+        rounds: processedRounds.map(round => ({
+          ...round,
+          roundNumber: parseInt(round.roundNumber) || 1,
+          startTime: formatDateForSubmit(round.startTime),
+          endTime: formatDateForSubmit(round.endTime),
+          sections: round.sections.map(section => ({
+            ...section,
+            requirements: Array.isArray(section.requirements) ? section.requirements : []
+          })),
+          requirements: Array.isArray(round.requirements) ? round.requirements : [],
+          specialRules: Array.isArray(round.specialRules) ? round.specialRules : [],
+          qualificationCriteria: round.qualificationCriteria || ''
+        })),
+        
         details: {
           ...formData.details,
           maxTeamSize: parseFloat(formData.details.maxTeamSize) || 1,
@@ -483,17 +517,30 @@ const EventForm = ({ event, onClose }) => {
             ...prize,
             amount: parseFloat(prize.amount) || 0,
             position: parseFloat(prize.position) || 0
-          }))
+          })) || []
         },
+        
         // Process coordinator data - replace blob URLs with nulls for JSON
         coordinators: formData.coordinators.map(coordinator => ({
           ...coordinator,
+          name: coordinator.name || '',
+          email: coordinator.email || '',
+          phone: coordinator.phone || '',
           photo: typeof coordinator.photo === 'string' ? coordinator.photo : 
                  (coordinator.photo && typeof coordinator.photo === 'object' && 
                   coordinator.photo.url && !coordinator.photo.url.startsWith('blob:')) ?
-                 coordinator.photo.url : null
-        }))
+                 coordinator.photo.url : null,
+          role: coordinator.role || '',
+          studentId: coordinator.studentId || '',
+          department: coordinator.department || '',
+          class: coordinator.class || ''
+        })),
+        
+        // Set status and registrationType
+        status: formData.status || 'draft',
+        registrationType: formData.registrationType || 'team'
       };
+      
   
       // Remove the file objects before stringifying
       delete eventData.bannerDesktopFile;

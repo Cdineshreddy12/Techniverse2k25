@@ -20,6 +20,9 @@ const CommitteesComponent = () => {
       icon: Brain,
       color: "from-blue-500 to-cyan-600",
       members: [
+        {
+            name:"Mr. Gedela Ravi",role:"Convenor,Dean Student Welfare"
+        },
         {name: "Mr. Ch Teja Kiran", role: "Co-convener, HOD, CE"},
         {name: "Mr. Ch Vasu", role: "Treasurer, Asst. Professor, ME"},
         {name: "Dr. M P Suri Ganesh", role: "Treasurer, Asst. Professor, Management"},

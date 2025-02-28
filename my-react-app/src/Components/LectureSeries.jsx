@@ -5,7 +5,7 @@ import { Calendar, Clock, MapPin, BookOpen } from 'lucide-react';
 const speakers = [
     {
         name: "Prof. Ch. Subrahmanyam",
-        title: "FRSC",
+        title: "FRSC (Professor)",
         image: "https://res.cloudinary.com/dxsupdl3t/image/upload/v1740020572/9_hcn52n.png",
         department: "Dept of Chemistry",
         institution: "IIT Hyderabad",
@@ -82,7 +82,7 @@ const speakers = [
         image: "https://res.cloudinary.com/dxsupdl3t/image/upload/v1740020567/4_rhwaay.png",
         department: "Harvard Medical School",
         institution: "Massachusetts General Hospital, Boston, USA",
-        topic: "Lecture on Cancer metabolism;therapeutic opportunities",
+        topic: "Cancer metabolism herapeutic opportunities",
         description: "Cancer Metabolism",
         date: "March 9, 2025",
         time: "11:40 AM - 12:40 AM",
@@ -150,7 +150,19 @@ const speakers = [
         date: "March 7, 2025",
         time: "10:00 AM - 11:00 AM",
         venue: "Workshop Building"
-    }
+    },
+    {
+      name: "Mr. Sasi Kumar Peyyala",
+      title: "Research Analyst",
+      department: "SEBI Registered",
+      image: "https://res.cloudinary.com/dxsupdl3t/image/upload/v1740709902/WhatsApp_Image_2025-02-27_at_21.16.26_30131533_pq76ei.jpg",
+      institution: "",
+      topic: "Research & Development in Nation Building",
+      description: "Entrepreneurship in the AI world",
+      date: "March 8, 2025",
+      time: "3:00 PM - 5:00 PM",
+      venue: "Champavathi Block,CLH-3"
+  }
   
     
  

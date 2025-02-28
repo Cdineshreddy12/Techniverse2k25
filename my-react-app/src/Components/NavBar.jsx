@@ -361,6 +361,7 @@ const Navbar = ({ onScrollToSection }) => {
           </div>
           
           <div className="py-4 bg-black overflow-y-auto max-h-[calc(100vh-80px)]">
+            <MobileAuthButtons />
             {mobileNavigationItems.map((item, index) => (
               <MobileMenuItem 
                 key={index} 
@@ -385,7 +386,7 @@ const Navbar = ({ onScrollToSection }) => {
               <span className="text-white font-medium">Cart</span>
             </Link>
 
-            <MobileAuthButtons />
+            
           </div>
         </div>
       </div>

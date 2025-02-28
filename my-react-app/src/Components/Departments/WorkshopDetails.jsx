@@ -4,7 +4,7 @@ import {
   Users, Calendar, Clock, Tag, Loader, 
   IndianRupee, CalendarClock, ShoppingCart, 
   GraduationCap, Star, ArrowLeft, Mail, Link as LinkIcon,
-  Image as ImageIcon
+  Image as ImageIcon, CheckCircle, BookOpen
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useDispatch } from 'react-redux';
@@ -208,6 +208,51 @@ const WorkshopDetails = () => {
     );
   };
 
+  // New Component: Prerequisites and Outcomes Section
+  const PrerequisitesAndOutcomes = () => {
+    if (!workshop.prerequisites?.length && !workshop.outcomes?.length) {
+      return null;
+    }
+
+    return (
+      <div className="mb-12 grid grid-cols-1 md:grid-cols-2 gap-6">
+        {workshop.prerequisites?.length > 0 && (
+          <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+            <div className="flex items-center gap-2 mb-4">
+              <BookOpen className="w-5 h-5 text-indigo-400" />
+              <h2 className="text-xl font-semibold text-white">Prerequisites</h2>
+            </div>
+            <ul className="space-y-3">
+              {workshop.prerequisites.map((item, index) => (
+                <li key={index} className="flex items-start gap-2">
+                  <div className="mt-1 text-indigo-400">•</div>
+                  <p className="text-gray-300">{item}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {workshop.outcomes?.length > 0 && (
+          <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+            <div className="flex items-center gap-2 mb-4">
+              <CheckCircle className="w-5 h-5 text-indigo-400" />
+              <h2 className="text-xl font-semibold text-white">What You'll Learn</h2>
+            </div>
+            <ul className="space-y-3">
+              {workshop.outcomes.map((item, index) => (
+                <li key={index} className="flex items-start gap-2">
+                  <div className="mt-1 text-indigo-400">•</div>
+                  <p className="text-gray-300">{item}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-slate-900 pb-24">
       {/* Hero Section */}
@@ -297,6 +342,9 @@ const WorkshopDetails = () => {
             <p className="text-gray-300 leading-relaxed">{workshop.description}</p>
           </div>
         </div>
+
+        {/* Prerequisites and Outcomes Section */}
+        <PrerequisitesAndOutcomes />
 
         <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700 mb-6">
           <h2 className="text-xl font-semibold text-white mb-4">Workshop Timing</h2>

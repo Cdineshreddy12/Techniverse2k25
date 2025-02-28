@@ -55,7 +55,7 @@ export default function AboutPage(){
                 <div className="aspect-video">
                 <iframe 
                       className="w-full h-full"
-                      src="https://www.youtube.com/embed/ppZEEBdB-fw" 
+                      src="https://www.youtube.com/embed/rB4Bifr4u4A" 
                       title="TechniVerse 2K24"
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                       allowFullScreen

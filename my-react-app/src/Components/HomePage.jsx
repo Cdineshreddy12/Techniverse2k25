@@ -176,7 +176,7 @@ const ComboPackage = memo(() => {
           features: [
             "Access to All Technical Events",
             "Access to All Non-Technical Events",
-            "Tech Fest ID Card",
+            "Techniverse Band",
             "Certificate of Participation",
             "Event Schedule Booklet"
           ]
@@ -206,7 +206,7 @@ const ComboPackage = memo(() => {
           features: [
             "Access to All Technical Events",
             "Access to All Non-Technical Events",
-            "Tech Fest ID Card",
+            "Techniverse Band",
             "Certificate of Participation",
             "Event Schedule Booklet"
           ]
@@ -301,7 +301,7 @@ const RegistrationGuide = () => {
     }
   };
 
-  
+
   return (
     <div className="bg-gradient-to-r from-slate-900/90 to-slate-800/90 backdrop-blur-sm rounded-xl border border-cyan-500/20 p-4 mb-8">
       <h3 className="text-xl font-semibold text-cyan-400 mb-3">How to Register</h3>

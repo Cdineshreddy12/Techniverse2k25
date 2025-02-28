@@ -185,7 +185,7 @@ const Timeline = () => {
       ...workshops.map(workshop => ({
         ...workshop,
         type: 'workshop',
-        startTime: workshop.registration?.startTime || workshop.createdAt,
+        startTime: workshop.workshopTiming?.startDate,
         _id: workshop._id,
         venue: workshop.venue || 'TBA'
       }))
