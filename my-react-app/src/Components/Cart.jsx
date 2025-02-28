@@ -627,15 +627,7 @@ const initiatePayment = async () => {
     // Show loading toast
     const loadingToast = toast.loading('Processing payment request...');
     
-    // Log the payment request for debugging
-    console.log('Payment Request:', {
-      amount: totalAmount,
-      baseAmount: selectedCombo.price,
-      platformFee,
-      combo: selectedCombo,
-      timestamp
-    });
-    
+ 
     const response = await fetch(API_CONFIG.getUrl('payment/initiate'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

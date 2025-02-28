@@ -102,7 +102,7 @@ const detectTampering = async (req, res, next) => {
 
         // 4. Cart verification
         const dbCartIds = student.cart.map(item => item.eventId.toString()).sort();
-        const requestCartIds = cartItems.map(item => item.id.toString()).sort();
+        const requestCartIds = cartItems.map(item => (item.id || item.eventId || '').toString()).sort();
 
         if (JSON.stringify(dbCartIds) !== JSON.stringify(requestCartIds)) {
             console.error('Cart tampering detected:', {

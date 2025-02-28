@@ -1,201 +1,322 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import API_CONFIG from '../config/api';
 
 const PaymentHandler = ({ sessionData, onClose }) => {
+  const razorpayLoaded = useRef(false);
+  const [error, setError] = useState(null);
+
   useEffect(() => {
     if (!sessionData) return;
 
-    console.log('Session Data:', sessionData);
-
-    const paymentDetails = sessionData?.paymentDetails || {};
-    const customerDetails = paymentDetails?.customerDetails || {};
-    const razorpayDetails = paymentDetails?.razorpayDetails || {};
-
-    // Extract fee information
-    const baseAmount = sessionData.amount || 0;
-    const platformFee = sessionData.platformFee || Math.ceil(baseAmount * 0.02) || 0;
-    const totalAmount = sessionData.totalAmount || (baseAmount + platformFee);
-
-    console.log('Payment amounts:', { baseAmount, platformFee, totalAmount });
-
-    const handlePaymentVerification = async (response) => {
+    // Step 1: Create a fresh order instead of using the possibly problematic one
+    const createFreshOrder = async () => {
       try {
-        console.log('Payment Response:', response); // Debug log
-
-        // IMPORTANT FIX: Check each property individually with more detailed logging
-        if (!response.razorpay_payment_id) {
-          console.error('Missing razorpay_payment_id in response:', response);
+      
+        
+        // Extract original order details
+        const originalOrderId = sessionData?.paymentDetails?.razorpayDetails?.orderId;
+        const baseAmount = sessionData.amount || 0;
+        const platformFee = sessionData.platformFee || Math.ceil(baseAmount * 0.02) || 0;
+        const totalAmount = sessionData.totalAmount || (baseAmount + platformFee);
+        
+  
+        // Get cart items in the correct format
+        const cartItems = sessionData.selectedEvents?.map(event => ({
+          eventId: event.eventId || event.id,
+          eventName: event.eventName || event.title || '',
+          status: 'pending',
+          registrationType: 'individual',
+          maxTeamSize: 1
+        })) || [];
+        
+        // Create a fresh order through your backend
+        const response = await fetch(API_CONFIG.getUrl('payment/initiate'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount: totalAmount,
+            baseAmount: baseAmount,
+            platformFee: platformFee,
+            cartItems: cartItems,
+            workshops: sessionData.selectedWorkshops || [],
+            kindeId: sessionData.kindeId || sessionData.student?.kindeId,
+            combo: sessionData.paymentDetails?.merchantParams?.comboId ? {
+              id: sessionData.paymentDetails.merchantParams.comboId,
+              name: sessionData.paymentDetails.merchantParams.comboName || "Selected Package",
+              price: baseAmount
+            } : null,
+            timestamp: Date.now(),
+            refreshOrder: true
+          })
+        });
+        
+        // More detailed error logging
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Server error response:', errorText);
+          throw new Error(`Failed to create fresh order: ${response.status}`);
         }
         
-        if (!response.razorpay_order_id) {
-          console.error('Missing razorpay_order_id in response:', response);
+        const data = await response.json();
+        
+        if (!data.success || !data.registration?.paymentDetails?.razorpayDetails?.orderId) {
+          console.error('Invalid server response:', data);
+          throw new Error('Failed to get a valid order ID from the server');
         }
         
-        if (!response.razorpay_signature) {
-          console.error('Missing razorpay_signature in response:', response);
-        }
+   
+        return data.registration;
+      } catch (error) {
+        console.error('Failed to create fresh order:', error);
+        throw error;
+      }
+    };
 
-        // If any are missing, but we have at least a payment ID or order ID, we can still try to verify
-        if ((!response.razorpay_payment_id && !response.razorpay_order_id) || 
-            (response.razorpay_payment_id && response.razorpay_order_id && !response.razorpay_signature)) {
-          throw new Error('Missing required Razorpay parameters');
+    // Step 2: Load Razorpay SDK
+    const loadRazorpayScript = () => {
+      return new Promise((resolve) => {
+        if (window.Razorpay) {
+          razorpayLoaded.current = true;
+          resolve();
+          return;
         }
-
-        // Prepare verification data with fallbacks for any missing fields
-        const verifyData = {
-          razorpay_payment_id: response.razorpay_payment_id || '',
-          razorpay_order_id: response.razorpay_order_id || razorpayDetails.orderId || '',
-          razorpay_signature: response.razorpay_signature || ''
+        
+        console.log('Loading Razorpay SDK...');
+        const script = document.createElement('script');
+        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        script.async = true;
+        
+        script.onload = () => {
+          console.log('Razorpay SDK loaded successfully');
+          razorpayLoaded.current = true;
+          resolve();
         };
+        
+        script.onerror = () => {
+          console.error('Razorpay SDK failed to load');
+          setError('Payment system unavailable. Please try again later.');
+          if (onClose) onClose();
+        };
+        
+        document.body.appendChild(script);
+      });
+    };
 
-        console.log('Sending verification data:', verifyData);
+    // Step 3: Initialize payment with fresh order data
+    const initializePayment = async () => {
+      try {
+        // Show loading indicator
+        toast.loading('Preparing payment...', { id: 'payment-loading' });
+        
+        // Make sure SDK is loaded first
+        await loadRazorpayScript();
+        if (!razorpayLoaded.current) {
+          toast.error('Payment system not available', { id: 'payment-loading' });
+          return;
+        }
+        
+        // Create a fresh order to avoid using potentially problematic order IDs
+        const freshSessionData = await createFreshOrder();
+        
+        const paymentDetails = freshSessionData?.paymentDetails || {};
+        const customerDetails = paymentDetails?.customerDetails || {};
+        const razorpayDetails = paymentDetails?.razorpayDetails || {};
+        
+        // Get the fresh Razorpay order ID
+        const orderIdToUse = razorpayDetails.orderId;
+        
+        if (!orderIdToUse) {
+          throw new Error('Could not get a valid order ID');
+        }
+        
+   
+        
+        // Extract fee information
+        const baseAmount = freshSessionData.amount || 0;
+        const platformFee = freshSessionData.platformFee || 0;
+        const totalAmount = freshSessionData.totalAmount || 0;
+        
+     
+        // Close loading toast
+        toast.dismiss('payment-loading');
+        
+        // Configure Razorpay options
+        const options = {
+          key: import.meta.env.VITE_APP_RAZORPAY_KEY_ID,
+          amount: totalAmount * 100, // Convert to paise
+          currency: "INR",
+          name: "Techniverse2k25",
+          description: "Event Registration Payment",
+          order_id: orderIdToUse,
+          handler: function(response) {
+            handlePaymentVerification(response, freshSessionData);
+          },
+          prefill: {
+            name: customerDetails.name || '',
+            email: customerDetails.email || '',
+            contact: customerDetails.phone || ''
+          },
+          theme: {
+            color: "#7e22ce"
+          },
+          modal: {
+            ondismiss: function() {
+              toast.error('Payment cancelled');
+              if (onClose) onClose();
+            }
+          }
+        };
+        
+     
+        
+        const rzp = new window.Razorpay(options);
+        
+        rzp.on('payment.failed', function (response) {
+          console.error('Payment failed:', response.error);
+          toast.error(`Payment failed: ${response.error.description}`);
+          if (onClose) onClose();
+        });
+        
+        rzp.open();
+      } catch (error) {
+        console.error('Payment initialization error:', error);
+        toast.error(`Payment initialization failed: ${error.message}`, { id: 'payment-loading' });
+        setError(error.message);
+        if (onClose) onClose();
+      }
+    };
 
+    // Step 4: Handle payment verification with improved error handling
+    const handlePaymentVerification = async (response, sessionDataToUse) => {
+      try {
+     
+        
+        // Show loading indicator during verification
+        toast.loading('Verifying payment...', { id: 'verify-loading' });
+        
+        if (!response.razorpay_payment_id || !response.razorpay_order_id || !response.razorpay_signature) {
+          console.error('Missing required Razorpay parameters:', response);
+          throw new Error('Missing required payment confirmation parameters');
+        }
+        
+        const verifyData = {
+          razorpay_payment_id: response.razorpay_payment_id,
+          razorpay_order_id: response.razorpay_order_id,
+          razorpay_signature: response.razorpay_signature
+        };
+        
+        
+        
         const verifyResponse = await fetch(API_CONFIG.getUrl('payment/verify'), {
           method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json'
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(verifyData)
         });
-
+        
         if (!verifyResponse.ok) {
-          const errorText = await verifyResponse.text();
-          throw new Error(`Server responded with status ${verifyResponse.status}: ${errorText}`);
+          throw new Error(`Server responded with status: ${verifyResponse.status}`);
         }
-
+        
         const verifyResult = await verifyResponse.json();
-        console.log('Verify Response:', verifyResult); // Debug log
-
+      
+        
+        toast.dismiss('verify-loading');
+        
         if (verifyResult.success) {
           toast.success('Payment successful!');
-          // Use state parameter for React Router
-          window.location.href = `/payment/success?orderId=${paymentDetails.orderId}`;
+          // Redirect to success page
+          window.location.href = `/payment/success?orderId=${sessionDataToUse.paymentDetails.orderId}`;
         } else {
-          throw new Error(verifyResult.error || 'Verification failed');
+          throw new Error(verifyResult.error || 'Payment verification failed');
         }
       } catch (error) {
         console.error('Payment verification error:', error);
-        toast.error(`Payment verification failed: ${error.message}`);
+        toast.error(`Payment verification failed: ${error.message}`, { id: 'verify-loading' });
         
-        // IMPORTANT: Instead of immediately redirecting to failure page,
-        // check payment status before redirecting
-        checkPaymentStatus(paymentDetails.orderId);
+        // Fall back to checking payment status
+        checkPaymentStatus(sessionDataToUse.paymentDetails.orderId);
+      }
+    };
+
+    // Step 5: Enhanced status check function
+    const checkPaymentStatus = async (orderId) => {
+      try {
+        if (!orderId) {
+          console.error('Missing order ID for status check');
+          if (onClose) onClose();
+          return;
+        }
+        
+        console.log('Checking payment status for order:', orderId);
+        toast.loading('Checking payment status...', { id: 'status-check' });
+        
+        // Wait for webhook processing
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        const response = await fetch(API_CONFIG.getUrl(`payment/status/${orderId}`));
+        if (!response.ok) {
+          throw new Error(`Failed to check payment status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+       
+        
+        toast.dismiss('status-check');
+        
+        if (data.success && data.status === 'completed') {
+          toast.success('Payment confirmed!');
+          window.location.href = `/payment/success?orderId=${orderId}`;
+        } else {
+          window.location.href = `/payment/failure?orderId=${orderId}&error=Payment+verification+failed`;
+        }
+      } catch (error) {
+        console.error('Payment status check failed:', error);
+        toast.dismiss('status-check');
+        toast.error('Could not verify payment status');
+        window.location.href = `/payment/failure?orderId=${orderId}&error=${encodeURIComponent(error.message)}`;
       } finally {
         if (onClose) onClose();
       }
     };
 
-    // Add this function to check payment status before showing error
-    const checkPaymentStatus = async (orderId) => {
-      try {
-        if (!orderId) {
-          window.location.href = '/payment/failure?error=Missing+order+ID';
-          return;
-        }
-        
-        console.log('Checking payment status for order:', orderId);
-        
-        // Wait a moment for webhook to process
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Check payment status from your API
-        const response = await fetch(API_CONFIG.getUrl(`payment/status/${orderId}`));
-        const data = await response.json();
-        
-        console.log('Payment status check result:', data);
-        
-        // If payment is completed according to backend, redirect to success
-        if (data.success && data.status === 'completed') {
-          toast.success('Payment successful!');
-          window.location.href = `/payment/success?orderId=${orderId}`;
-        } else {
-          // Otherwise redirect to failure
-          window.location.href = `/payment/failure?orderId=${orderId}&error=Payment+verification+failed`;
-        }
-      } catch (error) {
-        console.error('Payment status check failed:', error);
-        window.location.href = `/payment/failure?orderId=${orderId}&error=${encodeURIComponent(error.message)}`;
+    // Start the payment flow
+    initializePayment();
+
+    // Cleanup function
+    return () => {
+      const script = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
+      if (script && script.parentNode) {
+        script.parentNode.removeChild(script);
       }
-    };
-
-    const options = {
-      key: import.meta.env.VITE_APP_RAZORPAY_KEY_ID,
-      amount: totalAmount * 100, // Convert to paise (including platform fee)
-      currency: "INR",
-      name: "Techniverse2k25",
-      description: "Event Registration Payment",
-      order_id: razorpayDetails.orderId,
-      handler: handlePaymentVerification,
-      prefill: {
-        name: customerDetails.name || '',
-        email: customerDetails.email || '',
-        contact: customerDetails.phone || ''
-      },
-      theme: {
-        color: "#7e22ce"
-      },
-      notes: {
-        orderId: paymentDetails.orderId,
-        baseAmount: baseAmount,
-        platformFee: platformFee
-      },
-      terms: {
-        show: true,
-        privacyPolicy: {
-          url: `${window.location.origin}/privacy-policy`
-        },
-        termsAndConditions: {
-          url: `${window.location.origin}/terms-and-conditions`
-        },
-        shippingPolicy: {
-          url: `${window.location.origin}/shipping-policy`  
-        },
-        cancellationPolicy: {
-          url: `${window.location.origin}/cancellation-policy`
-        }
-      },
-      modal: {
-        ondismiss: function() {
-          toast.error('Payment cancelled');
-          window.location.href = `/payment/failure?orderId=${paymentDetails.orderId}&error=cancelled`;
-          if (onClose) onClose();
-        }
-      }
-    };
-
-    console.log('Razorpay Options:', options);
-
-    try {
-      if (!window.Razorpay) {
-        throw new Error('Razorpay SDK not loaded');
-      }
-
-      const rzp = new window.Razorpay(options);
       
-      // Add payment events
-      rzp.on('payment.failed', function (response) {
-        console.error('Payment failed:', response.error);
-        toast.error(`Payment failed: ${response.error.description}`);
-        window.location.href = `/payment/failure?orderId=${paymentDetails.orderId}&error=${encodeURIComponent(response.error.description)}`;
-        if (onClose) onClose();
-      });
+      // Clear any toast notifications
+      toast.dismiss('payment-loading');
+      toast.dismiss('verify-loading');
+      toast.dismiss('status-check');
+    };
+  }, [sessionData, onClose]);
 
-      rzp.open();
-    } catch (error) {
-      console.error('Razorpay initialization error:', error);
-      toast.error(`Failed to initialize payment: ${error.message}`);
-      window.location.href = `/payment/failure?orderId=${paymentDetails.orderId}&error=initialization_failed`;
-      if (onClose) onClose();
-    }
-
-  }, [sessionData]);
-
-  if (!sessionData) {
-    console.error('No session data provided');
-    return null;
+  if (error) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+        <div className="bg-slate-800 p-6 rounded-lg max-w-md w-full">
+          <h3 className="text-xl font-bold text-white mb-2">Payment Error</h3>
+          <p className="text-red-400 mb-4">{error}</p>
+          <div className="flex justify-end">
+            <button 
+              className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
+              onClick={onClose}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
+  // No visual rendering during normal operation
   return null;
 };
 
