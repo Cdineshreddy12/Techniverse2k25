@@ -21,7 +21,7 @@ const WeaponExpo = () => {
       class: "E1"
     },
     {
-      name: "Capt. Priya Singh",
+      name: "P.Divya",
       studentId: "S221048",
       email: "s221048@rguktsklm.ac.in",
       phone: "9494521368",
