@@ -228,10 +228,11 @@ router.post('/payment/initiate', detectTampering, async (req, res) => {
 
           // Use workshops from the request body
           const selectedWorkshops = workshops.map(workshop => ({
-              workshopId: workshop.id,
-              workshopName: workshop.title,
-              status: 'pending'
-          }));
+            workshopId: workshop.id || workshop.workshopId, // Accept either format
+            workshopName: workshop.title || workshop.workshopName || 'Workshop',
+            status: 'pending'
+        }));
+
 
           console.log('Selected workshops for registration:', selectedWorkshops);
 
