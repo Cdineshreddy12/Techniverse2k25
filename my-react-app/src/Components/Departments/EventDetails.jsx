@@ -1,111 +1,143 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Trophy, Users, Calendar, Clock,
   Phone, Tag, Check, ArrowLeft, Loader,
-  IndianRupee, CalendarClock, MapPin,ShoppingCart,Info,X, ChevronDown, ChevronUp,Mail
+  IndianRupee, CalendarClock, MapPin, ShoppingCart, Info, X, ChevronDown, ChevronUp, Mail
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useDispatch } from 'react-redux';
 import { store } from '../../Redux/mainStore';
-import { addToCart } from '../../Redux/cartSlice';
+import { addToCart as addToCartAction } from '../../Redux/cartSlice';
 import { useKindeAuth } from '@kinde-oss/kinde-auth-react';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import API_CONFIG from '../../config/api';
+
+// Separated API fetch function for event details
+const fetchEventDetails = async ({ departmentId, eventId }) => {
+  const apiUrl = API_CONFIG.getUrl(`departments/${departmentId}/events/${eventId}`);
+  const response = await fetch(apiUrl);
+  
+  if (!response.ok) {
+    throw new Error('Failed to fetch event details');
+  }
+  
+  const data = await response.json();
+  
+  if (!data.success) {
+    throw new Error(data.error || 'Failed to fetch event details');
+  }
+  
+  // Calculate total prize money from the structure if totalPrizeMoney is 0
+  if (data.event.prizes && data.event.prizes.totalPrizeMoney === 0 && 
+      data.event.prizes.structure && data.event.prizes.structure.length > 0) {
+    const calculatedTotal = data.event.prizes.structure.reduce(
+      (total, prize) => total + (prize.amount || 0), 0
+    );
+    
+    // Create a new event object with the updated totalPrizeMoney
+    return {
+      ...data.event,
+      prizes: {
+        ...data.event.prizes,
+        totalPrizeMoney: calculatedTotal
+      }
+    };
+  }
+  
+  return data.event;
+};
+
+// Separated API function for adding to cart
+const addToBackendCart = async ({ kindeId, eventId, price }) => {
+  const cartItem = {
+    eventId: eventId,
+    price: price
+  };
+
+  const url = API_CONFIG.getUrl('cart/add');
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      kindeId,
+      item: cartItem
+    })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || errorData.details || 'Failed to add item to cart');
+  }
+  
+  return response.json();
+};
+
 const EventDetails = () => {
   const { departmentId, eventId } = useParams();
   const navigate = useNavigate();
-  const [event, setEvent] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [showSuccess, setShowSuccess] = useState(false);
-
-const {user}=useKindeAuth();
+  const { user } = useKindeAuth();
   const dispatch = useDispatch();
-  const [addingToCart, setAddingToCart] = useState(false);
 
-  const addToBackendCart = async (kindeId) => {
-    if (!event.eventInfo || !event.eventInfo.id) {
-      throw new Error('Invalid event data');
-    }
-    
-    const eventId = event.eventInfo.id;
-    console.log("Event ID:", eventId);
-    
-    const cartItem = {
-      eventId: eventId,  // Use the correct ID from eventInfo
-      price: event.registration.fee
-    };
-  
-    console.log('Sending to backend:', {
-      kindeId,
-      item: cartItem
-    });
-  
-    const url = API_CONFIG.getUrl('cart/add');
-  
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        kindeId,
-        item: cartItem
-      })
-    });
-  
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || errorData.details || 'Failed to add item to cart');
-    }
-    
-    return response.json();
-  };
-
-  useEffect(() => {
-    fetchEventDetails();
-  }, [departmentId, eventId]);
-  
-  const fetchEventDetails = async () => {
-    try {
-      const apiUrl = API_CONFIG.getUrl(`departments/${departmentId}/events/${eventId}`);
-      console.log("Fetching from:", apiUrl); // Debugging log
-  
-      const response = await fetch(apiUrl);
-      const data = await response.json();
-  
-      if (data.success) {
-        console.log('Event data:', data.event);
-        
-        // Calculate total prize money from the structure if totalPrizeMoney is 0
-        if (data.event.prizes && data.event.prizes.totalPrizeMoney === 0 && 
-            data.event.prizes.structure && data.event.prizes.structure.length > 0) {
-          const calculatedTotal = data.event.prizes.structure.reduce(
-            (total, prize) => total + (prize.amount || 0), 0
-          );
-          
-          // Create a new event object with the updated totalPrizeMoney
-          const updatedEvent = {
-            ...data.event,
-            prizes: {
-              ...data.event.prizes,
-              totalPrizeMoney: calculatedTotal
-            }
-          };
-          
-          setEvent(updatedEvent);
-        } else {
-          setEvent(data.event);
-        }
-      } else {
-        throw new Error(data.error || 'Failed to fetch event details');
-      }
-    } catch (error) {
+  // Use TanStack Query for fetching event details
+  const { 
+    data: event, 
+    isLoading, 
+    isError, 
+    error 
+  } = useQuery({
+    queryKey: ['event', departmentId, eventId],
+    queryFn: () => fetchEventDetails({ departmentId, eventId }),
+    staleTime: 1000 * 60 * 60, // 1 hour - data considered fresh for an hour
+    cacheTime: 1000 * 60 * 60 * 24, // 24 hours - keep unused data in cache for a day
+    retry: 2,
+    onError: (error) => {
       toast.error(error.message);
       console.error('Error fetching event:', error);
-    } finally {
-      setLoading(false);
     }
-  };
+  });
+
+  // Use TanStack Query Mutation for adding to cart
+  const { mutate: addToCartMutation, isLoading: addingToCart } = useMutation({
+    mutationFn: addToBackendCart,
+    onSuccess: (data) => {
+      if (data.success) {
+        // Prepare cart item with correct structure
+        const cartItem = {
+          type: 'event',
+          item: {
+            id: event.eventInfo.id,
+            fee: event.registration.fee,
+            eventInfo: {
+              ...event.eventInfo,
+              department: {
+                id: departmentId,
+                shortName: event.eventInfo.department.shortName,
+                color: event.eventInfo.department.color
+              }
+            },
+            schedule: event.schedule,
+            registration: event.registration,
+            media: event.media
+          }
+        };
+
+        // Dispatch with correct structure
+        dispatch(addToCartAction(cartItem));
+        setShowSuccess(true);
+        toast.success('Added to cart successfully!');
+        setTimeout(() => setShowSuccess(false), 2000);
+      }
+    },
+    onError: (error) => {
+      console.error('Error adding to cart:', error);
+      toast.error(error.message || 'Failed to add to cart. Please try again.');
+    }
+  });
 
   const RenderText = ({ text, className = "text-slate-300" }) => {
     if (!text) return null;
@@ -285,35 +317,6 @@ const {user}=useKindeAuth();
     return () => animateOnScroll.disconnect();
   }, []);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="flex items-center space-x-3">
-          <Loader className="w-6 h-6 text-indigo-500 animate-spin" />
-          <span className="text-white">Loading event details...</span>
-        </div>
-      </div>
-    );
-  }
-
-  if (!event) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-white mb-2">Event Not Found</h2>
-          <p className="text-gray-400 mb-6">The event you're looking for doesn't exist.</p>
-          <button
-            onClick={() => navigate('/departments')}
-            className="px-6 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600"
-          >
-            Go Back
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-
   const InstructionsBanner = () => {
     const [isOpen, setIsOpen] = useState(true);
     const [isExpanded, setIsExpanded] = useState(false);
@@ -369,17 +372,67 @@ const {user}=useKindeAuth();
     );
   };
 
-  
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="flex items-center space-x-3">
+          <Loader className="w-6 h-6 text-indigo-500 animate-spin" />
+          <span className="text-white">Loading event details...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (isError || !event) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-white mb-2">Event Not Found</h2>
+          <p className="text-gray-400 mb-6">{error?.message || "The event you're looking for doesn't exist."}</p>
+          <button
+            onClick={() => navigate('/departments')}
+            className="px-6 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600"
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const handleAddToCart = () => {
+    if (!event.registration.isRegistrationOpen) return;
+    
+    if (!user?.id) {
+      toast.error('Please login to add items to cart');
+      return;
+    }
+
+    // Check for existing item in Redux store
+    const existingItem = store.getState().cart.items.find(item => 
+      item.eventInfo?.id === event.eventInfo.id
+    );
+    
+    if (existingItem) {
+      toast.error('Event already in cart!');
+      return;
+    }
+
+    // Use the mutation
+    addToCartMutation({
+      kindeId: user.id,
+      eventId: event.eventInfo.id,
+      price: event.registration.fee
+    });
+  };
 
   return (
     <div className="min-h-screen bg-slate-900 relative pb-24">
-
-       <div>
-            <InstructionsBanner />
-       </div>
+      <div>
+        <InstructionsBanner />
+      </div>
       {/* Hero Section */}
       <div className="h-[60vh] relative">
-
         <img 
           src={event.media.bannerDesktop || "/api/placeholder/1920/1080"} 
           alt={event.eventInfo.title}
@@ -500,59 +553,58 @@ const {user}=useKindeAuth();
         )}
       </div>
 
-      {event.rounds?.length > 0 && <RenderRounds  event={event} />}
+      {event.rounds?.length > 0 && <RenderRounds event={event} />}
 
-{/* Coordinators Section */}
-{event.coordinators.length > 0 && (
-     <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 sm:p-8 border border-indigo-800/30 mb-12 shadow-lg" data-scroll>
-     <h2 className="text-3xl font-bold text-white mb-8 text-center relative">
-       <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-purple-400">
-         Event Coordinators
-       </span>
-       <span className="block h-1 w-24 bg-gradient-to-r from-indigo-500 to-purple-500 mt-2 mx-auto rounded-full"></span>
-     </h2>
-     
-     <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-       {event.coordinators.map((coordinator, index) => (
-         <div 
-           key={index} 
-           className="bg-slate-900/80 backdrop-blur rounded-xl border border-indigo-700/20 overflow-hidden transform transition-all duration-300 hover:scale-103 hover:shadow-xl hover:shadow-indigo-500/10 group"
-         >
-           <div className="p-4">
-             <div className="flex flex-col items-center text-center">
-               <div className="w-44 h-44  mb-4  border-2 border-indigo-500 p-1 overflow-hidden bg-slate-800 shadow-lg">
-                 <img
-                   src={coordinator.photo || "/api/placeholder/100/100"}
-                   alt={coordinator.name}
-                   className="w-full h-full  object-contain transition-all duration-300 group-hover:scale-110"
-                 />
-               </div>
-               
-               <h3 className="text-xl font-bold text-white mb-1 group-hover:text-indigo-400 transition-colors">
-                 {coordinator.name}
-               </h3>
-               
-               <div className="space-y-2 mt-3 w-full">
-                 <a href={`mailto:${coordinator.email}`} 
-                    className="flex items-center justify-center gap-2 py-2 px-3 text-sm rounded-lg text-indigo-300 hover:text-white bg-slate-800/50 hover:bg-indigo-700/30 transition-all duration-200 w-full">
-                   <Mail className="w-4 h-4" />
-                   <span className="truncate">{coordinator.email}</span>
-                 </a>
-                 
-                 <a href={`tel:${coordinator.phone}`}
-                    className="flex items-center justify-center gap-2 py-2 px-3 text-sm rounded-lg text-indigo-300 hover:text-white bg-slate-800/50 hover:bg-indigo-700/30 transition-all duration-200 w-full">
-                   <Phone className="w-4 h-4" />
-                   <span>{coordinator.phone}</span>
-                 </a>
-               </div>
-             </div>
-           </div>
-         </div>
-       ))}
-     </div>
-   </div>
-
-)}
+      {/* Coordinators Section */}
+      {event.coordinators.length > 0 && (
+        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 sm:p-8 border border-indigo-800/30 mb-12 shadow-lg" data-scroll>
+          <h2 className="text-3xl font-bold text-white mb-8 text-center relative">
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-purple-400">
+              Event Coordinators
+            </span>
+            <span className="block h-1 w-24 bg-gradient-to-r from-indigo-500 to-purple-500 mt-2 mx-auto rounded-full"></span>
+          </h2>
+          
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {event.coordinators.map((coordinator, index) => (
+              <div 
+                key={index} 
+                className="bg-slate-900/80 backdrop-blur rounded-xl border border-indigo-700/20 overflow-hidden transform transition-all duration-300 hover:scale-103 hover:shadow-xl hover:shadow-indigo-500/10 group"
+              >
+                <div className="p-4">
+                  <div className="flex flex-col items-center text-center">
+                    <div className="w-44 h-44 mb-4 border-2 border-indigo-500 p-1 overflow-hidden bg-slate-800 shadow-lg">
+                      <img
+                        src={coordinator.photo || "/api/placeholder/100/100"}
+                        alt={coordinator.name}
+                        className="w-full h-full object-contain transition-all duration-300 group-hover:scale-110"
+                      />
+                    </div>
+                    
+                    <h3 className="text-xl font-bold text-white mb-1 group-hover:text-indigo-400 transition-colors">
+                      {coordinator.name}
+                    </h3>
+                    
+                    <div className="space-y-2 mt-3 w-full">
+                      <a href={`mailto:${coordinator.email}`} 
+                         className="flex items-center justify-center gap-2 py-2 px-3 text-sm rounded-lg text-indigo-300 hover:text-white bg-slate-800/50 hover:bg-indigo-700/30 transition-all duration-200 w-full">
+                        <Mail className="w-4 h-4" />
+                        <span className="truncate">{coordinator.email}</span>
+                      </a>
+                      
+                      <a href={`tel:${coordinator.phone}`}
+                         className="flex items-center justify-center gap-2 py-2 px-3 text-sm rounded-lg text-indigo-300 hover:text-white bg-slate-800/50 hover:bg-indigo-700/30 transition-all duration-200 w-full">
+                        <Phone className="w-4 h-4" />
+                        <span>{coordinator.phone}</span>
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Fixed Bottom Registration Bar */}
       <div className="fixed bottom-0 left-0 right-0 bg-slate-900/80 backdrop-blur-md border-t border-slate-700 p-4">
@@ -567,108 +619,40 @@ const {user}=useKindeAuth();
               <ArrowLeft size={18} />
               <span className="hidden sm:inline">Back</span>
             </button>
-            <div>
-              <p className="text-white line-through font-semibold text-lg">
-                ₹{event.registration.fee.toLocaleString()}
-              </p>
-              <p className="text-gray-400  text-sm">Registration Fee</p>
-            </div>
           </div>
 
           <button
-              // Replace the current onClick handler with this
-                  onClick={async () => {
-                    if (!event.registration.isRegistrationOpen) return;
-                    
-                    if (!user?.id) {
-                      toast.error('Please login to add items to cart');
-                      return;
-                    }
-
-                    try {
-                      setAddingToCart(true);
-                      
-                      console.log('Event data:', event);
-                      
-                      // Check for existing item in Redux store
-                      const existingItem = store.getState().cart.items.find(item => 
-                        item.eventInfo?.id === event.eventInfo.id
-                      );
-                      
-                      if (existingItem) {
-                        toast.error('Event already in cart!');
-                        return;
-                      }
-
-                      // Add to backend first
-                      const backendResponse = await addToBackendCart(user.id);
-                      
-                      if (backendResponse.success) {
-                        // Prepare cart item with correct structure
-                        const cartItem = {
-                          type: 'event', // Add this
-                          item: {        // Wrap the item data
-                            id: event.eventInfo.id,
-                            fee: event.registration.fee,
-                            eventInfo: {
-                              ...event.eventInfo,
-                              department: {
-                                id: departmentId,
-                                shortName: event.eventInfo.department.shortName,
-                                color: event.eventInfo.department.color
-                              }
-                            },
-                            schedule: event.schedule,
-                            registration: event.registration,
-                            media: event.media
-                          }
-                        };
-
-                        // Dispatch with correct structure
-                        dispatch(addToCart(cartItem));
-                        setShowSuccess(true);
-                        toast.success('Added to cart successfully!');
-                        setTimeout(() => setShowSuccess(false), 2000);
-                      }
-
-                    } catch (error) {
-                      console.error('Error adding to cart:', error);
-                      toast.error(error.message || 'Failed to add to cart. Please try again.');
-                    } finally {
-                      setAddingToCart(false);
-                    }
-                  }}
-              disabled={!event.registration.isRegistrationOpen || addingToCart}
-              className={`flex items-center gap-2 px-6 py-3 rounded-lg text-white font-medium
-                          transition-all duration-300
-                          ${event.registration.isRegistrationOpen && !addingToCart
-                            ? 'bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500'
-                            : 'bg-slate-700 cursor-not-allowed'}`}
-            >
-              {addingToCart ? (
-                <>
-                  <Loader className="w-5 h-5 animate-spin" />
-                  <span>Adding...</span>
-                </>
-              ) : showSuccess ? (
-                <>
-                  <Check className="w-5 h-5 animate-bounce" />
-                  <span>Added to Cart!</span>
-                </>
-              ) : (
-                <>
-                  <ShoppingCart className="w-5 h-5" />
-                  <span>
-                    {event.registration.isRegistrationOpen 
-                      ? 'Add to Cart' 
-                      : event.registration.status === 'closed'
-                        ? 'Registration Closed'
-                        : 'Registration Full'}
-                  </span>
-                </>
-              )}
-            </button>
-
+            onClick={handleAddToCart}
+            disabled={!event.registration.isRegistrationOpen || addingToCart}
+            className={`flex items-center gap-2 px-6 py-3 rounded-lg text-white font-medium
+                      transition-all duration-300
+                      ${event.registration.isRegistrationOpen && !addingToCart
+                        ? 'bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500'
+                        : 'bg-slate-700 cursor-not-allowed'}`}
+          >
+            {addingToCart ? (
+              <>
+                <Loader className="w-5 h-5 animate-spin" />
+                <span>Adding...</span>
+              </>
+            ) : showSuccess ? (
+              <>
+                <Check className="w-5 h-5 animate-bounce" />
+                <span>Added to Cart!</span>
+              </>
+            ) : (
+              <>
+                <ShoppingCart className="w-5 h-5" />
+                <span>
+                  {event.registration.isRegistrationOpen 
+                    ? 'Add to Cart' 
+                    : event.registration.status === 'closed'
+                      ? 'Registration Closed'
+                      : 'Registration Full'}
+                </span>
+              </>
+            )}
+          </button>
         </div>
       </div>
     </div>

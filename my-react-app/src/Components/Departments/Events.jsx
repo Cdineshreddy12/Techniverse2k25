@@ -1,14 +1,16 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useRef, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, Clock, Users, Trophy,Search,Loader } from 'lucide-react';
+import { Calendar, Clock, Users, Trophy, Search, Loader, AlertCircle } from 'lucide-react';
 import { useParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import API_CONFIG from '../../config/api';
-import {AlertCircle} from 'lucide-react'
+
+// Custom hook for scroll animation
 const useScrollAnimation = () => {
   const [isVisible, setIsVisible] = useState(false);
   const elementRef = useRef(null);
 
-  useEffect(() => {
+  React.useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach(entry => {
@@ -31,6 +33,28 @@ const useScrollAnimation = () => {
   }, []);
 
   return [elementRef, isVisible];
+};
+
+// Fetch events function for React Query
+const fetchEvents = async (departmentId) => {
+  if (!departmentId) {
+    throw new Error('Department ID is required');
+  }
+  
+  const url = API_CONFIG.getUrl(`departments/${departmentId}/events`);
+  const response = await fetch(url);
+  
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  
+  const data = await response.json();
+  
+  if (!data.success) {
+    throw new Error(data.message || 'Failed to fetch events');
+  }
+  
+  return data.events;
 };
 
 const StatusBadge = ({ status, registrationStatus }) => {
@@ -103,7 +127,7 @@ const EventCard = ({ event, index }) => {
             <img
               src={event.bannerDesktop || "/api/placeholder/400/200"}
               alt={event.title}
-              className="w-full h-full  object-fit group-hover:scale-105 transition-transform"
+              className="w-full h-full object-fit group-hover:scale-105 transition-transform"
               loading="lazy"
             />
             
@@ -149,12 +173,6 @@ const EventCard = ({ event, index }) => {
                 <Users className="w-3 h-3 text-indigo-400" />
                 <span className="text-slate-300">{registrationStatus.slots || 'No'} slots</span>
               </div>
-
-              <div className="flex items-center gap-1">
-                <span className="text-slate-300 line-through font-medium">
-                  ₹{event.registrationFee || 'Free'}
-                </span>
-              </div>
             </div>
 
             {/* Action Button */}
@@ -175,7 +193,6 @@ const EventCard = ({ event, index }) => {
   );
 };
 
-
 const EventsInstructions = () => (
   <div className="bg-slate-800/50 border border-indigo-500/20 rounded-lg p-4 mb-6">
     <h3 className="text-lg font-semibold text-white mb-3">How to Register for Events</h3>
@@ -187,7 +204,7 @@ const EventsInstructions = () => (
         </li>
         <li className="flex items-start gap-2">
           <span className="text-indigo-400 font-medium">Add to Cart:</span>
-          <span>Add your preferred events to cart. Note: Displayed prices are not applied ,only the selected package price will be applied to you</span>
+          <span>Add your preferred events to cart. Note: Displayed prices are not applied, only the selected package price will be applied to you</span>
         </li>
         <li className="flex items-start gap-2">
           <span className="text-indigo-400 font-medium">Check Slots:</span>
@@ -201,7 +218,7 @@ const EventsInstructions = () => (
       
       <div className="mt-4 flex items-center gap-2 text-amber-400 text-sm">
         <AlertCircle className="w-4 h-4" />
-        <p>Important: Registration is confirmed only after successful payment and package selection  in the cart.</p>
+        <p>Important: Registration is confirmed only after successful payment and package selection in the cart.</p>
       </div>
     </div>
   </div>
@@ -209,53 +226,23 @@ const EventsInstructions = () => (
 
 const Events = () => {
   const { departmentId } = useParams();
-  const [events, setEvents] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [error, setError] = useState(null);
 
- 
-
-  useEffect(() => {
-    const fetchEvents = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const url=API_CONFIG.getUrl(`departments/${departmentId}/events`);
-        const response = await fetch(url);
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        
-        if (!data.success) {
-          throw new Error(data.message || 'Failed to fetch events');
-        }
-
-        console.log('api',data);
-        console.log('events',events);
-        setEvents(data.events);
-      } catch (error) {
-        setError(error.message);
-        console.error('Error fetching events:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (departmentId) {
-      fetchEvents();
-    } else {
-      setError('Department ID is required');
-      setLoading(false);
-    }
-
-    return () => {
-      // Cleanup if needed (e.g., for aborting fetch)
-    };
-  }, [departmentId]);
+  // Using TanStack Query for fetching and caching events
+  const { 
+    data: events = [], 
+    isLoading, 
+    isError, 
+    error 
+  } = useQuery({
+    queryKey: ['events', departmentId],
+    queryFn: () => fetchEvents(departmentId),
+    staleTime: 1000 * 60 * 10, // 10 minutes - event data considered fresh for 10 minutes
+    cacheTime: 1000 * 60 * 60, // 1 hour - keep unused data in cache for an hour
+    enabled: !!departmentId,
+    retry: 2,
+    refetchOnWindowFocus: false,
+  });
 
   const filteredEvents = useMemo(() => 
     events.filter(event =>
@@ -265,8 +252,7 @@ const Events = () => {
     [events, searchTerm]
   );
 
-  console.log('filtered events',filteredEvents);
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="flex items-center space-x-3" role="status">
@@ -277,24 +263,22 @@ const Events = () => {
     );
   }
 
-  if (error) {
+  if (isError) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-red-400">Error: {error}</div>
+        <div className="text-red-400">Error: {error.message}</div>
       </div>
     );
   }
 
   return (
     <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-
-       < div>
-           < EventsInstructions /> 
-       </div>
+      <div>
+        <EventsInstructions /> 
+      </div>
 
       <div className="mb-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-      
           <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white">
             {filteredEvents.length} Upcoming Events
           </h2>
@@ -321,7 +305,7 @@ const Events = () => {
           <EventCard key={event._id} event={event} index={index} />
         ))}
 
-        {filteredEvents.length === 0 && !loading && (
+        {filteredEvents.length === 0 && !isLoading && (
           <div className="col-span-full text-center py-12">
             <p className="text-gray-400 text-lg">No events found</p>
           </div>

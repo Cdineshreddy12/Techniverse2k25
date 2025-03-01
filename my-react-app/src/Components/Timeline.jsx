@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Calendar, Clock, ChevronRight, Filter, 
@@ -6,7 +6,32 @@ import {
   ListOrdered, ChevronLeft, Search, Users,
   SlidersHorizontal, X
 } from 'lucide-react';
+import { useQueries, useQuery } from '@tanstack/react-query';
 import API_CONFIG from '../config/api';
+
+// Fetch events function for React Query
+const fetchEvents = async () => {
+  const response = await fetch(API_CONFIG.getUrl('events'));
+  
+  if (!response.ok) {
+    throw new Error('Failed to fetch events');
+  }
+  
+  const data = await response.json();
+  return data.events || [];
+};
+
+// Fetch workshops function for React Query
+const fetchWorkshops = async () => {
+  const response = await fetch(API_CONFIG.getUrl('workshops'));
+  
+  if (!response.ok) {
+    throw new Error('Failed to fetch workshops');
+  }
+  
+  const data = await response.json();
+  return data.workshops || [];
+};
 
 const CompactCard = ({ item }) => {
   const formattedDate = new Intl.DateTimeFormat('en-US', {
@@ -30,8 +55,6 @@ const CompactCard = ({ item }) => {
     ongoing: 'text-amber-400 animate-pulse',
     upcoming: 'text-blue-400'
   };
-
-  console.log('items',item);
 
   return (
     <Link to={`/departments/${item.departments[0]._id}/${item.type}s/${item._id}`}>
@@ -121,10 +144,6 @@ const TimelineStepper = ({ items }) => {
 };
 
 const Timeline = () => {
-  const [events, setEvents] = useState([]);
-  const [workshops, setWorkshops] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [selectedDept, setSelectedDept] = useState('all');
   const [selectedDay, setSelectedDay] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -133,38 +152,42 @@ const Timeline = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 12;
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const [eventsRes, workshopsRes] = await Promise.all([
-          fetch(API_CONFIG.getUrl('events')),
-          fetch(API_CONFIG.getUrl('workshops'))
-        ]);
-
-        const [eventsData, workshopsData] = await Promise.all([
-          eventsRes.json(),
-          workshopsRes.json()
-        ]);
-
-        setEvents(eventsData.events || []);
-        setWorkshops(workshopsData.workshops || []);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
+  // Using React Query for fetching events and workshops
+  const queries = useQueries({
+    queries: [
+      {
+        queryKey: ['events'],
+        queryFn: fetchEvents,
+        staleTime: 1000 * 60 * 10, // 10 minutes
+        cacheTime: 1000 * 60 * 60, // 1 hour
+        retry: 2
+      },
+      {
+        queryKey: ['workshops'],
+        queryFn: fetchWorkshops,
+        staleTime: 1000 * 60 * 10, // 10 minutes
+        cacheTime: 1000 * 60 * 60, // 1 hour
+        retry: 2
       }
-    };
+    ]
+  });
 
-    fetchData();
-  }, []);
+  const eventsQuery = queries[0];
+  const workshopsQuery = queries[1];
+
+  const isLoading = eventsQuery.isLoading || workshopsQuery.isLoading;
+  const isError = eventsQuery.isError || workshopsQuery.isError;
+  const error = eventsQuery.error || workshopsQuery.error;
+
+  const events = eventsQuery.data || [];
+  const workshops = workshopsQuery.data || [];
 
   const departments = useMemo(() => {
     const deptMap = new Map();
     deptMap.set('all', { id: 'all', name: 'All Departments', shortName: 'ALL' });
 
     [...events, ...workshops].forEach(item => {
-      item.departments.forEach(dept => {
+      item.departments?.forEach(dept => {
         if (!deptMap.has(dept._id)) {
           deptMap.set(dept._id, dept);
         }
@@ -192,6 +215,11 @@ const Timeline = () => {
     ];
 
     return allItems.filter(item => {
+      // Skip items with missing required data
+      if (!item.startTime || !item.departments || item.departments.length === 0) {
+        return false;
+      }
+
       const date = new Date(item.startTime);
       const deptMatch = selectedDept === 'all' || 
         item.departments.some(d => d._id === selectedDept);
@@ -209,7 +237,7 @@ const Timeline = () => {
     currentPage * ITEMS_PER_PAGE
   );
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-500 border-t-transparent" />
@@ -217,16 +245,16 @@ const Timeline = () => {
     );
   }
 
-  if (error) {
+  if (isError) {
     return (
       <div className="text-center text-gray-400 py-8">
-        Failed to load events: {error}
+        Failed to load timeline: {error?.message || 'Unknown error'}
       </div>
     );
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-2 mt-20  sm:mt-16 sm:px-4 py-4 sm:py-6">
+    <div className="max-w-7xl mx-auto px-2 mt-20 sm:mt-16 sm:px-4 py-4 sm:py-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl sm:text-3xl font-bold text-purple-400">Timeline</h1>

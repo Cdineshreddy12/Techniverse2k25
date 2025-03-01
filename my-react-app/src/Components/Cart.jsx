@@ -816,9 +816,9 @@ const CartItem = ({ item, type, onRemove }) => {
               )}
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold line-through text-purple-800">
+              {/* <span className="text-sm font-semibold line-through text-purple-800">
                 ₹{fee}
-              </span>
+              </span> */}
               <button
                       onClick={() => onRemove(itemId, type)}
                       disabled={loading}

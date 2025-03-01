@@ -234,7 +234,7 @@ router.post('/payment/initiate', detectTampering, async (req, res) => {
         }));
 
 
-          console.log('Selected workshops for registration:', selectedWorkshops);
+          // console.log('Selected workshops for registration:', selectedWorkshops);
 
           // Create registration record with platform fee details
           const registration = await Registration.create([{

@@ -11,7 +11,15 @@ const SponsorScroll = () => {
         description: "Platinum Sponsor",
         details: "Prime logo on all event materials and brochures",
         icon: Globe
+      },
+      {
+        name: "TradeMilan",
+        logo: "https://res.cloudinary.com/dxsupdl3t/image/upload/v1740770227/WhatsApp_Image_2025-02-28_at_10.34.29_ff23ef7e_tpmbiq.jpg", // Replace with actual logo path
+        description: "Platinum Sponsor",
+        details: "SEBI Research Analyst",
+        icon: Globe
       }
+
     ],
     diamond: [
       // This array is empty by default, showing we have no diamond sponsors yet

@@ -92,10 +92,10 @@ const WorkshopCard = ({ workshop, index }) => {
                 </div>
                 
                 {/* Price Badge */}
-                <span className="absolute top-4 line-through right-4 px-2.5 py-1 bg-slate-900/80 backdrop-blur-sm 
+                {/* <span className="absolute top-4 line-through right-4 px-2.5 py-1 bg-slate-900/80 backdrop-blur-sm 
                                rounded-md text-xs text-green-400 border border-green-500/30">
                   ₹{workshop.price}
-                </span>
+                </span> */}
               </div>
 
               {/* Content Section */}

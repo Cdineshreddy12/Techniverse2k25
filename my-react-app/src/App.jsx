@@ -156,12 +156,12 @@ const AdminRoute = React.memo(({ children }) => {
     }
   }, [isAuthenticated, checkRegistration]);
 
-  console.log('AdminRoute Debug:', {
-    isAuthenticated,
-    kindeLoading,
-    isAdmin,
-    authLoading
-  });
+  // console.log('AdminRoute Debug:', {
+  //   isAuthenticated,
+  //   kindeLoading,
+  //   isAdmin,
+  //   authLoading
+  // });
 
   if (kindeLoading || authLoading) {
     return <LoadingSpinner />;

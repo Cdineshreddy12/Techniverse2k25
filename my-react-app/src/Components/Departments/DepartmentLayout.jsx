@@ -1,44 +1,46 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Link, Outlet, useLocation, useParams } from 'react-router-dom';
 import { Loader } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import API_CONFIG from '../../config/api';
 import { useNavigate } from 'react-router-dom';
 
+const fetchDepartment = async (departmentId) => {
+  const url = API_CONFIG.getUrl(`departments/${departmentId}`);
+  const response = await fetch(url);
+  
+  if (!response.ok) throw new Error('Failed to fetch department');
+  
+  const data = await response.json();
+  
+  if (data.success) {
+    return data.department;
+  } else {
+    throw new Error(data.error || 'Failed to fetch department');
+  }
+};
+
 const DepartmentLayout = () => {
-
-  const { departmentId } = useParams(); // Changed from deptId to departmentId
-  const [department, setDepartment] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const navigate=useNavigate();
+  const { departmentId } = useParams();
+  const navigate = useNavigate();
   const location = useLocation();
-  useEffect(() => {
-    const fetchDepartment = async () => {
-      try {
-        const url = API_CONFIG.getUrl(`departments/${departmentId}`);
-        const response = await fetch(url);
-        
-        if (!response.ok) throw new Error('Failed to fetch department');
-        
-        const data = await response.json();
-        
-        if (data.success) {
-          setDepartment(data.department);
-        } else {
-          throw new Error(data.error || 'Failed to fetch department');
-        }
-      } catch (error) {
-        console.error('Error fetching department:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
 
-    if (departmentId) {
-      fetchDepartment();
-    }
-  }, [departmentId]);
+  // Using TanStack Query for fetching and caching
+  const { data: department, isLoading, isError } = useQuery({
+    queryKey: ['department', departmentId],
+    queryFn: () => fetchDepartment(departmentId),
+    enabled: !!departmentId,
+    staleTime: 1000 * 60 * 60 * 24, // 24 hours - data considered fresh for a day
+    cacheTime: 1000 * 60 * 60 * 24 * 7, // 7 days - keep unused data in cache for a week
+    retry: 2
+  });
 
-  if (loading) {
+  const handleBackClick = (e) => {
+    e.preventDefault();
+    navigate('/departments');
+  };
+
+  if (isLoading) {
     return (
       <div className="min-h-screen pt-24 px-4 bg-gradient-to-br from-slate-950 via-indigo-950 to-black">
         <div className="flex items-center justify-center gap-3 text-cyan-400">
@@ -49,7 +51,7 @@ const DepartmentLayout = () => {
     );
   }
 
-  if (!department) {
+  if (isError || !department) {
     return (
       <div className="min-h-screen pt-24 px-4 bg-gradient-to-br from-slate-950 via-indigo-950 to-black">
         <div className="text-red-400 text-xl text-center">Department not found</div>
@@ -57,41 +59,29 @@ const DepartmentLayout = () => {
     );
   }
 
-      
-  const handleBackClick = (e) => {
-    e.preventDefault();
-    navigate('/departments');
-  };
-  
-
-
   return (
-    <div className="min-h-screen pt-24  bg-gradient-to-br from-slate-950 via-indigo-950 to-black">
+    <div className="min-h-screen pt-24 bg-gradient-to-br from-slate-950 via-indigo-950 to-black">
       <div className="max-w-7xl mx-auto relative">
-
-     
-      <div className="mb-4 md:mb-0 md:absolute md:left-0 md:top-0 z-50">
-    <button
-        onClick={handleBackClick}
-        className="group inline-flex items-center z-50 gap-2 px-4 py-2 rounded-lg transition-all transform hover:scale-102"
-    >
-        <div className="absolute inset-0 rounded-lg z-50 bg-slate-800/50 group-hover:bg-slate-700/50 transition-all duration-300" />
-        <svg
-            className="w-5 h-5 text-slate-300 group-hover:text-white relative transition-colors"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-        >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-        </svg>
-        <span className="relative text-slate-300 group-hover:text-white transition-colors">Back</span>
-    </button>
-</div>
+        <div className="mb-4 md:mb-0 md:absolute md:left-0 md:top-0 z-50">
+          <button
+            onClick={handleBackClick}
+            className="group inline-flex items-center z-50 gap-2 px-4 py-2 rounded-lg transition-all transform hover:scale-102"
+          >
+            <div className="absolute inset-0 rounded-lg z-50 bg-slate-800/50 group-hover:bg-slate-700/50 transition-all duration-300" />
+            <svg
+              className="w-5 h-5 text-slate-300 group-hover:text-white relative transition-colors"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            <span className="relative text-slate-300 group-hover:text-white transition-colors">Back</span>
+          </button>
+        </div>
 
         <div className="mb-12 text-center relative">
           <div className="flex flex-col items-center gap-2">
-      
-            
             {/* Department Name */}
             <h1 className="relative text-4xl p-4 md:text-5xl font-bold text-transparent 
                         bg-clip-text bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400">

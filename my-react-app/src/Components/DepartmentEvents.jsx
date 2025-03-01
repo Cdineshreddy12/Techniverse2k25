@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Atom, Award, Rocket, ArrowRight,
@@ -6,7 +6,21 @@ import {
 } from 'lucide-react';
 import * as Icons from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useQuery } from '@tanstack/react-query';
 import API_CONFIG from '../config/api';
+
+// Separated API fetch function
+const fetchDepartments = async () => {
+  const url = API_CONFIG.getUrl('departments');
+  const response = await fetch(url);
+  
+  if (!response.ok) {
+    throw new Error('Failed to fetch departments');
+  }
+  
+  const data = await response.json();
+  return data.departments || [];
+};
 
 const DepartmentHeader = () => (
   <div className="relative px-4 py-8 mb-8">
@@ -78,28 +92,19 @@ const DepartmentHeader = () => (
 
 const DepartmentCards = () => {
   const navigate = useNavigate();
-  const [departments, setDepartments] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    fetchDepartments();
-  }, []);
-
-  const fetchDepartments = async () => {
-    try {
-      console.log('Starting fetchDepartments');
-      console.log('Current Origin:', window.location.origin); // Debug
-      const url = API_CONFIG.getUrl('departments');
-      const response = await fetch(url);
-      const data = await response.json();
-      setDepartments(data.departments || []);
-    } catch (error) {
+  // Using TanStack Query for fetching and caching
+  const { data: departments = [], isLoading, isError } = useQuery({
+    queryKey: ['departments'],
+    queryFn: fetchDepartments,
+    staleTime: 1000 * 60 * 60 * 24, // 24 hours - data considered fresh for a day
+    cacheTime: 1000 * 60 * 60 * 24 * 7, // 7 days - keep unused data in cache for a week
+    retry: 2,
+    onError: (error) => {
       toast.error('Failed to fetch departments');
       console.error(error);
-    } finally {
-      setIsLoading(false);
     }
-  };
+  });
 
   // Dynamically render icons
   const renderIcon = (iconName) => {
@@ -109,28 +114,9 @@ const DepartmentCards = () => {
 
   return (
     <div className="min-h-screen mt-12 bg-slate-950">
-      {/* Header Section */}
-      {/* <header className="relative px-4 py-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col items-center gap-4 text-center">
-            <div className="flex items-center gap-3">
-              <Atom className="w-8 h-8 text-cyan-400 animate-pulse" />
-              <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-purple-400">
-                TECHFEST 2025
-              </h1>
-              <Rocket className="w-8 h-8 text-purple-400 animate-pulse" />
-            </div>
-            <Award className="w-12 h-12 text-gray-400" />
-            <p className="text-2xl text-gray-400 max-w-2xl">
-              Choose your department to explore exciting events and workshops
-            </p>
-          </div>
-        </div>
-      </header> */}
-
       {/* Instructions Panel */}
       <div className="max-w-7xl mx-auto px-4 py-8">
-           <DepartmentHeader />
+        <DepartmentHeader />
       </div>
 
       {/* Department Cards Grid */}
@@ -140,6 +126,13 @@ const DepartmentCards = () => {
             <div className="flex items-center gap-3">
               <Loader className="w-6 h-6 text-cyan-400 animate-spin" />
               <span className="text-gray-400">Loading departments...</span>
+            </div>
+          </div>
+        ) : isError ? (
+          <div className="flex justify-center items-center h-64">
+            <div className="text-red-400 text-center">
+              <p className="text-lg font-medium mb-2">Failed to load departments</p>
+              <p className="text-sm">Please try refreshing the page</p>
             </div>
           </div>
         ) : (

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Users, Calendar, Clock, Tag, Loader, 
@@ -11,46 +11,90 @@ import { useDispatch } from 'react-redux';
 import { store } from '../../Redux/mainStore';
 import { addToCart } from '../../Redux/cartSlice';
 import { useKindeAuth } from '@kinde-oss/kinde-auth-react';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import API_CONFIG from '../../config/api';
+
+// Fetch workshop function
+const fetchWorkshopDetails = async ({ departmentId, workshopId }) => {
+  const response = await fetch(
+    API_CONFIG.getUrl(`departments/${departmentId}/workshops/${workshopId}`)
+  );
+  
+  if (!response.ok) {
+    throw new Error('Failed to fetch workshop details');
+  }
+  
+  const data = await response.json();
+  
+  if (!data.success) {
+    throw new Error(data.error || 'Failed to fetch workshop details');
+  }
+  
+  return data.workshop;
+};
+
+// Add to cart function
+const addToBackendCart = async ({ kindeId, workshop }) => {
+  if (!workshop?._id) {
+    throw new Error('Invalid workshop data...');
+  }
+  
+  const workshopItem = {
+    workshopId: workshop._id,
+    price: workshop.price
+  };
+
+  const url = API_CONFIG.getUrl('cart/workshop/add');
+  
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      kindeId,
+      item: workshopItem
+    })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Failed to add workshop to cart');
+  }
+  
+  return response.json();
+};
 
 const WorkshopDetails = () => {
   const { departmentId, workshopId } = useParams();
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { user } = useKindeAuth();
-
-  const [workshop, setWorkshop] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [addingToCart, setAddingToCart] = useState(false);
   const [imageError, setImageError] = useState(false);
 
-  // Handle add to cart
-  const handleAddToCart = async () => {
-    if (!user?.id) {
-      toast.error('Please login to add to cart');
-      return;
+  // Using TanStack Query for fetching workshop details
+  const { 
+    data: workshop, 
+    isLoading,
+    isError,
+    error
+  } = useQuery({
+    queryKey: ['workshop', departmentId, workshopId],
+    queryFn: () => fetchWorkshopDetails({ departmentId, workshopId }),
+    staleTime: 1000 * 60 * 30, // 30 minutes - data considered fresh for half an hour
+    cacheTime: 1000 * 60 * 60 * 24, // 24 hours - keep unused data in cache for a day
+    retry: 2,
+    onError: (error) => {
+      toast.error(error.message);
+      console.error('Error fetching workshop:', error);
     }
-    
-    if (!isRegistrationAllowed(workshop)) {
-      toast.error('Workshop registration is not available');
-      return;
-    }
-  
-    try {
-      setAddingToCart(true);
-      
-      const existingWorkshop = store.getState().cart.workshops.find(item => 
-        item.id === workshop._id
-      );
-      
-      if (existingWorkshop) {
-        toast.error('Workshop already in cart!');
-        return;
-      }
-  
-      const backendResponse = await addToBackendCart(user.id, workshop);
-      
-      if (backendResponse.success) {
+  });
+
+  // Using TanStack Mutation for adding to cart
+  const { mutate: addWorkshopToCart, isLoading: addingToCart } = useMutation({
+    mutationFn: addToBackendCart,
+    onSuccess: (data) => {
+      if (data.success) {
         dispatch(addToCart({
           type: 'workshop',
           item: {
@@ -70,37 +114,12 @@ const WorkshopDetails = () => {
         toast.success('Workshop added to cart!');
         navigate('/cart');
       }
-    } catch (error) {
+    },
+    onError: (error) => {
       console.error('Error adding to cart:', error);
       toast.error(error.message || 'Failed to add workshop to cart');
-    } finally {
-      setAddingToCart(false);
     }
-  };
-  
-  useEffect(() => {
-    const fetchWorkshopDetails = async () => {
-      try {
-        const response = await fetch(
-          API_CONFIG.getUrl(`departments/${departmentId}/workshops/${workshopId}`)
-        );
-        const data = await response.json();
-    
-        if (data.success) {
-          setWorkshop(data.workshop);
-        } else {
-          throw new Error(data.error || 'Failed to fetch workshop details');
-        }
-      } catch (error) {
-        toast.error(error.message);
-        console.error('Error fetching workshop:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchWorkshopDetails();
-  }, [departmentId, workshopId]);
+  });
 
   // Helper function to determine if registration is allowed
   const isRegistrationAllowed = (workshop) => {
@@ -108,35 +127,33 @@ const WorkshopDetails = () => {
            workshop.registration.registeredCount < workshop.registration.totalSlots;
   };
 
-  const addToBackendCart = async (kindeId, workshop) => {
-    if (!workshop?._id) {
-      throw new Error('Invalid workshop data...');
+  // Handle add to cart
+  const handleAddToCart = () => {
+    if (!user?.id) {
+      toast.error('Please login to add to cart');
+      return;
     }
     
-    const workshopItem = {
-      workshopId: workshop._id,
-      price: workshop.price
-    };
-
-    const url = API_CONFIG.getUrl('cart/workshop/add');
+    if (!isRegistrationAllowed(workshop)) {
+      toast.error('Workshop registration is not available');
+      return;
+    }
+  
+    // Check for existing item in Redux store
+    const existingWorkshop = store.getState().cart.workshops.find(item => 
+      item.id === workshop._id
+    );
     
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        kindeId,
-        item: workshopItem
-      })
+    if (existingWorkshop) {
+      toast.error('Workshop already in cart!');
+      return;
+    }
+
+    // Use the mutation
+    addWorkshopToCart({
+      kindeId: user.id,
+      workshop: workshop
     });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to add workshop to cart');
-    }
-    
-    return response.json();
   };
 
   // Handle image loading errors
@@ -144,7 +161,7 @@ const WorkshopDetails = () => {
     setImageError(true);
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <Loader className="w-6 h-6 text-indigo-500 animate-spin" />
@@ -152,11 +169,12 @@ const WorkshopDetails = () => {
     );
   }
 
-  if (!workshop) {
+  if (isError || !workshop) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-white mb-4">Workshop Not Found</h2>
+          <p className="text-gray-400 mb-6">{error?.message || "The workshop you're looking for doesn't exist."}</p>
           <button
             onClick={() => navigate(-1)}
             className="px-6 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600"
@@ -208,7 +226,7 @@ const WorkshopDetails = () => {
     );
   };
 
-  // New Component: Prerequisites and Outcomes Section
+  // Prerequisites and Outcomes Section
   const PrerequisitesAndOutcomes = () => {
     if (!workshop.prerequisites?.length && !workshop.outcomes?.length) {
       return null;
