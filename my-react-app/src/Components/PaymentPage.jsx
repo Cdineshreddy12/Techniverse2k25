@@ -2,26 +2,165 @@ import React, { useEffect, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import API_CONFIG from '../config/api';
 
+/**
+ * Global payment state manager to prevent multiple payment instances
+ * This helps mitigate common Razorpay integration issues
+ */
+const PaymentState = {
+  inProgress: false,
+  currentOrderId: null,
+  reset() {
+    this.inProgress = false;
+    this.currentOrderId = null;
+    return true;
+  },
+  start(orderId) {
+    if (this.inProgress) return false;
+    this.inProgress = true;
+    this.currentOrderId = orderId;
+    return true;
+  }
+};
+
+/**
+ * PaymentHandler Component
+ * Handles Razorpay payment integration with error recovery
+ * 
+ * @param {Object} sessionData - Payment session data from API
+ * @param {Function} onClose - Callback to close payment modal
+ */
 const PaymentHandler = ({ sessionData, onClose }) => {
-  const razorpayLoaded = useRef(false);
   const [error, setError] = useState(null);
-
+  const scriptLoaded = useRef(false);
+  const paymentInitiated = useRef(false);
+  const isMounted = useRef(true);
+  
+  // Reset state on mount
   useEffect(() => {
-    if (!sessionData) return;
-
-    // Step 1: Create a fresh order instead of using the possibly problematic one
+    console.log('Payment handler initialized');
+    PaymentState.reset();
+    cleanupRazorpayElements();
+    
+    return () => {
+      isMounted.current = false;
+      PaymentState.reset();
+      cleanupRazorpayElements();
+    };
+  }, []);
+  
+  /**
+   * Clean up any Razorpay elements in the DOM
+   * This helps prevent issues with multiple payment attempts
+   */
+  const cleanupRazorpayElements = () => {
+    // Remove Razorpay UI elements
+    const razorpayElements = document.querySelectorAll(
+      '.razorpay-container, .razorpay-backdrop, .razorpay-checkout-frame, iframe[name^="razorpay"]'
+    );
+    
+    razorpayElements.forEach(el => {
+      try {
+        el.parentNode.removeChild(el);
+      } catch (e) {
+        console.error('Failed to remove Razorpay element', e);
+      }
+    });
+    
+    // Remove Razorpay scripts
+    document.querySelectorAll('script[src*="razorpay"]').forEach(script => {
+      try {
+        script.parentNode.removeChild(script);
+      } catch (e) {
+        console.error('Failed to remove Razorpay script', e);
+      }
+    });
+  };
+  
+  // Main payment flow
+  useEffect(() => {
+    // Skip if already initiated or no session data
+    if (!sessionData || paymentInitiated.current || PaymentState.inProgress) {
+      return;
+    }
+    
+    paymentInitiated.current = true;
+    PaymentState.start();
+    
+    /**
+     * Main payment flow initialization
+     * 1. Create a fresh order
+     * 2. Load Razorpay SDK
+     * 3. Create payment options
+     * 4. Open payment modal
+     */
+    const initializePayment = async () => {
+      try {
+        // Step 1: Create fresh order
+        toast.loading('Preparing payment...', { id: 'payment-loading' });
+        const freshSessionData = await createFreshOrder();
+        if (!isMounted.current) return;
+        
+        // Step 2: Load Razorpay script
+        await loadRazorpayScript();
+        if (!isMounted.current) return;
+        
+        if (!window.Razorpay) {
+          throw new Error('Payment system unavailable');
+        }
+        
+        // Step 3: Setup payment options
+        const options = createRazorpayOptions(freshSessionData);
+        
+        toast.dismiss('payment-loading');
+        
+        // Step 4: Initialize payment with delay to ensure proper setup
+        setTimeout(() => {
+          if (!isMounted.current) return;
+          
+          try {
+            const rzp = new window.Razorpay(options);
+            
+            // Handle payment failures
+            rzp.on('payment.failed', function(response) {
+              if (isMounted.current) {
+                console.error('Payment failed:', response.error?.code, response.error?.description);
+                toast.error(`Payment failed: ${response.error?.description || 'Unknown error'}`);
+                PaymentState.reset();
+                if (onClose) onClose();
+              }
+            });
+            
+            // Open payment modal
+            rzp.open();
+          } catch (error) {
+            console.error('Failed to open payment modal:', error);
+            if (isMounted.current) {
+              toast.error('Failed to initialize payment');
+              setError(error.message);
+              PaymentState.reset();
+              if (onClose) onClose();
+            }
+          }
+        }, 200);
+        
+      } catch (error) {
+        console.error('Payment initialization error:', error);
+        if (isMounted.current) {
+          toast.error(`Payment failed: ${error.message}`, { id: 'payment-loading' });
+          setError(error.message);
+          PaymentState.reset();
+          if (onClose) onClose();
+        }
+      }
+    };
+    
+    /**
+     * Create a fresh order via API
+     * Always creates a new order to avoid stale order IDs
+     */
     const createFreshOrder = async () => {
       try {
-      
-        
-        // Extract original order details
-        const originalOrderId = sessionData?.paymentDetails?.razorpayDetails?.orderId;
-        const baseAmount = sessionData.amount || 0;
-        const platformFee = sessionData.platformFee || Math.ceil(baseAmount * 0.02) || 0;
-        const totalAmount = sessionData.totalAmount || (baseAmount + platformFee);
-        
-  
-        // Get cart items in the correct format
+        // Format cart items
         const cartItems = sessionData.selectedEvents?.map(event => ({
           eventId: event.eventId || event.id,
           eventName: event.eventName || event.title || '',
@@ -30,184 +169,193 @@ const PaymentHandler = ({ sessionData, onClose }) => {
           maxTeamSize: 1
         })) || [];
         
-        // Create a fresh order through your backend
-        const response = await fetch(API_CONFIG.getUrl('payment/initiate'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            amount: totalAmount,
-            baseAmount: baseAmount,
-            platformFee: platformFee,
-            cartItems: cartItems,
-            workshops: sessionData.selectedWorkshops || [],
-            kindeId: sessionData.kindeId || sessionData.student?.kindeId,
-            combo: sessionData.paymentDetails?.merchantParams?.comboId ? {
-              id: sessionData.paymentDetails.merchantParams.comboId,
-              name: sessionData.paymentDetails.merchantParams.comboName || "Selected Package",
-              price: baseAmount
-            } : null,
-            timestamp: Date.now(),
-            refreshOrder: true
-          })
-        });
+        // Prepare payload with all required data
+        const payload = {
+          amount: sessionData.totalAmount || 509,
+          baseAmount: sessionData.amount || 499,
+          platformFee: sessionData.platformFee || 10,
+          cartItems,
+          workshops: sessionData.selectedWorkshops || [],
+          kindeId: sessionData.kindeId || sessionData.student?.kindeId,
+          combo: sessionData.paymentDetails?.merchantParams?.comboId ? {
+            id: sessionData.paymentDetails.merchantParams.comboId,
+            name: sessionData.paymentDetails.merchantParams.comboName || "Selected Package",
+            price: sessionData.amount || 499
+          } : null,
+          timestamp: Date.now(),
+          refreshOrder: true
+        };
         
-        // More detailed error logging
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('Server error response:', errorText);
-          throw new Error(`Failed to create fresh order: ${response.status}`);
+        // Make API request with timeout handling
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+        
+        try {
+          const response = await fetch(API_CONFIG.getUrl('payment/initiate'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal: controller.signal
+          });
+          
+          clearTimeout(timeoutId);
+          
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Server error: ${response.status}`);
+          }
+          
+          const data = await response.json();
+          
+          if (!data.success || !data.registration?.paymentDetails?.razorpayDetails?.orderId) {
+            throw new Error('Invalid order response');
+          }
+          
+          return data.registration;
+        } catch (fetchError) {
+          if (fetchError.name === 'AbortError') {
+            throw new Error('Request timed out');
+          }
+          throw fetchError;
         }
-        
-        const data = await response.json();
-        
-        if (!data.success || !data.registration?.paymentDetails?.razorpayDetails?.orderId) {
-          console.error('Invalid server response:', data);
-          throw new Error('Failed to get a valid order ID from the server');
-        }
-        
-   
-        return data.registration;
       } catch (error) {
-        console.error('Failed to create fresh order:', error);
-        throw error;
+        throw new Error(`Order creation failed: ${error.message}`);
       }
     };
-
-    // Step 2: Load Razorpay SDK
+    
+    /**
+     * Load Razorpay SDK with reliability improvements
+     */
     const loadRazorpayScript = () => {
-      return new Promise((resolve) => {
-        if (window.Razorpay) {
-          razorpayLoaded.current = true;
+      return new Promise((resolve, reject) => {
+        // Use existing if available
+        if (window.Razorpay && scriptLoaded.current) {
           resolve();
           return;
         }
         
-        console.log('Loading Razorpay SDK...');
+        // Reset any partial Razorpay state
+        if (window.Razorpay) {
+          try {
+            delete window.Razorpay;
+          } catch (e) {
+            console.error('Failed to reset Razorpay object');
+          }
+        }
+        
+        // Load fresh script
         const script = document.createElement('script');
         script.src = 'https://checkout.razorpay.com/v1/checkout.js';
         script.async = true;
         
+        // Add timeout for script loading
+        const timeoutId = setTimeout(() => {
+          reject(new Error('Payment system unavailable'));
+        }, 10000);
+        
         script.onload = () => {
-          console.log('Razorpay SDK loaded successfully');
-          razorpayLoaded.current = true;
-          resolve();
+          clearTimeout(timeoutId);
+          scriptLoaded.current = true;
+          // Small delay to ensure script initialization
+          setTimeout(resolve, 100);
         };
         
         script.onerror = () => {
-          console.error('Razorpay SDK failed to load');
-          setError('Payment system unavailable. Please try again later.');
-          if (onClose) onClose();
+          clearTimeout(timeoutId);
+          reject(new Error('Failed to load payment system'));
         };
         
         document.body.appendChild(script);
       });
     };
-
-    // Step 3: Initialize payment with fresh order data
-    const initializePayment = async () => {
-      try {
-        // Show loading indicator
-        toast.loading('Preparing payment...', { id: 'payment-loading' });
-        
-        // Make sure SDK is loaded first
-        await loadRazorpayScript();
-        if (!razorpayLoaded.current) {
-          toast.error('Payment system not available', { id: 'payment-loading' });
-          return;
-        }
-        
-        // Create a fresh order to avoid using potentially problematic order IDs
-        const freshSessionData = await createFreshOrder();
-        
-        const paymentDetails = freshSessionData?.paymentDetails || {};
-        const customerDetails = paymentDetails?.customerDetails || {};
-        const razorpayDetails = paymentDetails?.razorpayDetails || {};
-        
-        // Get the fresh Razorpay order ID
-        const orderIdToUse = razorpayDetails.orderId;
-        
-        if (!orderIdToUse) {
-          throw new Error('Could not get a valid order ID');
-        }
-        
-   
-        
-        // Extract fee information
-        const baseAmount = freshSessionData.amount || 0;
-        const platformFee = freshSessionData.platformFee || 0;
-        const totalAmount = freshSessionData.totalAmount || 0;
-        
-     
-        // Close loading toast
-        toast.dismiss('payment-loading');
-        
-        // Configure Razorpay options
-        const options = {
-          key: import.meta.env.VITE_APP_RAZORPAY_KEY_ID,
-          amount: totalAmount * 100, // Convert to paise
-          currency: "INR",
-          name: "Techniverse2k25",
-          description: "Event Registration Payment",
-          order_id: orderIdToUse,
-          handler: function(response) {
-            handlePaymentVerification(response, freshSessionData);
-          },
-          prefill: {
-            name: customerDetails.name || '',
-            email: customerDetails.email || '',
-            contact: customerDetails.phone || ''
-          },
-          theme: {
-            color: "#7e22ce"
-          },
-          modal: {
-            ondismiss: function() {
+    
+    /**
+     * Create Razorpay options from session data
+     */
+    const createRazorpayOptions = (sessionData) => {
+      const paymentDetails = sessionData?.paymentDetails || {};
+      const customerDetails = paymentDetails?.customerDetails || {};
+      const razorpayDetails = paymentDetails?.razorpayDetails || {};
+      
+      const orderId = razorpayDetails.orderId;
+      
+      if (!orderId) {
+        throw new Error('Missing order ID');
+      }
+      
+      // Store the current order ID in global state
+      PaymentState.currentOrderId = orderId;
+      
+      // Calculate amount in paise (Razorpay uses smallest currency unit)
+      const amount = Math.round((sessionData.totalAmount || 509) * 100);
+      
+      // Generate unique session token to avoid conflicts
+      const sessionToken = `sv2_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+      
+      return {
+        key: import.meta.env.VITE_APP_RAZORPAY_KEY_ID,
+        amount,
+        currency: "INR",
+        name: "Techniverse2k25",
+        description: "Event Registration Payment",
+        order_id: orderId,
+        handler: function(response) {
+          handlePaymentSuccess(response, sessionData);
+        },
+        prefill: {
+          name: customerDetails.name || '',
+          email: customerDetails.email || '',
+          contact: customerDetails.phone || ''
+        },
+        theme: {
+          color: "#7e22ce"
+        },
+        modal: {
+          ondismiss: function() {
+            if (isMounted.current) {
               toast.error('Payment cancelled');
+              PaymentState.reset();
               if (onClose) onClose();
             }
-          }
-        };
-        
-     
-        
-        const rzp = new window.Razorpay(options);
-        
-        rzp.on('payment.failed', function (response) {
-          console.error('Payment failed:', response.error);
-          toast.error(`Payment failed: ${response.error.description}`);
-          if (onClose) onClose();
-        });
-        
-        rzp.open();
-      } catch (error) {
-        console.error('Payment initialization error:', error);
-        toast.error(`Payment initialization failed: ${error.message}`, { id: 'payment-loading' });
-        setError(error.message);
-        if (onClose) onClose();
-      }
+          },
+          escape: true,
+          animation: true
+        },
+        retry: false, // Disable automatic retry
+        notes: {
+          session_id: sessionData.id || '',
+          session_token: sessionToken,
+          timestamp: Date.now().toString()
+        },
+        // Disable features that may cause issues
+        send_sms_hash: false,
+        remember_customer: false
+      };
     };
-
-    // Step 4: Handle payment verification with improved error handling
-    const handlePaymentVerification = async (response, sessionDataToUse) => {
+    
+    /**
+     * Handle successful payment response
+     */
+    const handlePaymentSuccess = async (response, sessionData) => {
+      if (!isMounted.current) return;
+      
       try {
-     
+        toast.loading('Verifying payment...', { id: 'verify-payment' });
         
-        // Show loading indicator during verification
-        toast.loading('Verifying payment...', { id: 'verify-loading' });
-        
+        // Validate response
         if (!response.razorpay_payment_id || !response.razorpay_order_id || !response.razorpay_signature) {
-          console.error('Missing required Razorpay parameters:', response);
-          throw new Error('Missing required payment confirmation parameters');
+          throw new Error('Invalid payment response');
         }
         
+        // Prepare verification data
         const verifyData = {
           razorpay_payment_id: response.razorpay_payment_id,
           razorpay_order_id: response.razorpay_order_id,
-          razorpay_signature: response.razorpay_signature
+          razorpay_signature: response.razorpay_signature,
+          session_id: sessionData.id
         };
         
-        
-        
+        // Send verification request
         const verifyResponse = await fetch(API_CONFIG.getUrl('payment/verify'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -215,52 +363,46 @@ const PaymentHandler = ({ sessionData, onClose }) => {
         });
         
         if (!verifyResponse.ok) {
-          throw new Error(`Server responded with status: ${verifyResponse.status}`);
+          throw new Error(`Verification failed: ${verifyResponse.status}`);
         }
         
         const verifyResult = await verifyResponse.json();
-      
-        
-        toast.dismiss('verify-loading');
         
         if (verifyResult.success) {
+          toast.dismiss('verify-payment');
           toast.success('Payment successful!');
-          // Redirect to success page
-          window.location.href = `/payment/success?orderId=${sessionDataToUse.paymentDetails.orderId}`;
+          window.location.href = `/payment/success?orderId=${sessionData.paymentDetails.orderId}`;
         } else {
           throw new Error(verifyResult.error || 'Payment verification failed');
         }
       } catch (error) {
         console.error('Payment verification error:', error);
-        toast.error(`Payment verification failed: ${error.message}`, { id: 'verify-loading' });
+        toast.error('Payment verification failed', { id: 'verify-payment' });
         
-        // Fall back to checking payment status
-        checkPaymentStatus(sessionDataToUse.paymentDetails.orderId);
+        // Try status check as fallback
+        checkPaymentStatus(sessionData.paymentDetails.orderId);
       }
     };
-
-    // Step 5: Enhanced status check function
+    
+    /**
+     * Check payment status as fallback verification method
+     */
     const checkPaymentStatus = async (orderId) => {
+      if (!isMounted.current) return;
+      
       try {
-        if (!orderId) {
-          console.error('Missing order ID for status check');
-          if (onClose) onClose();
-          return;
-        }
-        
-        console.log('Checking payment status for order:', orderId);
         toast.loading('Checking payment status...', { id: 'status-check' });
         
-        // Wait for webhook processing
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        // Wait for webhooks to process
+        await new Promise(resolve => setTimeout(resolve, 2000));
         
         const response = await fetch(API_CONFIG.getUrl(`payment/status/${orderId}`));
+        
         if (!response.ok) {
-          throw new Error(`Failed to check payment status: ${response.status}`);
+          throw new Error(`Status check failed: ${response.status}`);
         }
         
         const data = await response.json();
-       
         
         toast.dismiss('status-check');
         
@@ -276,37 +418,39 @@ const PaymentHandler = ({ sessionData, onClose }) => {
         toast.error('Could not verify payment status');
         window.location.href = `/payment/failure?orderId=${orderId}&error=${encodeURIComponent(error.message)}`;
       } finally {
-        if (onClose) onClose();
+        PaymentState.reset();
+        if (onClose && isMounted.current) onClose();
       }
     };
-
+    
     // Start the payment flow
     initializePayment();
-
-    // Cleanup function
-    return () => {
-      const script = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
-      if (script && script.parentNode) {
-        script.parentNode.removeChild(script);
-      }
-      
-      // Clear any toast notifications
-      toast.dismiss('payment-loading');
-      toast.dismiss('verify-loading');
-      toast.dismiss('status-check');
-    };
   }, [sessionData, onClose]);
-
+  
+  // Error UI
   if (error) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
         <div className="bg-slate-800 p-6 rounded-lg max-w-md w-full">
           <h3 className="text-xl font-bold text-white mb-2">Payment Error</h3>
           <p className="text-red-400 mb-4">{error}</p>
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            <button 
+              className="px-4 py-2 bg-slate-600 text-white rounded hover:bg-slate-700"
+              onClick={() => {
+                PaymentState.reset();
+                cleanupRazorpayElements();
+                window.location.reload();
+              }}
+            >
+              Reload Page
+            </button>
             <button 
               className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
-              onClick={onClose}
+              onClick={() => {
+                PaymentState.reset();
+                if (onClose) onClose();
+              }}
             >
               Close
             </button>
@@ -315,9 +459,35 @@ const PaymentHandler = ({ sessionData, onClose }) => {
       </div>
     );
   }
-
-  // No visual rendering during normal operation
+  
+  // Reset button only shown in development
+  if (process.env.NODE_ENV === 'development') {
+    return (
+      <div className="fixed bottom-4 right-4 z-50">
+        <button
+          className="bg-red-600 text-white px-3 py-1 rounded text-xs flex items-center gap-1"
+          onClick={() => {
+            PaymentState.reset();
+            cleanupRazorpayElements();
+            toast.success('Payment system reset');
+            setTimeout(() => window.location.reload(), 500);
+          }}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+            <path d="M3 3v5h5"></path>
+            <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
+            <path d="M16 16h5v5"></path>
+          </svg>
+          Reset Payment
+        </button>
+      </div>
+    );
+  }
+  
+  // No UI in production (invisible component)
   return null;
 };
+
 
 export default PaymentHandler;

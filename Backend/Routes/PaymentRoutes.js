@@ -196,265 +196,128 @@ const withTransaction = async (operations) => {
 };
 
 
-const validateSlotAvailability = async (cartItems = [], workshops = [], session) => {
-  const validationErrors = [];
-  
-  // Validate event slots
-  if (cartItems.length > 0) {
-    const eventIds = cartItems.map(item => item.eventId || item.id);
-    
-    // Fetch current event registration counts and status - update fields being fetched
-    const events = await Event.find({ 
-      _id: { $in: eventIds } 
-    }, 'eventInfo.title maxRegistrations registrationCount registrationEndTime status').session(session);
-    
-    // Check each event's availability
-    for (const event of events) {
-      const now = new Date();
-      
-      // Check if registration is closed
-      if (event.status === 'cancelled' || 
-          event.status === 'completed' || 
-          now > new Date(event.registrationEndTime)) {
-        validationErrors.push({
-          type: 'event',
-          id: event._id,
-          name: event.eventInfo?.title || 'Event',
-          error: 'Registration closed',
-          reason: 'closed'
-        });
-      }
-      // Then check if slots are available - use maxRegistrations instead of registration.totalSlots
-      else if (event.registrationCount >= event.maxRegistrations) {
-        validationErrors.push({
-          type: 'event',
-          id: event._id,
-          name: event.eventInfo?.title || 'Event',
-          error: 'No slots available',
-          reason: 'sold_out'
-        });
-      }
-    }
-  }
-  
-  // Validate workshop slots and status - This part is correct
-  if (workshops.length > 0) {
-    const workshopIds = workshops.map(workshop => workshop.id || workshop.workshopId);
-    
-    // Fetch current workshop data
-    const workshopsData = await Workshop.find({
-      _id: { $in: workshopIds }
-    }, 'title registration.totalSlots registration.registeredCount registrationEndTime status').session(session);
-    
-    // Check each workshop's availability
-    for (const workshop of workshopsData) {
-      const now = new Date();
-      
-      // Check if registration is closed
-      if (workshop.status === 'cancelled' || 
-          workshop.status === 'completed' || 
-          now > new Date(workshop.registrationEndTime)) {
-        validationErrors.push({
-          type: 'workshop',
-          id: workshop._id,
-          name: workshop.title || 'Workshop',
-          error: 'Registration closed',
-          reason: 'closed'
-        });
-      }
-      // Then check if slots are available
-      else if (workshop.registration.registeredCount >= workshop.registration.totalSlots) {
-        validationErrors.push({
-          type: 'workshop',
-          id: workshop._id,
-          name: workshop.title || 'Workshop',
-          error: 'No slots available',
-          reason: 'sold_out'
-        });
-      }
-    }
-  }
-  
-  return validationErrors;
-};  
-
-const checkAvailabilityBeforePayment = async (req, res, next) => {
-  try {
-    const { cartItems = [], workshops = [] } = req.body;
-    
-    if (cartItems.length === 0 && workshops.length === 0) {
-      throw new Error('Cart is empty');
-    }
-    
-    // Perform quick availability check before entering transaction
-    const validationErrors = await validateSlotAvailability(cartItems, workshops);
-    
-    if (validationErrors.length > 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'Some items in your cart are no longer available',
-        validationErrors
-      });
-    }
-    
-    next();
-  } catch (error) {
-    console.error('Pre-payment availability check failed:', error);
-    res.status(400).json({
-      success: false,
-      error: error.message || 'Payment validation failed'
-    });
-  }
-};
-
-
 // Payment initiation route
-router.post('/payment/initiate', detectTampering, checkAvailabilityBeforePayment, async (req, res) => {
+router.post('/payment/initiate', detectTampering, async (req, res) => {
   try {
-    const { student, packageConfig, verifiedPrice, cartValidation } = req.validatedData;
-    const { workshops = [], platformFee = 0, totalAmount = 0 } = req.body;
+      const { student, packageConfig, verifiedPrice, cartValidation } = req.validatedData;
+      const { workshops = [], platformFee = 0, totalAmount = 0 } = req.body; // Get platform fee from request
 
-    // Validate platform fee calculation (should be approximately 2% of baseAmount)
-    const expectedPlatformFee = Math.ceil(verifiedPrice * 0.02); // 2% rounded up
-    
-    // Use the platform fee from the request if it's close to the expected value
-    // Otherwise use our server-calculated value for security
-    const finalPlatformFee = Math.abs(platformFee - expectedPlatformFee) <= 1 ? 
-                             platformFee : expectedPlatformFee;
+      // Validate platform fee calculation (should be approximately 2% of baseAmount)
+      const expectedPlatformFee = Math.ceil(verifiedPrice * 0.02); // 2% rounded up
+      
+      // Use the platform fee from the request if it's close to the expected value
+      // Otherwise use our server-calculated value for security
+      const finalPlatformFee = Math.abs(platformFee - expectedPlatformFee) <= 1 ? 
+                               platformFee : expectedPlatformFee;
 
-    // Calculate the final total amount
-    const finalTotalAmount = verifiedPrice + finalPlatformFee;
-    
-    console.log('Payment initiation with frontend workshops and fees:', {
-        workshops,
-        baseAmount: verifiedPrice,
-        requestPlatformFee: platformFee,
-        finalPlatformFee,
-        finalTotalAmount
-    });
+      // Calculate the final total amount
+      const finalTotalAmount = verifiedPrice + finalPlatformFee;
+      
+      console.log('Payment initiation with frontend workshops and fees:', {
+          workshops,
+          baseAmount: verifiedPrice,
+          requestPlatformFee: platformFee,
+          finalPlatformFee,
+          finalTotalAmount
+      });
 
-    const result = await withTransaction(async (session) => {
-        // Double-check availability within transaction to prevent race conditions
-        const validationErrors = await validateSlotAvailability(student.cart, workshops, session);
-        
-        if (validationErrors.length > 0) {
-          // If validation fails inside transaction, throw error
-          throw new Error(JSON.stringify({
-            message: 'Some items in your cart are no longer available',
-            validationErrors
-          }));
-        }
-        
-        const timestamp = Date.now().toString(36);
-        const userIdSuffix = student.kindeId.slice(-4);
-        const orderId = `ord_${timestamp}_${userIdSuffix}`;
+      const result = await withTransaction(async (session) => {
+          const timestamp = Date.now().toString(36);
+          const userIdSuffix = student.kindeId.slice(-4);
+          const orderId = `ord_${timestamp}_${userIdSuffix}`;
 
-        // Use workshops from the request body
-        const selectedWorkshops = workshops.map(workshop => ({
-          workshopId: workshop.id || workshop.workshopId, // Accept either format
-          workshopName: workshop.title || workshop.workshopName || 'Workshop',
-          status: 'pending'
+          // Use workshops from the request body
+          const selectedWorkshops = workshops.map(workshop => ({
+            workshopId: workshop.id || workshop.workshopId, // Accept either format
+            workshopName: workshop.title || workshop.workshopName || 'Workshop',
+            status: 'pending'
         }));
 
-        // Create registration record with platform fee details
-        const registration = await Registration.create([{
-            student: student._id,
-            kindeId: student.kindeId,
-            selectedEvents: student.cart.map(item => ({
-                eventId: item.eventId,
-                eventName: item.title || '',
-                status: 'pending',
-                registrationType: 'individual',
-                maxTeamSize: 1
-            })),
-            selectedWorkshops: selectedWorkshops,
-            amount: verifiedPrice, // Base package price
-            platformFee: finalPlatformFee, // Store platform fee separately
-            totalAmount: finalTotalAmount, // Total including platform fee
-            paymentStatus: 'pending',
-            paymentInitiatedAt: new Date(),
-            paymentDetails: {
-                orderId,
-                customerDetails: {
-                    name: student.name,
-                    email: student.email,
-                    phone: student.mobileNumber
-                },
-                merchantParams: {
-                    comboId: cartValidation.originalCombo.id,
-                    comboName: cartValidation.originalCombo.name,
-                    verificationData: cartValidation,
-                    selectedWorkshopIds: selectedWorkshops.map(w => w.workshopId),
-                    baseAmount: verifiedPrice,
-                    platformFee: finalPlatformFee
-                }
-            }
-        }], { session });
 
-        // Create Razorpay order with total amount (base price + platform fee)
-        const razorpayOrder = await razorpay.orders.create({
-            amount: finalTotalAmount * 100, // Convert to paise
-            currency: 'INR',
-            receipt: orderId.slice(0, 40),
-            notes: {
-                kindeId: student.kindeId,
-                packageId: packageConfig.id,
-                email: student.email,
-                workshops: JSON.stringify(selectedWorkshops.map(w => w.workshopId)),
-                baseAmount: verifiedPrice,
-                platformFee: finalPlatformFee
-            }
-        });
+          console.log('Selected workshops for registration:', selectedWorkshops);
 
-        // Update registration with Razorpay order ID
-        const updatedRegistration = await Registration.findByIdAndUpdate(
-            registration[0]._id,
-            { 'paymentDetails.razorpayOrderId': razorpayOrder.id },
-            { session, new: true }
-        );
+          // Create registration record with platform fee details
+          const registration = await Registration.create([{
+              student: student._id,
+              kindeId: student.kindeId,
+              selectedEvents: student.cart.map(item => ({
+                  eventId: item.eventId,
+                  eventName: item.title || '',
+                  status: 'pending',
+                  registrationType: 'individual',
+                  maxTeamSize: 1
+              })),
+              selectedWorkshops: selectedWorkshops,
+              amount: verifiedPrice, // Base package price
+              platformFee: finalPlatformFee, // Store platform fee separately
+              totalAmount: finalTotalAmount, // Total including platform fee
+              paymentStatus: 'pending',
+              paymentInitiatedAt: new Date(),
+              paymentDetails: {
+                  orderId,
+                  customerDetails: {
+                      name: student.name,
+                      email: student.email,
+                      phone: student.mobileNumber
+                  },
+                  merchantParams: {
+                      comboId: cartValidation.originalCombo.id,
+                      comboName: cartValidation.originalCombo.name,
+                      verificationData: cartValidation,
+                      selectedWorkshopIds: selectedWorkshops.map(w => w.workshopId),
+                      baseAmount: verifiedPrice,
+                      platformFee: finalPlatformFee
+                  }
+              }
+          }], { session });
 
-        return { registration: updatedRegistration, razorpayOrder };
-    });
+          // Create Razorpay order with total amount (base price + platform fee)
+          const razorpayOrder = await razorpay.orders.create({
+              amount: finalTotalAmount * 100, // Convert to paise
+              currency: 'INR',
+              receipt: orderId.slice(0, 40),
+              notes: {
+                  kindeId: student.kindeId,
+                  packageId: packageConfig.id,
+                  email: student.email,
+                  workshops: JSON.stringify(selectedWorkshops.map(w => w.workshopId)),
+                  baseAmount: verifiedPrice,
+                  platformFee: finalPlatformFee
+              }
+          });
 
-    res.json({
-        success: true,
-        registration: {
-            ...result.registration.toObject(),
-            paymentDetails: {
-                ...result.registration.paymentDetails,
-                razorpayDetails: {
-                    orderId: result.razorpayOrder.id
-                }
-            }
-        }
-    });
+          // Update registration with Razorpay order ID
+          const updatedRegistration = await Registration.findByIdAndUpdate(
+              registration[0]._id,
+              { 'paymentDetails.razorpayOrderId': razorpayOrder.id },
+              { session, new: true }
+          );
+
+          return { registration: updatedRegistration, razorpayOrder };
+      });
+
+      res.json({
+          success: true,
+          registration: {
+              ...result.registration.toObject(),
+              paymentDetails: {
+                  ...result.registration.paymentDetails,
+                  razorpayDetails: {
+                      orderId: result.razorpayOrder.id
+                  }
+              }
+          }
+      });
 
   } catch (error) {
-    console.error('Payment initiation failed:', error);
-    
-    // Check if error is from our validation
-    let   errorResponse = {
-        success: false,
-        error: error.message || 'Failed to initiate payment'
-    };
-    
-    // Parse JSON error message if it's our validation error
-    try {
-      const parsedError = JSON.parse(error.message);
-      if (parsedError.validationErrors) {
-        errorResponse = {
+      console.error('Payment initiation failed:', error);
+      res.status(500).json({
           success: false,
-          error: parsedError.message,
-          validationErrors: parsedError.validationErrors
-        };
-      }
-    } catch (e) {
-      // Not a JSON string, use original error
-    }
-    
-    res.status(500).json(errorResponse);
+          error: error.message || 'Failed to initiate payment'
+      });
   }
 });
+
 // Get payment status with enhanced details
 router.get('/payment/status/:orderId', async (req, res) => {
     try {
