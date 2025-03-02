@@ -411,10 +411,13 @@ router.get('/export/workshop/:workshopId', async (req, res) => {
  */
 router.get('/export/registrations/financial', async (req, res) => {
   try {
-    // Get all completed registrations
+    // Get all completed registrations with deeper population
     const registrations = await Registration.find({
       paymentStatus: 'completed'
-    }).populate('student');
+    })
+    .populate('student')
+    .populate('selectedEvents.eventId') // Populate event objects
+    .populate('selectedWorkshops.workshopId'); // Populate workshop objects
 
     if (!registrations || registrations.length === 0) {
       return res.status(404).json({
@@ -427,6 +430,43 @@ router.get('/export/registrations/financial', async (req, res) => {
     const excelData = registrations.map(registration => {
       const student = registration.student || {};
       
+      // Process events with fallback to eventName if eventId population fails
+      let eventNames = [];
+      if (Array.isArray(registration.selectedEvents)) {
+        eventNames = registration.selectedEvents.map(event => {
+          // Try to get event name from the populated event first
+          if (event.eventId && typeof event.eventId === 'object' && event.eventId.title) {
+            return event.eventId.title;
+          }
+          // Fall back to the stored eventName
+          return event.eventName || 'Unknown Event';
+        }).filter(Boolean);
+      }
+      
+      // Process workshops with fallback to workshopName if workshopId population fails
+      let workshopNames = [];
+      if (Array.isArray(registration.selectedWorkshops)) {
+        workshopNames = registration.selectedWorkshops.map(workshop => {
+          // Try to get workshop name from the populated workshop first
+          if (workshop.workshopId && typeof workshop.workshopId === 'object' && workshop.workshopId.title) {
+            return workshop.workshopId.title;
+          }
+          // Fall back to the stored workshopName
+          return workshop.workshopName || 'Unknown Workshop';
+        }).filter(Boolean);
+      }
+      
+      // Join the names with a separator and add a limit to prevent Excel cell size issues
+      const maxItemsPerCell = 10; // Adjust this based on your needs
+      
+      const eventsText = eventNames.length > maxItemsPerCell 
+        ? eventNames.slice(0, maxItemsPerCell).join(', ') + ` (+ ${eventNames.length - maxItemsPerCell} more)`
+        : eventNames.join(', ');
+        
+      const workshopsText = workshopNames.length > maxItemsPerCell 
+        ? workshopNames.slice(0, maxItemsPerCell).join(', ') + ` (+ ${workshopNames.length - maxItemsPerCell} more)`
+        : workshopNames.join(', ');
+      
       return {
         'Registration ID': registration._id,
         'Order ID': registration.paymentDetails?.orderId || 'N/A',
@@ -435,15 +475,19 @@ router.get('/export/registrations/financial', async (req, res) => {
         'Student Name': student.name || 'N/A',
         'Student Email': student.email || 'N/A',
         'Student Phone': student.mobileNumber || 'N/A',
+        'Branch': student.branch || 'N/A',
+        'College': student.collegeName || 'N/A',
         'Registration Type': student.registrationType || 'student',
         'Amount': registration.amount || 0,
+        'Platform Fee': registration.platformFee || 0,
+        'Total Amount': registration.totalAmount || registration.amount || 0,
         'Payment Method': registration.paymentDetails?.paymentMethod || 'N/A',
         'Payment Date': formatDate(registration.paymentCompletedAt),
         'Registration Date': formatDate(registration.createdAt),
-        'Events Count': (registration.selectedEvents || []).length,
-        'Workshops Count': (registration.selectedWorkshops || []).length,
-        'Events': registration.selectedEvents.map(e => e.eventName).join(', '),
-        'Workshops': registration.selectedWorkshops.map(w => w.workshopName).join(', '),
+        'Events Count': eventNames.length,
+        'Workshops Count': workshopNames.length,
+        'Events': eventsText,
+        'Workshops': workshopsText,
         'Package Name': registration.paymentDetails?.merchantParams?.comboName || 'N/A'
       };
     });
@@ -462,15 +506,19 @@ router.get('/export/registrations/financial', async (req, res) => {
       { wch: 25 }, // Student Name
       { wch: 30 }, // Student Email
       { wch: 15 }, // Student Phone
+      { wch: 15 }, // Branch
+      { wch: 30 }, // College
       { wch: 18 }, // Registration Type
       { wch: 10 }, // Amount
+      { wch: 10 }, // Platform Fee
+      { wch: 12 }, // Total Amount
       { wch: 15 }, // Payment Method
       { wch: 20 }, // Payment Date
       { wch: 20 }, // Registration Date
       { wch: 12 }, // Events Count
       { wch: 15 }, // Workshops Count
-      { wch: 50 }, // Events
-      { wch: 50 }, // Workshops
+      { wch: 90 }, // Events - increased width for more content
+      { wch: 90 }, // Workshops - increased width for more content
       { wch: 20 }  // Package Name
     ];
     worksheet['!cols'] = colWidths;

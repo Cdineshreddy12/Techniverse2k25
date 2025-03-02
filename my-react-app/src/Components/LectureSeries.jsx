@@ -82,7 +82,7 @@ const speakers = [
         image: "https://res.cloudinary.com/dxsupdl3t/image/upload/v1740020567/4_rhwaay.png",
         department: "Harvard Medical School",
         institution: "Massachusetts General Hospital, Boston, USA",
-        topic: "Cancer metabolism herapeutic opportunities",
+        topic: "Cancer metabolism therapeutic opportunities",
         description: "Cancer Metabolism",
         date: "March 9, 2025",
         time: "11:40 AM - 12:40 AM",

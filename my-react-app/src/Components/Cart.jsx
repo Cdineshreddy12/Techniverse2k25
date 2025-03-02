@@ -522,6 +522,101 @@ const getAvailableOptions = () => {
   };
   
 
+  const handleAvailabilityErrors = (errors, dispatch) => {
+    if (!Array.isArray(errors) || errors.length === 0) return;
+    
+    // Group items by error reason
+    const soldOutItems = [];
+    const closedItems = [];
+    
+    errors.forEach(item => {
+      // Remove unavailable items from cart regardless of reason
+      if (item.type === 'event') {
+        dispatch(removeFromCart({ id: item.id, type: 'event' }));
+      } else if (item.type === 'workshop') {
+        dispatch(removeFromCart({ id: item.id, type: 'workshop' }));
+      }
+      
+      // Group by reason
+      if (item.reason === 'sold_out') {
+        soldOutItems.push(item.name);
+      } else if (item.reason === 'closed') {
+        closedItems.push(item.name);
+      } else {
+        // Default case
+        soldOutItems.push(item.name);
+      }
+    });
+    
+    // Create error messages
+    let messages = [];
+    
+    if (soldOutItems.length > 0) {
+      messages.push(`The following items are sold out: ${soldOutItems.join(', ')}`);
+    }
+    
+    if (closedItems.length > 0) {
+      messages.push(`Registration has closed for: ${closedItems.join(', ')}`);
+    }
+    
+    // Show error toast
+    if (messages.length > 0) {
+      messages.forEach(message => {
+        toast.error(message, {
+          duration: 5000,
+          position: 'top-center',
+          style: {
+            borderRadius: '10px',
+            background: '#f44336',
+            color: '#fff',
+          },
+          icon: '⚠️',
+        });
+      });
+    }
+    
+    // After removing unavailable items, show option to continue if there are still items left
+    setTimeout(() => {
+      // Check if any items are left in the cart
+      const remainingItems = store.getState().cart.items.length;
+      const remainingWorkshops = store.getState().cart.workshops.length;
+      
+      if (remainingItems > 0 || remainingWorkshops > 0) {
+        toast((t) => (
+          <div className="text-center">
+            <p className="text-white text-sm">Would you like to continue with the available items?</p>
+            <div className="mt-3 flex justify-center gap-3">
+              <button
+                onClick={() => {
+                  toast.dismiss(t.id);
+                  initiatePayment();
+                }}
+                className="px-4 py-1.5 bg-white text-purple-600 rounded font-medium text-sm"
+              >
+                Yes, continue
+              </button>
+              <button
+                onClick={() => toast.dismiss(t.id)}
+                className="px-4 py-1.5 bg-transparent border border-white text-white rounded font-medium text-sm"
+              >
+                No, review cart
+              </button>
+            </div>
+          </div>
+        ), {
+          duration: 8000,
+          position: 'top-center',
+          style: {
+            borderRadius: '10px',
+            background: '#7c3aed', // Purple color
+            color: '#fff',
+          },
+        });
+      }
+    }, 1000);
+  };
+
+  
 // Update the payment validation and include platform fee
 const initiatePayment = async () => {
   if (!user?.id) {
@@ -648,23 +743,27 @@ const initiatePayment = async () => {
     // Dismiss loading toast
     toast.dismiss(loadingToast);
     
-    if (data.success) {
-      toast.success('Payment session created successfully!');
-      setPaymentSession(data.registration);
-      console.log('Payment Session Data:', data.registration);
-    } else {
-      // More descriptive error based on the response
-      if (data.error) {
-        toast.error(`Payment failed: ${data.error}`);
-      } else if (!selectedCombo) {
-        toast.error('Payment failed: No package selected');
-      } else if (totalAmount <= 0) {
-        toast.error('Payment failed: Invalid amount');
-      } else {
-        toast.error('Payment initiation failed. Please try again.');
-      }
-    }
-  } catch (error) {
+    // Update this part in your initiatePayment function, in the response handling section
+if (data.success) {
+  toast.success('Payment session created successfully!');
+  setPaymentSession(data.registration);
+  console.log('Payment Session Data:', data.registration);
+} else {
+  // Check for availability validation errors
+  if (data.validationErrors) {
+    // This calls the function you already defined to handle unavailable items
+    handleAvailabilityErrors(data.validationErrors, dispatch);
+  } else if (data.error) {
+    toast.error(`Payment failed: ${data.error}`);
+  } else if (!selectedCombo) {
+    toast.error('Payment failed: No package selected');
+  } else if (totalAmount <= 0) {
+    toast.error('Payment failed: Invalid amount');
+  } else {
+    toast.error('Payment initiation failed. Please try again.');
+  }
+}}
+catch (error) {
     console.error('Payment error:', error);
     toast.error('Failed to initiate payment. Please check your connection and try again.');
   }

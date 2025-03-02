@@ -6,23 +6,42 @@ const SponsorScroll = () => {
   const sponsors = {
     platinum: [
       {
-        name: "Leo Global Overseas",
-        logo: "https://res.cloudinary.com/dxsupdl3t/image/upload/v1740709537/WhatsApp_Image_2025-02-27_at_20.10.53_9f46e656_o0panb.jpg", // Replace with actual logo path
+        name: "Canara Bank",
+        logo: "https://res.cloudinary.com/dxsupdl3t/image/upload/v1740882517/download_zdm3vu.png", // Replace with actual logo path
         description: "Platinum Sponsor",
-        details: "Prime logo on all event materials and brochures",
+        details: "A leading public sector bank in India, supporting financial growth.",
         icon: Globe
       },
       {
         name: "TRADEMILAAN",
         logo: "https://res.cloudinary.com/dxsupdl3t/image/upload/v1740770227/WhatsApp_Image_2025-02-28_at_10.34.29_ff23ef7e_tpmbiq.jpg", // Replace with actual logo path
         description: "Platinum Sponsor",
-        details: "SEBI Research Analyst",
+        details: "A SEBI-registered research analyst firm providing financial insights.",
         icon: Globe
-      }
-
+      },
+      {
+        name: "Leo Global Overseas",
+        logo: "https://res.cloudinary.com/dxsupdl3t/image/upload/v1740709537/WhatsApp_Image_2025-02-27_at_20.10.53_9f46e656_o0panb.jpg", // Replace with actual logo path
+        description: "Platinum Sponsor",
+        details: "A trusted name in overseas education and immigration services.",
+        icon: Globe
+      },
+      {
+        name: "Attarah Innovations",
+        logo: "https://res.cloudinary.com/dxsupdl3t/image/upload/v1740882858/Screenshot_2025-03-02_080400_svdcco.png    ", // Replace with actual logo path
+        description: "Platinum Sponsor",
+        details: "A technology-driven company fostering innovation and development. ",
+        icon: Globe
+      }     
     ],
     diamond: [
-      // This array is empty by default, showing we have no diamond sponsors yet
+      {
+        name: "Union Bank ",
+        logo: "https://res.cloudinary.com/dxsupdl3t/image/upload/v1740882659/images_elwsu2.jpg", // Replace with actual logo path
+        description: "Diamond Sponsor   ",
+        details: "A reputed government-owned bank dedicated to financial empowerment.",
+        icon: Globe
+      } 
     ],
     gold: [
       // This array is empty by default, showing we have no gold sponsors yet

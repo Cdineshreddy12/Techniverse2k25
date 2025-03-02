@@ -60,6 +60,9 @@ router.get('/event/:eventId', kindeMiddleware, requireCoordinator, async (req, r
         select: 'title'
       })
       .sort('-createdAt');
+
+      // Filter out registrations with deleted users
+    registrations = registrations.filter(reg => reg.userId !== null);
     
     // Process registrations to extract event-specific data
     let registrationData = registrations.map(reg => {
@@ -224,6 +227,10 @@ router.get('/workshop/:workshopId', kindeMiddleware, requireCoordinator, async (
         select: 'title'
       })
       .sort('-createdAt');
+    
+
+       // Filter out registrations with deleted users
+    registrations = registrations.filter(reg => reg.userId !== null);
     
     // Process registrations to extract workshop-specific data
     let registrationData = registrations.map(reg => {

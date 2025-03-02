@@ -453,13 +453,13 @@ const WorkshopDetails = () => {
               ) : (
                 <ShoppingCart className="w-5 h-5" />
               )}
-              <span>
-                {addingToCart ? 'Adding to Cart...' : 
-                !isRegistrationAllowed(workshop) ? 
-                  (workshop.registration.registeredCount >= workshop.registration.totalSlots ? 
-                    'Sold Out' : 'Registration Closed') : 
-                  'Add to Cart'}
-              </span>
+             <span>
+              {addingToCart ? 'Adding to Cart...' : 
+              !isRegistrationAllowed(workshop) ? 
+                (workshop.registration.registeredCount >= workshop.registration.totalSlots ? 
+                  'Sold Out' : 'Registration Closed') : 
+                'Add to Cart'}
+            </span>
             </button>
           </div>
         </div>
