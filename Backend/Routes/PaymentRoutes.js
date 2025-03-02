@@ -203,10 +203,10 @@ const validateSlotAvailability = async (cartItems = [], workshops = [], session)
   if (cartItems.length > 0) {
     const eventIds = cartItems.map(item => item.eventId || item.id);
     
-    // Fetch current event registration counts and status
+    // Fetch current event registration counts and status - update fields being fetched
     const events = await Event.find({ 
       _id: { $in: eventIds } 
-    }, 'eventInfo.title registration.totalSlots registrationCount registrationEndTime status').session(session);
+    }, 'eventInfo.title maxRegistrations registrationCount registrationEndTime status').session(session);
     
     // Check each event's availability
     for (const event of events) {
@@ -221,30 +221,30 @@ const validateSlotAvailability = async (cartItems = [], workshops = [], session)
           id: event._id,
           name: event.eventInfo?.title || 'Event',
           error: 'Registration closed',
-          reason: 'closed' // Add reason to differentiate between slot unavailability and closed registration
+          reason: 'closed'
         });
       }
-      // Then check if slots are available
-      else if (event.registrationCount >= event.registration.totalSlots) {
+      // Then check if slots are available - use maxRegistrations instead of registration.totalSlots
+      else if (event.registrationCount >= event.maxRegistrations) {
         validationErrors.push({
           type: 'event',
           id: event._id,
           name: event.eventInfo?.title || 'Event',
           error: 'No slots available',
-          reason: 'sold_out' // Add reason 
+          reason: 'sold_out'
         });
       }
     }
   }
   
-  // Validate workshop slots and status
+  // Validate workshop slots and status - This part is correct
   if (workshops.length > 0) {
     const workshopIds = workshops.map(workshop => workshop.id || workshop.workshopId);
     
     // Fetch current workshop data
     const workshopsData = await Workshop.find({
       _id: { $in: workshopIds }
-    }, 'title registration.totalSlots registrationCount registrationEndTime status').session(session);
+    }, 'title registration.totalSlots registration.registeredCount registrationEndTime status').session(session);
     
     // Check each workshop's availability
     for (const workshop of workshopsData) {
@@ -263,7 +263,7 @@ const validateSlotAvailability = async (cartItems = [], workshops = [], session)
         });
       }
       // Then check if slots are available
-      else if (workshop.registrationCount >= workshop.registration.totalSlots) {
+      else if (workshop.registration.registeredCount >= workshop.registration.totalSlots) {
         validationErrors.push({
           type: 'workshop',
           id: workshop._id,
@@ -276,7 +276,7 @@ const validateSlotAvailability = async (cartItems = [], workshops = [], session)
   }
   
   return validationErrors;
-};    
+};  
 
 const checkAvailabilityBeforePayment = async (req, res, next) => {
   try {
