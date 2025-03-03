@@ -37,7 +37,7 @@ const OfflineLogin = () => {
             setError(data.error || 'Invalid credentials');
         }
     } catch (error) {
-        setError('Login failed. Please try again.');
+        setError('Login failed. Please try again...');
     } finally {
         setLoading(false);
     }
