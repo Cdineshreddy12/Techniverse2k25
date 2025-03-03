@@ -29,18 +29,36 @@ jobs:
         key: ${{ secrets.EC2_SSH_KEY }}
         debug: true
         script: |
-          # Cleanup
-          echo "Performing cleanup..."
-          docker system prune -af
+          # Stop any running containers to free up resources
+          echo "Stopping all running containers..."
+          docker stop $(docker ps -q) 2>/dev/null || true
+          
+          # Aggressive disk cleanup before build
+          echo "Performing disk cleanup..."
+          docker system prune -af --volumes
+          docker image prune -af
           docker volume prune -f
           docker network prune -f
-          docker builder prune -af --keep-storage 2GB
-          docker rm -f $(docker ps -aq) 2>/dev/null || true
-          docker rmi -f $(docker images -aq) 2>/dev/null || true
+          docker builder prune -af
+          
+          # Clean old build cache
+          echo "Cleaning build cache..."
+          rm -rf /var/lib/docker/tmp/* 2>/dev/null || true
+          
+          # System-level cleanup
+          echo "System cleanup..."
+          sudo apt-get clean || true
+          sudo apt-get autoremove -y || true
+          sudo rm -rf /var/lib/apt/lists/* || true
+          sudo rm -rf /tmp/* || true
+          
+          # Check available disk space
+          echo "Available disk space:"
+          df -h
           
           # Navigate to project directory
           cd /home/ec2-user/Techniverse2k25 || exit 1
-
+          
           # Create Backend/pem directory if it doesn't exist
           mkdir -p Backend/pem
           
@@ -51,20 +69,44 @@ jobs:
           # Set permissions
           chmod 600 Backend/pem/*.pem
           
-
           # Update code
           echo "Fetching latest changes..."
           git fetch origin main
           git reset --hard origin/main
           git clean -fd
           
-          # Deploy
-          echo "Starting deployment...."
+          # Update Docker settings to use more storage
+          echo "Updating Docker config..."
+          mkdir -p ~/.docker
+          echo '{"builder": {"gc": {"defaultKeepStorage": "20GB"}}}' > ~/.docker/config.json
+          
+          # Deploy with optimized settings
+          echo "Starting deployment with optimized settings..."
           export DOCKER_BUILDKIT=1
           export COMPOSE_DOCKER_CLI_BUILD=1
           export NODE_OPTIONS="--max-old-space-size=8192"
-
+          
+          # Stop and remove existing containers
           docker-compose -f docker-compose.prod.yml down --remove-orphans
+          
+          # Building backend and frontend separately for better control
+          echo "Building backend..."
+          if docker-compose -f docker-compose.prod.yml build --no-cache backend; then
+            echo "Backend build successful!"
+          else
+            echo "Backend build failed!"
+            exit 1
+          fi
+          
+          # Check disk space again before frontend build
+          echo "Available disk space after backend build:"
+          df -h
+          
+          # Additional cleanup if needed
+          echo "Performing additional cleanup before frontend build..."
+          docker system prune -af --volumes --filter "until=24h"
+          
+          echo "Building frontend..."
           if docker-compose -f docker-compose.prod.yml build \
                 --build-arg VITE_APP_BACKEND_URL=https://www.techniverse25.rguktsklm.ac.in \
                 --build-arg VITE_APP_RAZORPAY_KEY_ID=rzp_live_f5VZa3A73HKI8C \
@@ -73,14 +115,17 @@ jobs:
                 --build-arg VITE_APP_KINDE_REDIRECT_URL=https://www.techniverse25.rguktsklm.ac.in/cart\
                 --build-arg VITE_APP_KINDE_POST_LOGOUT_URL=https://www.techniverse25.rguktsklm.ac.in \
                 --build-arg VITE_APP_API_BASE_URL=https://www.techniverse25.rguktsklm.ac.in/api \
-                --no-cache; then
-              echo "Build successful, starting containers...."
-              docker-compose -f docker-compose.prod.yml up -d
+                --no-cache frontend; then
+              echo "Frontend build successful!"
           else 
-              echo "Build failed!"
+              echo "Frontend build failed!"
               exit 1
           fi
           
+          echo "Starting all containers..."
+          docker-compose -f docker-compose.prod.yml up -d
+          
+          echo "Deployment complete!"
           sleep 15
           docker ps
 

@@ -8,7 +8,7 @@ COPY package*.json ./
 
 # Install dependencies with optimizations
 RUN npm ci --legacy-peer-deps --no-audit --prefer-offline \
-    --max-old-space-size=2048 \
+    --max-old-space-size=4096 \
     && npm cache clean --force
 
 # Copy source
