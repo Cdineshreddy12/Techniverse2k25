@@ -19,7 +19,7 @@ const fetchEventDetails = async ({ departmentId, eventId }) => {
   const response = await fetch(apiUrl);
   
   if (!response.ok) {
-    throw new Error('Failed to fetch event details');
+    throw new Error('Failed to fetch event details.....');
   }
   
   const data = await response.json();
