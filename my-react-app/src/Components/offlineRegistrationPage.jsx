@@ -355,7 +355,7 @@ const OfflineRegistrationSystem = () => {
         setRegistrationId(_id);
         setIsUpdateMode(true);
         setSections({ personal: false, type: false, selection: true });
-        toast.success('Registration found! You can now update events/workshops.');
+        toast.success('Registration found! You can now update events/workshops...');
       } else {
         toast.error('No registration found with these details');
       }
