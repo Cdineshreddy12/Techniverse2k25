@@ -447,6 +447,7 @@ const OfflineRegistrationSystem = () => {
                       <option value="">Select Branch</option>
                       <option value="CSE">CSE</option>
                       <option value="ECE">ECE</option>
+                      <option value="EEE">EEE</option>
                       <option value="CIVIL">CIVIL</option>
                       <option value="MECH">MECH</option>
                       <option value="CHEMICAL">CHEMICAL</option>
