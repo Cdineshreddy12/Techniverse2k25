@@ -176,7 +176,7 @@ const ComboPackage = memo(() => {
           features: [
             "Access to All Technical Events",
             "Access to All Non-Technical Events",
-            "Techniverse Band",
+            "Techniverse Band.",
             "Certificate of Participation",
             "Event Schedule Booklet"
           ]

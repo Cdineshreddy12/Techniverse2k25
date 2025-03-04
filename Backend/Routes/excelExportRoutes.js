@@ -15,6 +15,13 @@ const formatDate = (date) => {
   return d.toLocaleString();
 };
 
+// Helper function to limit sheet name length to 31 characters (Excel limit)
+const safeSheetName = (name) => {
+  if (!name) return 'Sheet';
+  // Remove invalid sheet name characters and truncate to 31 characters
+  return name.replace(/[\[\]\*\/\\\?\:]/g, '_').substring(0, 31);
+};
+
 /**
  * Export all student registrations data
  * Includes personal information, events/workshops registered for, and payment details
@@ -226,7 +233,9 @@ router.get('/export/event/:eventId', async (req, res) => {
     // Create a worksheet
     const worksheet = XLSX.utils.json_to_sheet(excelData);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, event.title || 'Event Registrations');
+    
+    // Use safe sheet name that respects the 31-character limit
+    XLSX.utils.book_append_sheet(workbook, worksheet, safeSheetName(event.title) || 'Event Registrations');
 
     // Set column widths
     const colWidths = [
@@ -361,7 +370,9 @@ router.get('/export/workshop/:workshopId', async (req, res) => {
     // Create a worksheet
     const worksheet = XLSX.utils.json_to_sheet(excelData);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, workshop.title || 'Workshop Registrations');
+    
+    // Use safe sheet name that respects the 31-character limit
+    XLSX.utils.book_append_sheet(workbook, worksheet, safeSheetName(workshop.title) || 'Workshop Registrations');
 
     // Set column widths
     const colWidths = [
@@ -812,7 +823,9 @@ router.get('/export/departments/summary', async (req, res) => {
         }));
         
         const eventSheet = XLSX.utils.json_to_sheet(eventData);
-        XLSX.utils.book_append_sheet(workbook, eventSheet, `${deptData.shortName}-Events`);
+        // Use safe sheet name that respects the 31-character limit
+        const sheetName = safeSheetName(`${deptData.shortName}-Events`);
+        XLSX.utils.book_append_sheet(workbook, eventSheet, sheetName);
       }
       
       // Workshops data
@@ -826,7 +839,9 @@ router.get('/export/departments/summary', async (req, res) => {
         }));
         
         const workshopSheet = XLSX.utils.json_to_sheet(workshopData);
-        XLSX.utils.book_append_sheet(workbook, workshopSheet, `${deptData.shortName}-Workshops`);
+        // Use safe sheet name that respects the 31-character limit
+        const sheetName = safeSheetName(`${deptData.shortName}-Workshops`);
+        XLSX.utils.book_append_sheet(workbook, workshopSheet, sheetName);
       }
     });
     
