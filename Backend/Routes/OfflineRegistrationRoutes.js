@@ -296,6 +296,61 @@ const generateReceiptNumber = async () => {
 };
 
 
+
+router.delete('/delete-orphaned-registrations',  async (req, res) => {
+  try {
+    // First, get all user IDs from OfflineUser collection
+    const allUsers = await OfflineUser.find({}, '_id');
+    const validUserIds = allUsers.map(user => user._id.toString());
+    
+    // Find registrations where userId is not in the list of valid user IDs
+    const orphanedRegistrations = await OfflineRegistration.find({});
+    
+    // Filter to only get registrations with missing userIds
+    const orphaned = orphanedRegistrations.filter(reg => {
+      // Check if userId exists and is valid
+      return !reg.userId || !validUserIds.includes(reg.userId.toString());
+    });
+    
+    if (orphaned.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No orphaned registrations found',
+        count: 0
+      });
+    }
+    
+    // Get the IDs of orphaned registrations
+    const orphanedIds = orphaned.map(reg => reg._id);
+    
+    // Delete orphaned registrations
+    const deleteResult = await OfflineRegistration.deleteMany({
+      _id: { $in: orphanedIds }
+    });
+    
+    // Delete related check-ins
+    const receiptNumbers = orphaned.map(reg => reg.receiptNumber);
+    const checkInDeleteResult = await OfflineCheckIn.deleteMany({
+      receiptNumber: { $in: receiptNumbers }
+    });
+    
+    res.json({
+      success: true,
+      message: `Successfully deleted ${deleteResult.deletedCount} orphaned registrations`,
+      count: deleteResult.deletedCount,
+      checkInsDeleted: checkInDeleteResult.deletedCount,
+      details: orphaned.map(reg => ({
+        registrationId: reg._id,
+        receiptNumber: reg.receiptNumber,
+        missingUserId: reg.userId
+      }))
+    });
+  } catch (error) {
+    console.error('Error deleting orphaned registrations:', error);
+    errorHandler(error, req, res);
+  }
+});
+
 // Create offline user
 router.post('/create-offline-user',kindeMiddleware,requireCoordinator, async (req, res) => {
   try {
