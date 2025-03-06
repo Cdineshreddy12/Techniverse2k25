@@ -365,11 +365,13 @@ router.post('/create-offline-user',kindeMiddleware,requireCoordinator, async (re
 
     if (existingUser) {
       console.log('User already exists:', email);
-      return res.status(400).json({
-        success: false,
-        error: 'User already exists with provided details'
+      return res.status(200).json({
+        success: true,
+        message: 'User already exists',
+        user: existingUser // Returning the existing user's data
       });
     }
+    
 
     // Generate plain password
     const plainPassword = Math.random().toString(36).slice(-8);

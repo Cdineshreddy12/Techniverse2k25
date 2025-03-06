@@ -40,92 +40,6 @@ const webTeam = {
 
 const otherTeams = [
   {
-    "id": "department-coordinator",
-    "name": "Department Coordinators",
-    "members": [
-        {
-            "name": "Kola Mohan Vignesh Kumar",
-            "id": "S210574",
-            "phone": "9133637279",
-            "branch": "CSE",
-            "year": "E2",
-            "role": "CSE Coordinator"
-        },
-        {
-            "name": "Marada Sai Mahalakshmi",
-            "id": "S210135",
-            "phone": "9398720495",
-            "branch": "CSE",
-            "year": "E2",
-            "role": "CSE Coordinator"
-        },
-        {
-            "name": "G. Lahari",
-            "id": "S210250",
-            "phone": "9059637543",
-            "branch": "ECE",
-            "year": "E2",
-            "role": "ECE Coordinator"
-        },
-        {
-            "name": "Ch. Pavan Surya",
-            "id": "S210434",
-            "phone": "9014404898",
-            "branch": "ECE",
-            "year": "E2",
-            "role": "ECE Coordinator"
-        },
-        {
-            "name": "Y. Narendra",
-            "id": "S210093",
-            "phone": "6300418411",
-            "branch": "EEE",
-            "year": "E2",
-            "role": "EEE Coordinator"
-        },
-        {
-            "name": "U. Swarupa",
-            "id": "S210485",
-            "phone": "6281070051",
-            "branch": "EEE",
-            "year": "E2",
-            "role": "EEE Coordinator"
-        },
-        {
-            "name": "A. Chaitanya",
-            "id": "S210487",
-            "phone": "9347627074",
-            "branch": "CIVIL",
-            "year": "E2",
-            "role": "Civil Coordinator"
-        },
-        {
-            "name": "V.V. Durga Neelima",
-            "id": "S210294",
-            "phone": "8328671397",
-            "branch": "CIVIL",
-            "year": "E2",
-            "role": "Civil Coordinator"
-        },
-        {
-            "name": "J. Jeevan",
-            "id": "S211002",
-            "phone": "8328060854",
-            "branch": "MECH",
-            "year": "E2",
-            "role": "Mechanical Coordinator"
-        },
-        {
-            "name": "P. Priyanka",
-            "id": "S210338",
-            "phone": "7981023056",
-            "branch": "MECH",
-            "year": "E2",
-            "role": "Mechanical Coordinator"
-        }
-    ]
-},
-  {
     id: 'student-coordinators',
     name: 'Student Coordinators (Overall Monitoring)',
     members: [
@@ -227,6 +141,93 @@ const otherTeams = [
       },
     ]
   },
+  {
+    "id": "department-coordinator",
+    "name": "Department Coordinators",
+    "members": [
+        {
+            "name": "Kola Mohan Vignesh Kumar",
+            "id": "S210574",
+            "phone": "9133637279",
+            "branch": "CSE",
+            "year": "E2",
+            "role": "CSE Coordinator"
+        },
+        {
+            "name": "Marada Sai Mahalakshmi",
+            "id": "S210135",
+            "phone": "9398720495",
+            "branch": "CSE",
+            "year": "E2",
+            "role": "CSE Coordinator"
+        },
+        {
+            "name": "G. Lahari",
+            "id": "S210250",
+            "phone": "9059637543",
+            "branch": "ECE",
+            "year": "E2",
+            "role": "ECE Coordinator"
+        },
+        {
+            "name": "Ch. Pavan Surya",
+            "id": "S210434",
+            "phone": "9014404898",
+            "branch": "ECE",
+            "year": "E2",
+            "role": "ECE Coordinator"
+        },
+        {
+            "name": "Y. Narendra",
+            "id": "S210093",
+            "phone": "6300418411",
+            "branch": "EEE",
+            "year": "E2",
+            "role": "EEE Coordinator"
+        },
+        {
+            "name": "U. Swarupa",
+            "id": "S210485",
+            "phone": "6281070051",
+            "branch": "EEE",
+            "year": "E2",
+            "role": "EEE Coordinator"
+        },
+        {
+            "name": "A. Chaitanya",
+            "id": "S210487",
+            "phone": "9347627074",
+            "branch": "CIVIL",
+            "year": "E2",
+            "role": "Civil Coordinator"
+        },
+        {
+            "name": "V.V. Durga Neelima",
+            "id": "S210294",
+            "phone": "8328671397",
+            "branch": "CIVIL",
+            "year": "E2",
+            "role": "Civil Coordinator"
+        },
+        {
+            "name": "J. Jeevan",
+            "id": "S211002",
+            "phone": "8328060854",
+            "branch": "MECH",
+            "year": "E2",
+            "role": "Mechanical Coordinator"
+        },
+        {
+            "name": "P. Priyanka",
+            "id": "S210338",
+            "phone": "7981023056",
+            "branch": "MECH",
+            "year": "E2",
+            "role": "Mechanical Coordinator"
+        }
+    ]
+},
+  
   {
     id: 'marketing',
     name: 'Marketing And Publicity Team',
@@ -2216,7 +2217,7 @@ function TeamSection({ team, isOpen, onToggle }) {
 }
 
 function TeamShowcase() {
-  const [openTeam, setOpenTeam] = useState('department-coordinator');
+  const [openTeam, setOpenTeam] = useState('student-coordinators');
 
   return (
     <div className="min-h-screen mt-12 bg-gradient-to-b from-black to-gray-900 py-12 px-4 sm:px-6 lg:px-8">
